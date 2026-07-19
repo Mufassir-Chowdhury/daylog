@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__svelte__list-sections",
+      "mcp__svelte__get-documentation",
+      "mcp__svelte__svelte-autofixer",
+      "PowerShell(npm run *)",
+      "PowerShell(npx eslint . 2>&1 | Select-Object -First 40)",
+      "PowerShell(npx vitest --run --project server 2>&1 | Select-Object -Last 12)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "svelte"
+  ]
+}
