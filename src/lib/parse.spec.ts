@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	doneContent,
 	extractMentions,
 	highlightLine,
 	isValidHandle,
@@ -8,7 +9,8 @@ import {
 	parseTime,
 	segments,
 	stripMention,
-	timeLabel
+	timeLabel,
+	toggleDone
 } from './parse';
 
 describe('parseTime', () => {
@@ -85,6 +87,37 @@ describe('parseDay', () => {
 		expect(day.timed.map((l) => l.timeLabel)).toEqual(['8:00 AM', '9:00 PM']);
 		expect(day.notes.map((l) => l.raw)).toEqual(['buy milk', 'ask @Rahim for the report']);
 	});
+
+	it('marks crossed-out lines done, keeping timed ones in the schedule', () => {
+		const day = parseDay('~~buy milk~~\n~~09:00PM call @mom~~\nask @Rahim');
+		expect(day.timed).toHaveLength(1);
+		expect(day.timed[0]).toMatchObject({ done: true, timeLabel: '9:00 PM' });
+		expect(day.notes.map((l) => [l.raw, l.done])).toEqual([
+			['~~buy milk~~', true],
+			['ask @Rahim', false]
+		]);
+		expect(day.notes[0].segments).toEqual([{ kind: 'text', text: 'buy milk' }]);
+	});
+});
+
+describe('doneContent', () => {
+	it('unwraps fully crossed-out lines only', () => {
+		expect(doneContent('~~buy milk~~')).toBe('buy milk');
+		expect(doneContent('  ~~buy milk~~ ')).toBe('buy milk');
+		expect(doneContent('buy milk')).toBeNull();
+		expect(doneContent('~~partial~~ but not all')).toBeNull();
+		expect(doneContent('~~~~')).toBeNull();
+	});
+});
+
+describe('toggleDone', () => {
+	it('wraps and unwraps a line, preserving surrounding whitespace', () => {
+		expect(toggleDone('buy milk')).toBe('~~buy milk~~');
+		expect(toggleDone('~~buy milk~~')).toBe('buy milk');
+		expect(toggleDone('  buy milk ')).toBe('  ~~buy milk~~ ');
+		expect(toggleDone(toggleDone('  buy milk '))).toBe('  buy milk ');
+		expect(toggleDone('   ')).toBe('   ');
+	});
 });
 
 describe('extractMentions', () => {
@@ -97,14 +130,23 @@ describe('extractMentions', () => {
 describe('highlightLine', () => {
 	it('preserves every character, including the time prefix', () => {
 		const line = '- 09:00PM call @mom now';
-		const segs = highlightLine(line);
+		const { done, segments: segs } = highlightLine(line);
+		expect(done).toBe(false);
 		expect(segs.map((s) => s.text).join('')).toBe(line);
 		expect(segs[0]).toEqual({ kind: 'time', text: '- 09:00PM' });
 		expect(segs.some((s) => s.kind === 'mention' && s.text === '@mom')).toBe(true);
 	});
 
 	it('falls back to plain segments for untimed lines', () => {
-		expect(highlightLine('ask @Rahim').map((s) => s.kind)).toEqual(['text', 'mention']);
+		expect(highlightLine('ask @Rahim').segments.map((s) => s.kind)).toEqual(['text', 'mention']);
+	});
+
+	it('preserves every character of crossed-out lines, including the ~~ markers', () => {
+		const line = ' ~~09:00PM call @mom~~ ';
+		const { done, segments: segs } = highlightLine(line);
+		expect(done).toBe(true);
+		expect(segs.map((s) => s.text).join('')).toBe(line);
+		expect(segs.some((s) => s.kind === 'time')).toBe(true);
 	});
 });
 

@@ -32,9 +32,33 @@ export interface Note {
 	tags: string[];
 }
 
+export interface Subtask {
+	text: string;
+	done: boolean;
+}
+
+/**
+ * A long-standing task (e.g. "master's thesis") lives outside any single day:
+ * it shows up on every day page from the day it was added until the day it was
+ * crossed out, so nothing needs to be copied forward. Crossing it out on a day
+ * keeps it visible (struck through) on that day only.
+ */
+export interface LongTermTask {
+	id: string;
+	text: string;
+	/** Priority — lower sorts first. */
+	order: number;
+	/** Day key (`YYYY-MM-DD`) the task was added. */
+	createdOn: string;
+	/** Day key it was crossed out, or null while still open. */
+	completedOn: string | null;
+	subtasks: Subtask[];
+}
+
 const daysCol = (uid: string) => collection(db, 'users', uid, 'days');
 const peopleCol = (uid: string) => collection(db, 'users', uid, 'people');
 const notesCol = (uid: string) => collection(db, 'users', uid, 'notes');
+const longTermCol = (uid: string) => collection(db, 'users', uid, 'longterm');
 
 export async function loadDay(uid: string, key: string): Promise<string> {
 	const snap = await getDoc(doc(daysCol(uid), key));
@@ -144,4 +168,33 @@ export async function saveNote(uid: string, note: Note): Promise<void> {
 
 export async function deleteNote(uid: string, id: string): Promise<void> {
 	await deleteDoc(doc(notesCol(uid), id));
+}
+
+/** Reserves a fresh long-term task id without writing anything yet. */
+export function newLongTermId(uid: string): string {
+	return doc(longTermCol(uid)).id;
+}
+
+export async function listLongTermTasks(uid: string): Promise<LongTermTask[]> {
+	const snap = await getDocs(query(longTermCol(uid), orderBy('order')));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			text: (data.text as string) ?? '',
+			order: (data.order as number) ?? 0,
+			createdOn: (data.createdOn as string) ?? '',
+			completedOn: (data.completedOn as string | null) ?? null,
+			subtasks: (data.subtasks as Subtask[]) ?? []
+		};
+	});
+}
+
+export async function saveLongTermTask(uid: string, task: LongTermTask): Promise<void> {
+	const { id, ...rest } = task;
+	await setDoc(doc(longTermCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteLongTermTask(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(longTermCol(uid), id));
 }

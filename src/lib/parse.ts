@@ -10,11 +10,33 @@ const MENTION_RE = /@([A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*)/g;
 const TIME_RE =
 	/^\s*(?:[-*]\s+)?(\d{1,2}):(\d{2})\s*([ap])\.?m\.?(?=\s|$)|^\s*(?:[-*]\s+)?(\d{1,2}):(\d{2})(?=\s|$)/i;
 
+/** A whole line wrapped in `~~ ~~` is crossed out (done). Captures: leading ws, content, trailing ws. */
+const DONE_RE = /^(\s*)~~(.*\S.*)~~(\s*)$/;
+
+/** The content inside a crossed-out line's `~~ ~~` wrapper, or null if the line isn't crossed out. */
+export function doneContent(line: string): string | null {
+	const m = DONE_RE.exec(line);
+	return m ? m[2] : null;
+}
+
+/** Crosses a line out (wraps it in `~~ ~~`) or back in (unwraps it). Blank lines pass through. */
+export function toggleDone(line: string): string {
+	const m = DONE_RE.exec(line);
+	if (m) return m[1] + m[2] + m[3];
+	if (line.trim() === '') return line;
+	const lead = /^\s*/.exec(line)![0];
+	const trail = /\s*$/.exec(line.slice(lead.length))![0];
+	const core = line.slice(lead.length, line.length - trail.length);
+	return `${lead}~~${core}~~${trail}`;
+}
+
 export type Segment =
 	{ kind: 'text'; text: string } | { kind: 'mention'; handle: string; text: string };
 
 export interface Line {
 	raw: string;
+	/** True if the line is crossed out (`~~ ~~`-wrapped). */
+	done: boolean;
 	/** Minutes since midnight, or null for untimed lines. */
 	time: number | null;
 	/** e.g. "9:00 PM" for timed lines. */
@@ -71,12 +93,32 @@ export function segments(text: string): Segment[] {
 
 export type HighlightSegment = Segment | { kind: 'time'; text: string };
 
+export interface HighlightedLine {
+	/** True if the line is crossed out — the editor strikes the whole line through. */
+	done: boolean;
+	segments: HighlightSegment[];
+}
+
 /**
  * Segments a raw line for inline highlighting in the editor. Unlike parseDay,
- * every character of the line is preserved (including the time prefix and its
- * whitespace) so the highlighted backdrop aligns exactly with the textarea.
+ * every character of the line is preserved (including the time prefix, `~~`
+ * markers and whitespace) so the highlighted backdrop aligns exactly with the
+ * textarea.
  */
-export function highlightLine(line: string): HighlightSegment[] {
+export function highlightLine(line: string): HighlightedLine {
+	const m = DONE_RE.exec(line);
+	if (!m) return { done: false, segments: highlightContent(line) };
+	return {
+		done: true,
+		segments: [
+			{ kind: 'text', text: `${m[1]}~~` },
+			...highlightContent(m[2]),
+			{ kind: 'text', text: `~~${m[3]}` }
+		]
+	};
+}
+
+function highlightContent(line: string): HighlightSegment[] {
 	const m = TIME_RE.exec(line);
 	if (!m) return segments(line);
 	return [{ kind: 'time', text: m[0] }, ...segments(line.slice(m[0].length))];
@@ -97,16 +139,20 @@ export function parseDay(text: string): ParsedDay {
 	const notes: Line[] = [];
 	for (const raw of text.split('\n')) {
 		if (raw.trim() === '') continue;
-		const t = parseTime(raw);
+		const inner = doneContent(raw);
+		const done = inner !== null;
+		const content = inner ?? raw;
+		const t = parseTime(content);
 		if (t) {
 			timed.push({
 				raw,
+				done,
 				time: t.minutes,
 				timeLabel: timeLabel(t.minutes),
 				segments: segments(t.rest)
 			});
 		} else {
-			notes.push({ raw, time: null, timeLabel: null, segments: segments(raw) });
+			notes.push({ raw, done, time: null, timeLabel: null, segments: segments(content) });
 		}
 	}
 	timed.sort((a, b) => (a.time ?? 0) - (b.time ?? 0));

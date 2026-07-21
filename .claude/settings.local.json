@@ -11,7 +11,10 @@
       "PowerShell(npx svelte-check --tsconfig ./tsconfig.json 2>&1 | Select-Object -Last 100)",
       "PowerShell(npx prettier --write src/lib/db.ts src/lib/components/NewNotePanel.svelte src/routes/notes/+page.ts src/routes/notes/+page.svelte \"src/routes/notes/[id]/+page.ts\" \"src/routes/notes/[id]/+page.svelte\" \"src/routes/day/[date]/+page.svelte\" src/routes/+layout.svelte 2>&1)",
       "PowerShell(git status *)",
-      "PowerShell(npx vitest run 2>&1 | Select-Object -Last 60)"
+      "PowerShell(npx vitest run 2>&1 | Select-Object -Last 60)",
+      "PowerShell(npx svelte-check --tsconfig ./tsconfig.json --output machine 2>$null | Select-String -SimpleMatch 'todo/src','todo\\\\src'; \"---exit $LASTEXITCODE---\")",
+      "PowerShell(git stash *)",
+      "PowerShell(npx eslint src/lib/parse.ts src/lib/parse.spec.ts src/lib/db.ts \"src/lib/components/LongTermPanel.svelte\" \"src/lib/components/LineView.svelte\" \"src/lib/components/MentionEditor.svelte\" \"src/routes/day/[date]/+page.svelte\" \"src/routes/day/[date]/+page.ts\"; \"exit=$LASTEXITCODE\")"
     ]
   },
   "enabledMcpjsonServers": [

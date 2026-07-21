@@ -52,6 +52,14 @@ describe('MentionEditor', () => {
 		await expect.element(screen.getByRole('listbox')).not.toBeInTheDocument();
 	});
 
+	it('ctrl+enter crosses the current line out and back in', async () => {
+		const screen = render(MentionEditor, { props: { value: 'buy milk', people } });
+		await userEvent.keyboard('{Control>}{Enter}{/Control}');
+		await expect.element(screen.getByRole('textbox')).toHaveValue('~~buy milk~~');
+		await userEvent.keyboard('{Control>}{Enter}{/Control}');
+		await expect.element(screen.getByRole('textbox')).toHaveValue('buy milk');
+	});
+
 	it('escape dismisses the suggestion dropdown', async () => {
 		const screen = render(MentionEditor, { props: { value: '', people } });
 		await userEvent.keyboard('@');

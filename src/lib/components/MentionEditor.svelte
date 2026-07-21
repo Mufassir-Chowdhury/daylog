@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import type { Person } from '$lib/db';
-	import { highlightLine, isValidHandle, type HighlightSegment } from '$lib/parse';
+	import { highlightLine, isValidHandle, toggleDone, type HighlightedLine } from '$lib/parse';
 
 	let {
 		value = $bindable(''),
@@ -34,16 +34,14 @@
 		return c !== null && dismissedAt !== c.start;
 	});
 
-	// Flat highlight segments for the whole text; the trailing newline keeps the
-	// backdrop's height in sync when the text ends with an empty line.
+	// Per-line highlight segments; the trailing newline keeps the backdrop's
+	// height in sync when the text ends with an empty line.
 	const highlighted = $derived.by(() => {
-		const out: HighlightSegment[] = [];
 		const lines = value.split('\n');
-		for (const [i, line] of lines.entries()) {
-			out.push(...highlightLine(line));
-			out.push({ kind: 'text', text: i < lines.length - 1 ? '\n' : '\n\n' });
-		}
-		return out;
+		return lines.map((line, i): HighlightedLine & { newline: string } => ({
+			...highlightLine(line),
+			newline: i < lines.length - 1 ? '\n' : '\n\n'
+		}));
 	});
 
 	const suggestions = $derived.by(() => {
@@ -157,7 +155,34 @@
 		if (!people.some((p) => p.handle === handle)) onnewperson?.(handle);
 	}
 
+	/** Ctrl/Cmd+Enter wraps the caret's line in `~~ ~~` (or unwraps it). */
+	async function toggleCurrentLine() {
+		const el = textareaEl;
+		if (!el) return;
+		const caret = el.selectionStart;
+		const start = value.lastIndexOf('\n', caret - 1) + 1;
+		const nl = value.indexOf('\n', caret);
+		const end = nl === -1 ? value.length : nl;
+		const line = value.slice(start, end);
+		const toggled = toggleDone(line);
+		if (toggled === line) return;
+		value = value.slice(0, start) + toggled + value.slice(end);
+		oninput?.();
+		await tick();
+		const pos = Math.min(
+			Math.max(caret + (toggled.length - line.length) / 2, start),
+			start + toggled.length
+		);
+		el.setSelectionRange(pos, pos);
+		el.focus();
+	}
+
 	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			toggleCurrentLine();
+			return;
+		}
 		if (!active || !ctx) return;
 		if (e.key === 'ArrowDown' && suggestions.length > 0) {
 			e.preventDefault();
@@ -200,10 +225,12 @@
 		aria-hidden="true"
 		class="editor-layer pointer-events-none absolute inset-0 overflow-hidden rounded-xl border border-transparent bg-white p-3 font-mono text-sm leading-relaxed text-gray-800 shadow-sm"
 	>
-		{#each highlighted as segment, i (i)}{#if segment.kind === 'time'}<span class="text-amber-700"
-					>{segment.text}</span
-				>{:else if segment.kind === 'mention'}<span class="text-blue-600">{segment.text}</span
-				>{:else}{segment.text}{/if}{/each}
+		{#each highlighted as line, i (i)}{#if line.done}<span class="text-gray-400 line-through"
+					>{line.segments.map((s) => s.text).join('')}</span
+				>{:else}{#each line.segments as segment, j (j)}{#if segment.kind === 'time'}<span
+							class="text-amber-700">{segment.text}</span
+						>{:else if segment.kind === 'mention'}<span class="text-blue-600">{segment.text}</span
+						>{:else}{segment.text}{/if}{/each}{/if}{line.newline}{/each}
 	</div>
 	<textarea
 		bind:this={textareaEl}

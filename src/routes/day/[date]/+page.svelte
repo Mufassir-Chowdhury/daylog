@@ -3,11 +3,12 @@
 	import { resolve } from '$app/paths';
 	import { session } from '$lib/auth.svelte';
 	import LineView from '$lib/components/LineView.svelte';
+	import LongTermPanel from '$lib/components/LongTermPanel.svelte';
 	import MentionEditor from '$lib/components/MentionEditor.svelte';
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
-	import { parseDay } from '$lib/parse';
+	import { parseDay, toggleDone } from '$lib/parse';
 
 	let { data } = $props();
 
@@ -18,6 +19,7 @@
 	// reassignable in between (typing, adding a person from the editor).
 	let text = $derived(data.text);
 	let people = $derived(data.people);
+	let longTerm = $derived(data.longTerm);
 
 	const parsed = $derived(parseDay(text));
 
@@ -43,6 +45,16 @@
 			saveState = 'error';
 		});
 		saveState = 'saved';
+	}
+
+	// Crosses a schedule line out (or back in) by rewriting its raw line in the text.
+	function toggleLine(raw: string) {
+		const lines = text.split('\n');
+		const i = lines.indexOf(raw);
+		if (i === -1) return;
+		lines[i] = toggleDone(lines[i]);
+		text = lines.join('\n');
+		onInput();
 	}
 
 	// A mention was committed in the editor for someone new — this is the only
@@ -116,11 +128,12 @@
 			<h2 class="mb-2 text-xs font-semibold tracking-wide text-amber-700 uppercase">Schedule</h2>
 			<div class="space-y-1">
 				{#each parsed.timed as line, i (i)}
-					<LineView {line} />
+					<LineView {line} ontoggle={() => toggleLine(line.raw)} />
 				{/each}
 			</div>
 		</section>
 	{/if}
+	<LongTermPanel {uid} {date} bind:tasks={longTerm} />
 	<div>
 		<MentionEditor
 			bind:value={text}
@@ -135,7 +148,8 @@ buy milk"
 		/>
 		<p class="mt-2 text-xs text-gray-400">
 			Start a line with a time (<code>09:00PM</code>) to pin it to the schedule · type
-			<code>@</code> to mention someone — space or enter adds new people
+			<code>@</code> to mention someone — space or enter adds new people · wrap a line in
+			<code>~~tildes~~</code> (or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>) to cross it out
 		</p>
 	</div>
 </div>
