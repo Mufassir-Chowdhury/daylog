@@ -14,7 +14,14 @@
       "PowerShell(npx vitest run 2>&1 | Select-Object -Last 60)",
       "PowerShell(npx svelte-check --tsconfig ./tsconfig.json --output machine 2>$null | Select-String -SimpleMatch 'todo/src','todo\\\\src'; \"---exit $LASTEXITCODE---\")",
       "PowerShell(git stash *)",
-      "PowerShell(npx eslint src/lib/parse.ts src/lib/parse.spec.ts src/lib/db.ts \"src/lib/components/LongTermPanel.svelte\" \"src/lib/components/LineView.svelte\" \"src/lib/components/MentionEditor.svelte\" \"src/routes/day/[date]/+page.svelte\" \"src/routes/day/[date]/+page.ts\"; \"exit=$LASTEXITCODE\")"
+      "PowerShell(npx eslint src/lib/parse.ts src/lib/parse.spec.ts src/lib/db.ts \"src/lib/components/LongTermPanel.svelte\" \"src/lib/components/LineView.svelte\" \"src/lib/components/MentionEditor.svelte\" \"src/routes/day/[date]/+page.svelte\" \"src/routes/day/[date]/+page.ts\"; \"exit=$LASTEXITCODE\")",
+      "Skill(dataviz)",
+      "Bash(node scripts/validate_palette.js \"#008300,#e34948\" --mode light)",
+      "Bash(node scripts/validate_palette.js \"#008300,#e34948\" --mode dark)",
+      "PowerShell(npx vitest run src/lib/finance.spec.ts src/lib/date.spec.ts)",
+      "PowerShell($lines = Get-Content \"$env:TEMP\\\\svcheck.txt\"; $srcErr = $lines | Select-String -SimpleMatch 'todo\\\\src\\\\'; \"src hits: $\\($srcErr.Count\\)\"; $srcErr | Select-Object -First 10; $lines | Select-Object -Last 3)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(npx prettier --write src/lib/components/FinancePanel.svelte src/lib/components/MonthlyChart.svelte src/lib/finance.ts src/lib/finance.spec.ts src/lib/db.ts \"src/routes/day/[date]/+page.ts\" \"src/routes/day/[date]/+page.svelte\" src/routes/finance/+page.ts src/routes/finance/+page.svelte src/routes/+layout.svelte; npx eslint src/lib/finance.ts src/lib/finance.spec.ts src/lib/db.ts src/lib/components/FinancePanel.svelte src/lib/components/MonthlyChart.svelte src/routes/finance src/routes/+layout.svelte \"src/routes/day/[date]\")"
     ]
   },
   "enabledMcpjsonServers": [

@@ -3,7 +3,11 @@
 	"compilerOptions": {
 		"rewriteRelativeImportExtensions": true,
 		"allowJs": true,
-		"checkJs": true,
+		// checkJs stays off: worker-configuration.d.ts (wrangler types) imports the
+		// built .svelte-kit/cloudflare/_worker.js, and checking that generated JS
+		// floods svelte-check with hundreds of errors after every build. All project
+		// sources are TypeScript/Svelte, so nothing of ours goes unchecked.
+		"checkJs": false,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"resolveJsonModule": true,

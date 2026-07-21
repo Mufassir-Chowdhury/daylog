@@ -55,10 +55,48 @@ export interface LongTermTask {
 	subtasks: Subtask[];
 }
 
+/** A place money lives — bank account, mobile wallet, or cash in hand. */
+export interface Account {
+	id: string;
+	name: string;
+	/** Balance before any recorded transactions — set once so running balances line up with reality. */
+	startingBalance: number;
+	/** Lower sorts first. */
+	order: number;
+}
+
+/**
+ * `lend` = money you handed to a person (they owe you — or it settles what you
+ * owed them); `borrow` = money a person handed to you (you owe them — or it
+ * settles what they owed you). Debts net out per person from these two kinds.
+ */
+export type TransactionKind = 'income' | 'expense' | 'transfer' | 'lend' | 'borrow';
+
+export interface Transaction {
+	id: string;
+	/** Day key (`YYYY-MM-DD`) the transaction happened. */
+	date: string;
+	kind: TransactionKind;
+	/** e.g. salary, lunch, transport — free text, presets suggested in the UI. */
+	category: string;
+	amount: number;
+	/** Account id the money left — null for income and borrow. */
+	from: string | null;
+	/** Account id the money entered — null for expense and lend. */
+	to: string | null;
+	/** Person handle on the other side of a lend/borrow — null for other kinds. */
+	person: string | null;
+	note: string;
+	/** Client clock millis — orders transactions within a day. */
+	createdAt: number;
+}
+
 const daysCol = (uid: string) => collection(db, 'users', uid, 'days');
 const peopleCol = (uid: string) => collection(db, 'users', uid, 'people');
 const notesCol = (uid: string) => collection(db, 'users', uid, 'notes');
 const longTermCol = (uid: string) => collection(db, 'users', uid, 'longterm');
+const accountsCol = (uid: string) => collection(db, 'users', uid, 'accounts');
+const txnsCol = (uid: string) => collection(db, 'users', uid, 'transactions');
 
 export async function loadDay(uid: string, key: string): Promise<string> {
 	const snap = await getDoc(doc(daysCol(uid), key));
@@ -197,4 +235,76 @@ export async function saveLongTermTask(uid: string, task: LongTermTask): Promise
 
 export async function deleteLongTermTask(uid: string, id: string): Promise<void> {
 	await deleteDoc(doc(longTermCol(uid), id));
+}
+
+/** Reserves a fresh account id without writing anything yet. */
+export function newAccountId(uid: string): string {
+	return doc(accountsCol(uid)).id;
+}
+
+export async function listAccounts(uid: string): Promise<Account[]> {
+	const snap = await getDocs(query(accountsCol(uid), orderBy('order')));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			name: (data.name as string) ?? '',
+			startingBalance: (data.startingBalance as number) ?? 0,
+			order: (data.order as number) ?? 0
+		};
+	});
+}
+
+export async function saveAccount(uid: string, account: Account): Promise<void> {
+	const { id, ...rest } = account;
+	await setDoc(doc(accountsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteAccount(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(accountsCol(uid), id));
+}
+
+/** Reserves a fresh transaction id without writing anything yet. */
+export function newTransactionId(uid: string): string {
+	return doc(txnsCol(uid)).id;
+}
+
+function toTransaction(id: string, data: Record<string, unknown>): Transaction {
+	return {
+		id,
+		date: (data.date as string) ?? '',
+		kind: (data.kind as TransactionKind) ?? 'expense',
+		category: (data.category as string) ?? '',
+		amount: (data.amount as number) ?? 0,
+		from: (data.from as string | null) ?? null,
+		to: (data.to as string | null) ?? null,
+		person: (data.person as string | null) ?? null,
+		note: (data.note as string) ?? '',
+		createdAt: (data.createdAt as number) ?? 0
+	};
+}
+
+/** All transactions, newest day first; stable within a day by entry time. */
+export async function listTransactions(uid: string): Promise<Transaction[]> {
+	const snap = await getDocs(query(txnsCol(uid), orderBy('date', 'desc')));
+	return snap.docs
+		.map((d) => toTransaction(d.id, d.data()))
+		.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+}
+
+/** A single day's transactions in the order they were entered. */
+export async function listDayTransactions(uid: string, key: string): Promise<Transaction[]> {
+	const snap = await getDocs(query(txnsCol(uid), where('date', '==', key)));
+	return snap.docs
+		.map((d) => toTransaction(d.id, d.data()))
+		.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function saveTransaction(uid: string, txn: Transaction): Promise<void> {
+	const { id, ...rest } = txn;
+	await setDoc(doc(txnsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteTransaction(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(txnsCol(uid), id));
 }

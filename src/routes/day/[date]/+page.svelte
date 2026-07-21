@@ -2,6 +2,7 @@
 	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { session } from '$lib/auth.svelte';
+	import FinancePanel from '$lib/components/FinancePanel.svelte';
 	import LineView from '$lib/components/LineView.svelte';
 	import LongTermPanel from '$lib/components/LongTermPanel.svelte';
 	import MentionEditor from '$lib/components/MentionEditor.svelte';
@@ -20,6 +21,8 @@
 	let text = $derived(data.text);
 	let people = $derived(data.people);
 	let longTerm = $derived(data.longTerm);
+	let accounts = $derived(data.accounts);
+	let txns = $derived(data.txns);
 
 	const parsed = $derived(parseDay(text));
 
@@ -134,6 +137,7 @@
 		</section>
 	{/if}
 	<LongTermPanel {uid} {date} bind:tasks={longTerm} />
+	<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />
 	<div>
 		<MentionEditor
 			bind:value={text}
