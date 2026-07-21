@@ -4,6 +4,7 @@
 	import { session } from '$lib/auth.svelte';
 	import LineView from '$lib/components/LineView.svelte';
 	import MentionEditor from '$lib/components/MentionEditor.svelte';
+	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
 	import { parseDay } from '$lib/parse';
@@ -104,6 +105,10 @@
 		</span>
 	{/if}
 </h1>
+
+<div class="mt-4">
+	<NewNotePanel {uid} />
+</div>
 
 <div class="mt-4 space-y-4">
 	{#if parsed.timed.length > 0}

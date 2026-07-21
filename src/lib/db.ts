@@ -1,5 +1,6 @@
 import {
 	collection,
+	deleteDoc,
 	doc,
 	getDoc,
 	getDocs,
@@ -24,8 +25,16 @@ export interface Person {
 	bio?: string;
 }
 
+export interface Note {
+	id: string;
+	title: string;
+	content: string;
+	tags: string[];
+}
+
 const daysCol = (uid: string) => collection(db, 'users', uid, 'days');
 const peopleCol = (uid: string) => collection(db, 'users', uid, 'people');
+const notesCol = (uid: string) => collection(db, 'users', uid, 'notes');
 
 export async function loadDay(uid: string, key: string): Promise<string> {
 	const snap = await getDoc(doc(daysCol(uid), key));
@@ -92,4 +101,47 @@ export async function daysMentioning(
 	return snap.docs
 		.map((d) => ({ date: d.id, text: (d.data() as DayDoc).text }))
 		.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Reserves a fresh note id without writing anything yet. */
+export function newNoteId(uid: string): string {
+	return doc(notesCol(uid)).id;
+}
+
+export async function listNotes(uid: string): Promise<Note[]> {
+	const snap = await getDocs(query(notesCol(uid), orderBy('updatedAt', 'desc')));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			title: (data.title as string) ?? '',
+			content: (data.content as string) ?? '',
+			tags: (data.tags as string[]) ?? []
+		};
+	});
+}
+
+export async function loadNote(uid: string, id: string): Promise<Note> {
+	const snap = await getDoc(doc(notesCol(uid), id));
+	if (!snap.exists()) return { id, title: '', content: '', tags: [] };
+	const data = snap.data();
+	return {
+		id,
+		title: (data.title as string) ?? '',
+		content: (data.content as string) ?? '',
+		tags: (data.tags as string[]) ?? []
+	};
+}
+
+export async function saveNote(uid: string, note: Note): Promise<void> {
+	await setDoc(doc(notesCol(uid), note.id), {
+		title: note.title,
+		content: note.content,
+		tags: note.tags,
+		updatedAt: serverTimestamp()
+	});
+}
+
+export async function deleteNote(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(notesCol(uid), id));
 }

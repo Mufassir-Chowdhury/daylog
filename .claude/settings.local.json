@@ -6,7 +6,12 @@
       "mcp__svelte__svelte-autofixer",
       "PowerShell(npm run *)",
       "PowerShell(npx eslint . 2>&1 | Select-Object -First 40)",
-      "PowerShell(npx vitest --run --project server 2>&1 | Select-Object -Last 12)"
+      "PowerShell(npx vitest --run --project server 2>&1 | Select-Object -Last 12)",
+      "PowerShell(npx svelte-kit sync; npx svelte-check --tsconfig ./tsconfig.json 2>&1 | Select-Object -Last 100)",
+      "PowerShell(npx svelte-check --tsconfig ./tsconfig.json 2>&1 | Select-Object -Last 100)",
+      "PowerShell(npx prettier --write src/lib/db.ts src/lib/components/NewNotePanel.svelte src/routes/notes/+page.ts src/routes/notes/+page.svelte \"src/routes/notes/[id]/+page.ts\" \"src/routes/notes/[id]/+page.svelte\" \"src/routes/day/[date]/+page.svelte\" src/routes/+layout.svelte 2>&1)",
+      "PowerShell(git status *)",
+      "PowerShell(npx vitest run 2>&1 | Select-Object -Last 60)"
     ]
   },
   "enabledMcpjsonServers": [

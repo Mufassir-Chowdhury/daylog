@@ -27,6 +27,7 @@
 				<a href={today()} class="text-lg font-bold text-gray-900">daylog</a>
 				<a href={today()} class="text-sm text-gray-600 hover:text-gray-900">Today</a>
 				<a href={resolve('/people')} class="text-sm text-gray-600 hover:text-gray-900">People</a>
+				<a href={resolve('/notes')} class="text-sm text-gray-600 hover:text-gray-900">Notes</a>
 				<div class="ml-auto flex items-center gap-3">
 					<button
 						type="button"
