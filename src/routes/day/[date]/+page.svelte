@@ -10,6 +10,7 @@
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
 	import { parseDay, toggleDone } from '$lib/parse';
+	import { settings } from '$lib/settings.svelte';
 
 	let { data } = $props();
 
@@ -121,9 +122,11 @@
 	{/if}
 </h1>
 
-<div class="mt-4">
-	<NewNotePanel {uid} />
-</div>
+{#if settings.showNotePanel}
+	<div class="mt-4">
+		<NewNotePanel {uid} />
+	</div>
+{/if}
 
 <div class="mt-4 space-y-4">
 	{#if parsed.timed.length > 0}
@@ -136,8 +139,12 @@
 			</div>
 		</section>
 	{/if}
-	<LongTermPanel {uid} {date} bind:tasks={longTerm} />
-	<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />
+	{#if settings.showLongTermPanel}
+		<LongTermPanel {uid} {date} bind:tasks={longTerm} />
+	{/if}
+	{#if settings.showFinancePanel}
+		<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />
+	{/if}
 	<div>
 		<MentionEditor
 			bind:value={text}

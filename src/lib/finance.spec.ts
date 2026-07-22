@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Account, Transaction } from './db';
 import { balances, formatMoney, monthlySummaries, personBalances, signedAmount } from './finance';
+import { applySettings } from './settings.svelte';
 
 const acct = (id: string, startingBalance: number): Account => ({
 	id,
@@ -88,8 +89,17 @@ describe('monthlySummaries', () => {
 });
 
 describe('money formatting', () => {
-	it('uses taka with lakh grouping', () => {
+	it('uses taka with lakh grouping by default', () => {
 		expect(formatMoney(150000)).toBe('৳1,50,000');
+	});
+
+	it('follows the currency and grouping settings', () => {
+		applySettings({ currency: '$', grouping: 'thousand' });
+		try {
+			expect(formatMoney(150000)).toBe('$150,000');
+		} finally {
+			applySettings({});
+		}
 	});
 
 	it('signs amounts by kind', () => {

@@ -9,10 +9,12 @@ import {
 	serverTimestamp,
 	setDoc,
 	where,
-	writeBatch
+	writeBatch,
+	type WriteBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
+import type { AppSettings } from './settings.svelte';
 
 export interface DayDoc {
 	text: string;
@@ -91,12 +93,25 @@ export interface Transaction {
 	createdAt: number;
 }
 
+const settingsDoc = (uid: string) => doc(db, 'users', uid, 'settings', 'app');
 const daysCol = (uid: string) => collection(db, 'users', uid, 'days');
 const peopleCol = (uid: string) => collection(db, 'users', uid, 'people');
 const notesCol = (uid: string) => collection(db, 'users', uid, 'notes');
 const longTermCol = (uid: string) => collection(db, 'users', uid, 'longterm');
 const accountsCol = (uid: string) => collection(db, 'users', uid, 'accounts');
 const txnsCol = (uid: string) => collection(db, 'users', uid, 'transactions');
+
+export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
+	const snap = await getDoc(settingsDoc(uid));
+	if (!snap.exists()) return {};
+	const data = snap.data();
+	delete data.updatedAt;
+	return data as Partial<AppSettings>;
+}
+
+export async function saveSettings(uid: string, settings: AppSettings): Promise<void> {
+	await setDoc(settingsDoc(uid), { ...settings, updatedAt: serverTimestamp() });
+}
 
 export async function loadDay(uid: string, key: string): Promise<string> {
 	const snap = await getDoc(doc(daysCol(uid), key));
@@ -114,6 +129,14 @@ export async function saveDay(uid: string, key: string, text: string): Promise<v
 		mentions: extractMentions(text),
 		updatedAt: serverTimestamp()
 	});
+}
+
+/** Every day's raw text, oldest first (doc ids are `YYYY-MM-DD`, so they sort chronologically). */
+export async function listDays(uid: string): Promise<{ date: string; text: string }[]> {
+	const snap = await getDocs(daysCol(uid));
+	return snap.docs
+		.map((d) => ({ date: d.id, text: (d.data() as DayDoc).text ?? '' }))
+		.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function listPeople(uid: string): Promise<Person[]> {
@@ -307,4 +330,74 @@ export async function saveTransaction(uid: string, txn: Transaction): Promise<vo
 
 export async function deleteTransaction(uid: string, id: string): Promise<void> {
 	await deleteDoc(doc(txnsCol(uid), id));
+}
+
+/** Everything a user has stored — the unit of backup export/import. */
+export interface UserData {
+	settings: Partial<AppSettings>;
+	days: { date: string; text: string }[];
+	people: Person[];
+	notes: Note[];
+	longTermTasks: LongTermTask[];
+	accounts: Account[];
+	transactions: Transaction[];
+}
+
+export async function exportUserData(uid: string): Promise<UserData> {
+	const [settings, days, people, notes, longTermTasks, accounts, transactions] = await Promise.all([
+		loadSettings(uid),
+		listDays(uid),
+		listPeople(uid),
+		listNotes(uid),
+		listLongTermTasks(uid),
+		listAccounts(uid),
+		listTransactions(uid)
+	]);
+	return { settings, days, people, notes, longTermTasks, accounts, transactions };
+}
+
+/**
+ * Writes a backup into the user's data. Docs are keyed the same way the app
+ * writes them (days by date, people by handle, the rest by id), so importing
+ * overwrites matching docs and leaves everything else untouched — re-running
+ * a partially failed import is safe.
+ */
+export async function importUserData(uid: string, data: UserData): Promise<void> {
+	const ops: ((batch: WriteBatch) => void)[] = [];
+	if (Object.keys(data.settings).length > 0)
+		ops.push((b) => b.set(settingsDoc(uid), { ...data.settings, updatedAt: serverTimestamp() }));
+	for (const day of data.days)
+		ops.push((b) =>
+			b.set(doc(daysCol(uid), day.date), {
+				text: day.text,
+				mentions: extractMentions(day.text),
+				updatedAt: serverTimestamp()
+			})
+		);
+	for (const person of data.people)
+		ops.push((b) =>
+			b.set(doc(peopleCol(uid), person.handle), { ...person, updatedAt: serverTimestamp() })
+		);
+	for (const note of data.notes) {
+		const { id, ...rest } = note;
+		ops.push((b) => b.set(doc(notesCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const task of data.longTermTasks) {
+		const { id, ...rest } = task;
+		ops.push((b) => b.set(doc(longTermCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const account of data.accounts) {
+		const { id, ...rest } = account;
+		ops.push((b) => b.set(doc(accountsCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const txn of data.transactions) {
+		const { id, ...rest } = txn;
+		ops.push((b) => b.set(doc(txnsCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	// Firestore caps a batch at 500 writes, so commit in chunks.
+	for (let i = 0; i < ops.length; i += 450) {
+		const batch = writeBatch(db);
+		for (const op of ops.slice(i, i + 450)) op(batch);
+		await batch.commit();
+	}
 }

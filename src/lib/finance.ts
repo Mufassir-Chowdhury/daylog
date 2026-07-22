@@ -1,4 +1,5 @@
 import type { Account, Transaction, TransactionKind } from './db';
+import { settings } from './settings.svelte';
 
 /** Suggested category presets per kind — the UI also accepts free text. */
 export const CATEGORIES: Record<TransactionKind, string[]> = {
@@ -80,10 +81,13 @@ export function monthlySummaries(txns: Transaction[]): MonthSummary[] {
 }
 
 // en-IN grouping matches the Bangladeshi lakh/crore convention (1,00,000).
-const MONEY = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
+const MONEY = {
+	lakh: new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }),
+	thousand: new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+} as const;
 
 export function formatMoney(amount: number): string {
-	return `৳${MONEY.format(amount)}`;
+	return `${settings.currency}${MONEY[settings.grouping].format(amount)}`;
 }
 
 /** "+৳500" / "−৳500" / "৳500" by whether cash moved into or out of the user's accounts. */

@@ -29,6 +29,8 @@
 				<a href={resolve('/people')} class="text-sm text-gray-600 hover:text-gray-900">People</a>
 				<a href={resolve('/notes')} class="text-sm text-gray-600 hover:text-gray-900">Notes</a>
 				<a href={resolve('/finance')} class="text-sm text-gray-600 hover:text-gray-900">Finance</a>
+				<a href={resolve('/settings')} class="text-sm text-gray-600 hover:text-gray-900">Settings</a
+				>
 				<div class="ml-auto flex items-center gap-3">
 					<button
 						type="button"
