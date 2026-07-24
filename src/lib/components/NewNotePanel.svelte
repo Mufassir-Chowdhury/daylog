@@ -57,36 +57,36 @@
 	<button
 		type="button"
 		onclick={open}
-		class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+		class="rounded-ctl border border-line bg-card px-3 py-1.5 text-sm font-medium text-mute shadow-card hover:bg-tint hover:text-ink"
 	>
 		+ New note
 	</button>
 {:else}
-	<div class="space-y-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+	<div class="space-y-2 rounded-card border border-line bg-card p-4 shadow-card">
 		<input
 			type="text"
 			bind:value={title}
 			{@attach autofocus}
 			placeholder="Title"
-			class="w-full rounded-lg border-gray-300 text-sm font-medium"
+			class="w-full rounded-ctl border-line bg-card text-sm font-medium text-ink"
 		/>
 		<textarea
 			bind:value={content}
 			rows="4"
 			placeholder="Write your note…"
-			class="w-full rounded-lg border-gray-300 text-sm leading-relaxed"></textarea>
+			class="w-full rounded-ctl border-line bg-card text-sm leading-relaxed text-ink"></textarea>
 		<input
 			type="text"
 			bind:value={tagsInput}
 			placeholder="Tags, comma separated"
-			class="w-full rounded-lg border-gray-300 text-sm"
+			class="w-full rounded-ctl border-line bg-card text-sm text-ink"
 		/>
 		<div class="flex justify-end gap-2">
 			<button
 				type="button"
 				onclick={cancel}
 				disabled={saving}
-				class="rounded-lg px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+				class="rounded-ctl px-3 py-1.5 text-sm text-mute hover:bg-tint disabled:opacity-50"
 			>
 				Cancel
 			</button>
@@ -94,7 +94,7 @@
 				type="button"
 				onclick={save}
 				disabled={saving || (!title.trim() && !content.trim())}
-				class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+				class="rounded-ctl bg-accent-fill px-3 py-1.5 text-sm font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
 			>
 				{saving ? 'Saving…' : 'Save note'}
 			</button>

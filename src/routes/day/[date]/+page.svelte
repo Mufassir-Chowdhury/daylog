@@ -80,93 +80,104 @@
 
 <svelte:window onvisibilitychange={() => document.hidden && flush()} />
 
-<div class="mb-6 flex flex-wrap items-center gap-2">
-	<a
-		href={dayHref(addDays(date, -1))}
-		class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm hover:bg-gray-100"
-		aria-label="Previous day">←</a
-	>
-	<input
-		type="date"
-		value={date}
-		onchange={(e) => e.currentTarget.value && goto(dayHref(e.currentTarget.value))}
-		class="rounded-lg border-gray-300 text-sm"
-		aria-label="Pick a date"
-	/>
-	<a
-		href={dayHref(addDays(date, 1))}
-		class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm hover:bg-gray-100"
-		aria-label="Next day">→</a
-	>
-	{#if date !== dateKey()}
-		<a href={dayHref(dateKey())} class="text-sm font-medium text-blue-600 hover:underline">Today</a>
-	{:else}
-		<a href={dayHref(addDays(date, 1))} class="text-sm font-medium text-blue-600 hover:underline">
-			+ Next day
-		</a>
-	{/if}
-	<span class="ml-auto text-xs text-gray-400">
-		{#if saveState === 'error'}
-			<span class="text-red-500">save failed — will retry on next edit</span>
-		{:else if saveState === 'pending'}
-			…
-		{:else}
-			saved
+<div
+	class="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card border border-line bg-card px-4 py-3 shadow-card"
+>
+	<h1 class="font-display text-lg font-bold tracking-tight text-ink sm:text-xl">
+		{humanDate(date)}
+		{#if relativeLabel(date)}
+			<span
+				class="ml-2 rounded-full bg-accent/10 px-2.5 py-0.5 align-middle text-xs font-medium text-accent"
+			>
+				{relativeLabel(date)}
+			</span>
 		{/if}
-	</span>
+	</h1>
+	<div class="ml-auto flex flex-wrap items-center gap-2">
+		<span class="mr-1 text-xs text-faint">
+			{#if saveState === 'error'}
+				<span class="text-red-500 dark:text-red-400">save failed — will retry on next edit</span>
+			{:else if saveState === 'pending'}
+				…
+			{:else}
+				saved
+			{/if}
+		</span>
+		{#if date !== dateKey()}
+			<a href={dayHref(dateKey())} class="text-sm font-medium text-accent hover:underline">Today</a>
+		{:else}
+			<a href={dayHref(addDays(date, 1))} class="text-sm font-medium text-accent hover:underline">
+				+ Next day
+			</a>
+		{/if}
+		<a
+			href={dayHref(addDays(date, -1))}
+			class="rounded-ctl border border-line bg-card px-2.5 py-1.5 text-sm text-mute hover:bg-tint hover:text-ink"
+			aria-label="Previous day">←</a
+		>
+		<input
+			type="date"
+			value={date}
+			onchange={(e) => e.currentTarget.value && goto(dayHref(e.currentTarget.value))}
+			class="rounded-ctl border-line bg-card text-sm text-ink"
+			aria-label="Pick a date"
+		/>
+		<a
+			href={dayHref(addDays(date, 1))}
+			class="rounded-ctl border border-line bg-card px-2.5 py-1.5 text-sm text-mute hover:bg-tint hover:text-ink"
+			aria-label="Next day">→</a
+		>
+	</div>
 </div>
 
-<h1 class="text-xl font-bold text-gray-900">
-	{humanDate(date)}
-	{#if relativeLabel(date)}
-		<span class="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-			{relativeLabel(date)}
-		</span>
-	{/if}
-</h1>
-
-{#if settings.showNotePanel}
-	<div class="mt-4">
-		<NewNotePanel {uid} />
-	</div>
-{/if}
-
-<div class="mt-4 space-y-4">
-	{#if parsed.timed.length > 0}
-		<section class="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-			<h2 class="mb-2 text-xs font-semibold tracking-wide text-amber-700 uppercase">Schedule</h2>
-			<div class="space-y-1">
-				{#each parsed.timed as line, i (i)}
-					<LineView {line} ontoggle={() => toggleLine(line.raw)} />
-				{/each}
-			</div>
-		</section>
-	{/if}
-	{#if settings.showLongTermPanel}
-		<LongTermPanel {uid} {date} bind:tasks={longTerm} />
-	{/if}
-	{#if settings.showRoutinePanel}
-		<RoutinePanel {uid} {date} bind:routines bind:values={routineValues} />
-	{/if}
-	{#if settings.showFinancePanel}
-		<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />
-	{/if}
-	<div>
-		<MentionEditor
-			bind:value={text}
-			{people}
-			oninput={onInput}
-			onnewperson={addPerson}
-			placeholder="Just type. One thought per line.
+<div class="grid items-start gap-5 xl:grid-cols-3">
+	<div class="min-w-0 space-y-5 xl:col-span-2">
+		{#if parsed.timed.length > 0}
+			<section class="rounded-card border border-line bg-card p-4 shadow-card">
+				<h2
+					class="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-600 uppercase dark:text-amber-400"
+				>
+					<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+					Schedule
+				</h2>
+				<div class="space-y-1">
+					{#each parsed.timed as line, i (i)}
+						<LineView {line} ontoggle={() => toggleLine(line.raw)} />
+					{/each}
+				</div>
+			</section>
+		{/if}
+		<div>
+			<MentionEditor
+				bind:value={text}
+				{people}
+				oninput={onInput}
+				onnewperson={addPerson}
+				placeholder="Just type. One thought per line.
 
 09:00PM call @mom
 ask @rahim about the invoice
 buy milk"
-		/>
-		<p class="mt-2 text-xs text-gray-400">
-			Start a line with a time (<code>09:00PM</code>) to pin it to the schedule · type
-			<code>@</code> to mention someone — space or enter adds new people · wrap a line in
-			<code>~~tildes~~</code> (or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>) to cross it out
-		</p>
+			/>
+			<p class="mt-2 text-xs text-faint">
+				Start a line with a time (<code>09:00PM</code>) to pin it to the schedule · type
+				<code>@</code> to mention someone — space or enter adds new people · wrap a line in
+				<code>~~tildes~~</code> (or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>) to cross it out
+			</p>
+		</div>
+		{#if settings.showFinancePanel}
+			<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />
+		{/if}
+	</div>
+	<div class="min-w-0 space-y-5">
+		{#if settings.showNotePanel}
+			<NewNotePanel {uid} />
+		{/if}
+		{#if settings.showLongTermPanel}
+			<LongTermPanel {uid} {date} bind:tasks={longTerm} />
+		{/if}
+		{#if settings.showRoutinePanel}
+			<RoutinePanel {uid} {date} bind:routines bind:values={routineValues} />
+		{/if}
 	</div>
 </div>

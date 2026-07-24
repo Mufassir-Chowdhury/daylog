@@ -88,10 +88,15 @@
 	}
 </script>
 
-<section class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
-	<h2 class="mb-2 text-xs font-semibold tracking-wide text-indigo-700 uppercase">Long-standing</h2>
+<section class="rounded-card border border-line bg-card p-4 shadow-card">
+	<h2
+		class="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-indigo-600 uppercase dark:text-indigo-400"
+	>
+		<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+		Long-standing
+	</h2>
 	{#if visible.length === 0}
-		<p class="text-sm text-gray-400">
+		<p class="text-sm text-faint">
 			Nothing long-standing — add things you're working towards over many days.
 		</p>
 	{/if}
@@ -106,16 +111,16 @@
 						onclick={() => toggleTask(task)}
 						aria-label={done ? 'Cross back in' : 'Cross out'}
 						class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] leading-none {done
-							? 'border-green-300 bg-green-100 text-green-700'
-							: 'border-gray-300 bg-white text-transparent hover:text-gray-300'}"
+							? 'border-green-500/40 bg-green-500/15 text-green-600 dark:text-green-400'
+							: 'border-line bg-card text-transparent hover:text-faint'}"
 					>
 						✓
 					</button>
-					<span class="text-sm font-medium {done ? 'text-gray-400 line-through' : 'text-gray-800'}">
+					<span class="text-sm font-medium {done ? 'text-faint line-through' : 'text-ink'}">
 						{task.text}
 					</span>
 					{#if task.subtasks.length > 0}
-						<span class="text-xs text-gray-400">{doneSubs}/{task.subtasks.length}</span>
+						<span class="text-xs text-faint">{doneSubs}/{task.subtasks.length}</span>
 					{/if}
 					<span
 						class="ml-auto flex shrink-0 gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
@@ -125,15 +130,13 @@
 								type="button"
 								onclick={() => move(task, -1)}
 								aria-label="Move up"
-								class="rounded px-1 text-xs text-gray-400 hover:bg-indigo-100 hover:text-gray-600"
-								>↑</button
+								class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">↑</button
 							>
 							<button
 								type="button"
 								onclick={() => move(task, 1)}
 								aria-label="Move down"
-								class="rounded px-1 text-xs text-gray-400 hover:bg-indigo-100 hover:text-gray-600"
-								>↓</button
+								class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">↓</button
 							>
 							<button
 								type="button"
@@ -142,15 +145,14 @@
 									subtaskText = '';
 								}}
 								aria-label="Add subtask"
-								class="rounded px-1 text-xs text-gray-400 hover:bg-indigo-100 hover:text-gray-600"
-								>+ sub</button
+								class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">+ sub</button
 							>
 						{/if}
 						<button
 							type="button"
 							onclick={() => removeTask(task)}
 							aria-label="Delete task"
-							class="rounded px-1 text-xs text-gray-400 hover:bg-red-100 hover:text-red-600"
+							class="rounded px-1 text-xs text-faint hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 							>×</button
 						>
 					</span>
@@ -164,19 +166,19 @@
 									onclick={() => toggleSubtask(task, i)}
 									aria-label={subtask.done ? 'Cross back in' : 'Cross out'}
 									class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border text-[9px] leading-none {subtask.done
-										? 'border-green-300 bg-green-100 text-green-700'
-										: 'border-gray-300 bg-white text-transparent hover:text-gray-300'}"
+										? 'border-green-500/40 bg-green-500/15 text-green-600 dark:text-green-400'
+										: 'border-line bg-card text-transparent hover:text-faint'}"
 								>
 									✓
 								</button>
-								<span class={subtask.done ? 'text-gray-400 line-through' : 'text-gray-700'}>
+								<span class={subtask.done ? 'text-faint line-through' : 'text-mute'}>
 									{subtask.text}
 								</span>
 								<button
 									type="button"
 									onclick={() => removeSubtask(task, i)}
 									aria-label="Delete subtask"
-									class="rounded px-1 text-xs text-gray-400 opacity-0 group-focus-within/sub:opacity-100 group-hover/sub:opacity-100 hover:bg-red-100 hover:text-red-600"
+									class="rounded px-1 text-xs text-faint opacity-0 group-focus-within/sub:opacity-100 group-hover/sub:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 									>×</button
 								>
 							</p>
@@ -194,7 +196,7 @@
 								onblur={() => {
 									if (!subtaskText.trim()) addingSubtaskFor = null;
 								}}
-								class="w-full max-w-xs rounded-lg border-gray-300 px-2 py-1 text-sm"
+								class="w-full max-w-xs rounded-ctl border-line bg-card px-2 py-1 text-sm text-ink"
 							/>
 						{/if}
 					</div>
@@ -213,10 +215,12 @@
 			type="text"
 			bind:value={newText}
 			placeholder="+ Long-standing task (e.g. master's thesis)"
-			class="w-full rounded-lg border-gray-300 text-sm"
+			class="w-full rounded-ctl border-line bg-card text-sm text-ink"
 		/>
 	</form>
 	{#if error}
-		<p class="mt-2 text-xs text-red-500">save failed — some changes may not be stored</p>
+		<p class="mt-2 text-xs text-red-500 dark:text-red-400">
+			save failed — some changes may not be stored
+		</p>
 	{/if}
 </section>

@@ -223,13 +223,13 @@
 	<div
 		bind:this={backdropEl}
 		aria-hidden="true"
-		class="editor-layer pointer-events-none absolute inset-0 overflow-hidden rounded-xl border border-transparent bg-white p-3 font-mono text-sm leading-relaxed text-gray-800 shadow-sm"
+		class="editor-layer pointer-events-none absolute inset-0 overflow-hidden rounded-card border border-transparent bg-card p-3 font-mono text-sm leading-relaxed text-ink shadow-card"
 	>
-		{#each highlighted as line, i (i)}{#if line.done}<span class="text-gray-400 line-through"
+		{#each highlighted as line, i (i)}{#if line.done}<span class="text-faint line-through"
 					>{line.segments.map((s) => s.text).join('')}</span
 				>{:else}{#each line.segments as segment, j (j)}{#if segment.kind === 'time'}<span
-							class="text-amber-700">{segment.text}</span
-						>{:else if segment.kind === 'mention'}<span class="text-blue-600">{segment.text}</span
+							class="text-amber-600 dark:text-amber-400">{segment.text}</span
+						>{:else if segment.kind === 'mention'}<span class="text-accent">{segment.text}</span
 						>{:else}{segment.text}{/if}{/each}{/if}{line.newline}{/each}
 	</div>
 	<textarea
@@ -248,14 +248,14 @@
 		onblur={() => (ctx = null)}
 		onscroll={syncScroll}
 		spellcheck="false"
-		class="editor-layer relative w-full resize-none rounded-xl border-gray-300 bg-transparent p-3 font-mono text-sm leading-relaxed text-transparent caret-gray-900"
+		class="editor-layer relative w-full resize-none rounded-card border-line bg-transparent p-3 font-mono text-sm leading-relaxed text-transparent caret-ink"
 	></textarea>
 
 	{#if active && ctx}
 		<ul
 			role="listbox"
 			aria-label="People suggestions"
-			class="absolute z-10 max-h-56 w-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+			class="absolute z-10 max-h-56 w-64 overflow-auto rounded-ctl border border-line bg-card py-1 shadow-lg"
 			style="left: {dropdownPos.left}px; top: {dropdownPos.top}px"
 		>
 			{#each suggestions as person, i (person.handle)}
@@ -272,18 +272,18 @@
 							insertMention(person.handle);
 						}}
 						onmousemove={() => (selected = i)}
-						class="w-full px-3 py-1.5 text-left text-sm {i === selected ? 'bg-blue-50' : ''}"
+						class="w-full px-3 py-1.5 text-left text-sm {i === selected ? 'bg-accent/10' : ''}"
 					>
-						<span class="font-medium text-blue-600">@{person.handle}</span>
-						{#if person.name}<span class="ml-2 text-gray-500">{person.name}</span>{/if}
+						<span class="font-medium text-accent">@{person.handle}</span>
+						{#if person.name}<span class="ml-2 text-mute">{person.name}</span>{/if}
 					</button>
 				</li>
 			{:else}
-				<li class="px-3 py-1.5 text-xs text-gray-400">
+				<li class="px-3 py-1.5 text-xs text-faint">
 					{#if ctx.query === ''}
 						type a name — space or enter adds them to People
 					{:else}
-						space or enter adds <span class="font-mono text-blue-600">@{ctx.query}</span> to People
+						space or enter adds <span class="font-mono text-accent">@{ctx.query}</span> to People
 					{/if}
 				</li>
 			{/each}

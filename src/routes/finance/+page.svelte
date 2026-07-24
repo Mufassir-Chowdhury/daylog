@@ -56,19 +56,19 @@
 	});
 
 	const KIND_CHIP: Record<TransactionKind, string> = {
-		expense: 'bg-red-100 text-red-700',
-		income: 'bg-green-100 text-green-700',
-		transfer: 'bg-blue-100 text-blue-700',
-		lend: 'bg-amber-100 text-amber-700',
-		borrow: 'bg-violet-100 text-violet-700'
+		expense: 'bg-red-500/10 text-red-700 dark:text-red-300',
+		income: 'bg-green-500/10 text-green-700 dark:text-green-300',
+		transfer: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+		lend: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+		borrow: 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
 	};
 
 	const AMOUNT_TEXT: Record<TransactionKind, string> = {
-		expense: 'text-red-600',
-		income: 'text-green-700',
-		transfer: 'text-blue-600',
-		lend: 'text-amber-600',
-		borrow: 'text-violet-600'
+		expense: 'text-red-600 dark:text-red-400',
+		income: 'text-green-700 dark:text-green-400',
+		transfer: 'text-blue-600 dark:text-blue-400',
+		lend: 'text-amber-600 dark:text-amber-400',
+		borrow: 'text-violet-600 dark:text-violet-400'
 	};
 
 	const DAY_LABEL = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -145,22 +145,66 @@
 	);
 </script>
 
-<h1 class="text-xl font-bold text-gray-900">Finance</h1>
+<h1 class="font-display text-2xl font-bold tracking-tight text-ink">Finance</h1>
 
-<section class="mt-4">
+{#if accounts.length > 0}
+	{@const current = summaries[0]}
+	<div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-card border border-line bg-card p-4 shadow-card">
+			<p class="text-xs font-semibold tracking-wide text-faint uppercase">Total balance</p>
+			<p class="mt-1 font-display text-2xl font-bold text-ink tabular-nums">
+				{formatMoney(total)}
+			</p>
+		</div>
+		<div class="rounded-card border border-line bg-card p-4 shadow-card">
+			<p class="text-xs font-semibold tracking-wide text-faint uppercase">
+				{current ? monthLabel(current.month) : 'This month'} net
+			</p>
+			<p
+				class="mt-1 font-display text-2xl font-bold tabular-nums {current && current.net < 0
+					? 'text-red-600 dark:text-red-400'
+					: 'text-ink'}"
+			>
+				{formatMoney(current?.net ?? 0)}
+			</p>
+		</div>
+		<div class="rounded-card border border-line bg-card p-4 shadow-card">
+			<p class="text-xs font-semibold tracking-wide text-faint uppercase">Owed to you</p>
+			<p
+				class="mt-1 font-display text-2xl font-bold tabular-nums {owedToYou > 0
+					? 'text-amber-600 dark:text-amber-400'
+					: 'text-ink'}"
+			>
+				{formatMoney(owedToYou)}
+			</p>
+		</div>
+		<div class="rounded-card border border-line bg-card p-4 shadow-card">
+			<p class="text-xs font-semibold tracking-wide text-faint uppercase">You owe</p>
+			<p
+				class="mt-1 font-display text-2xl font-bold tabular-nums {owedByYou > 0
+					? 'text-violet-600 dark:text-violet-400'
+					: 'text-ink'}"
+			>
+				{formatMoney(owedByYou)}
+			</p>
+		</div>
+	</div>
+{/if}
+
+<section class="mt-6">
 	<div class="mb-2 flex items-baseline">
-		<h2 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Accounts</h2>
+		<h2 class="text-xs font-semibold tracking-wide text-mute uppercase">Accounts</h2>
 		{#if accounts.length > 0}
-			<span class="ml-auto text-sm text-gray-500">
-				Total <span class="font-semibold text-gray-900 tabular-nums">{formatMoney(total)}</span>
+			<span class="ml-auto text-sm text-mute">
+				Total <span class="font-semibold text-ink tabular-nums">{formatMoney(total)}</span>
 			</span>
 		{/if}
 	</div>
-	<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+	<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
 		{#each accounts as account (account.id)}
 			{#if editingId === account.id}
 				<form
-					class="rounded-xl border border-emerald-300 bg-white p-3"
+					class="rounded-card border border-accent/50 bg-card p-3"
 					onsubmit={(e) => {
 						e.preventDefault();
 						submitAccount();
@@ -170,7 +214,7 @@
 						type="text"
 						bind:value={name}
 						aria-label="Account name"
-						class="mb-1.5 w-full rounded-lg border-gray-300 py-1 text-sm"
+						class="mb-1.5 w-full rounded-ctl border-line bg-card py-1 text-sm text-ink"
 					/>
 					<input
 						type="number"
@@ -178,24 +222,24 @@
 						bind:value={startingBalance}
 						aria-label="Starting balance"
 						placeholder="starting balance"
-						class="mb-1.5 w-full rounded-lg border-gray-300 py-1 text-sm"
+						class="mb-1.5 w-full rounded-ctl border-line bg-card py-1 text-sm text-ink"
 					/>
 					<div class="flex gap-1">
 						<button
 							type="submit"
-							class="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+							class="rounded-ctl bg-accent-fill px-2 py-1 text-xs font-medium text-on-accent hover:opacity-90"
 							>Save</button
 						>
 						<button
 							type="button"
 							onclick={() => (editingId = null)}
-							class="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">cancel</button
+							class="rounded-ctl px-2 py-1 text-xs text-mute hover:bg-tint">cancel</button
 						>
 					</div>
 				</form>
 			{:else}
-				<div class="group rounded-xl border border-gray-200 bg-white p-3">
-					<p class="flex items-baseline text-sm text-gray-500">
+				<div class="group rounded-card border border-line bg-card p-3 shadow-card">
+					<p class="flex items-baseline text-sm text-mute">
 						<span class="truncate">{account.name}</span>
 						<span
 							class="ml-auto flex shrink-0 gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
@@ -204,22 +248,21 @@
 								type="button"
 								onclick={() => startEdit(account)}
 								aria-label="Edit {account.name}"
-								class="rounded px-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-								>✎</button
+								class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">✎</button
 							>
 							<button
 								type="button"
 								onclick={() => removeAccount(account)}
 								aria-label="Delete {account.name}"
-								class="rounded px-1 text-xs text-gray-400 hover:bg-red-100 hover:text-red-600"
+								class="rounded px-1 text-xs text-faint hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 								>×</button
 							>
 						</span>
 					</p>
-					<p class="mt-0.5 text-lg font-semibold text-gray-900 tabular-nums">
+					<p class="mt-0.5 font-display text-lg font-semibold text-ink tabular-nums">
 						{formatMoney(balance.get(account.id) ?? 0)}
 					</p>
-					<p class="text-xs text-gray-400 tabular-nums">
+					<p class="text-xs text-faint tabular-nums">
 						started at {formatMoney(account.startingBalance)}
 					</p>
 				</div>
@@ -227,7 +270,7 @@
 		{/each}
 		{#if adding}
 			<form
-				class="rounded-xl border border-emerald-300 bg-white p-3"
+				class="rounded-card border border-accent/50 bg-card p-3"
 				onsubmit={(e) => {
 					e.preventDefault();
 					submitAccount();
@@ -238,7 +281,7 @@
 					bind:value={name}
 					placeholder="account name"
 					aria-label="Account name"
-					class="mb-1.5 w-full rounded-lg border-gray-300 py-1 text-sm"
+					class="mb-1.5 w-full rounded-ctl border-line bg-card py-1 text-sm text-ink"
 				/>
 				<input
 					type="number"
@@ -246,18 +289,18 @@
 					bind:value={startingBalance}
 					placeholder="starting balance"
 					aria-label="Starting balance"
-					class="mb-1.5 w-full rounded-lg border-gray-300 py-1 text-sm"
+					class="mb-1.5 w-full rounded-ctl border-line bg-card py-1 text-sm text-ink"
 				/>
 				<div class="flex gap-1">
 					<button
 						type="submit"
-						class="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+						class="rounded-ctl bg-accent-fill px-2 py-1 text-xs font-medium text-on-accent hover:opacity-90"
 						>Add</button
 					>
 					<button
 						type="button"
 						onclick={() => (adding = false)}
-						class="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">cancel</button
+						class="rounded-ctl px-2 py-1 text-xs text-mute hover:bg-tint">cancel</button
 					>
 				</div>
 			</form>
@@ -265,20 +308,20 @@
 			<button
 				type="button"
 				onclick={() => startAdd()}
-				class="rounded-xl border border-dashed border-gray-300 p-3 text-sm text-gray-400 hover:border-emerald-300 hover:text-emerald-600"
+				class="rounded-card border border-dashed border-line p-3 text-sm text-faint hover:border-accent/50 hover:text-accent"
 			>
 				+ add account
 			</button>
 		{/if}
 	</div>
 	{#if !adding && editingId === null && suggestionsLeft.length > 0 && accounts.length > 0}
-		<p class="mt-2 text-xs text-gray-400">
+		<p class="mt-2 text-xs text-faint">
 			quick add:
 			{#each suggestionsLeft as s (s)}
 				<button
 					type="button"
 					onclick={() => startAdd(s)}
-					class="ml-1.5 text-emerald-600 hover:underline"
+					class="ml-1.5 text-accent hover:underline"
 				>
 					{s}
 				</button>
@@ -287,102 +330,108 @@
 	{/if}
 </section>
 
-{#if owed.length > 0}
-	<section class="mt-6">
-		<div class="mb-2 flex flex-wrap items-baseline gap-x-3">
-			<h2 class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Owed</h2>
-			<span class="ml-auto text-xs text-gray-500 tabular-nums">
-				{#if owedToYou > 0}
-					owed to you <span class="font-medium text-amber-700">{formatMoney(owedToYou)}</span>
-				{/if}
-				{#if owedToYou > 0 && owedByYou > 0}·{/if}
-				{#if owedByYou > 0}
-					you owe <span class="font-medium text-violet-700">{formatMoney(owedByYou)}</span>
-				{/if}
-			</span>
-		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-4">
+<div class="mt-6 grid items-start gap-4 xl:grid-cols-2">
+	<section class="rounded-card border border-line bg-card p-4 shadow-card">
+		<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">Monthly overview</h2>
+		{#if summaries.length > 0}
+			{@const current = summaries[0]}
+			<div class="mb-4 grid grid-cols-3 gap-2 text-center">
+				<div class="rounded-ctl bg-tint p-2">
+					<p class="text-xs text-faint">{monthLabel(current.month)} in</p>
+					<p class="text-base font-semibold text-green-700 tabular-nums dark:text-green-400">
+						{formatMoney(current.income)}
+					</p>
+				</div>
+				<div class="rounded-ctl bg-tint p-2">
+					<p class="text-xs text-faint">out</p>
+					<p class="text-base font-semibold text-red-600 tabular-nums dark:text-red-400">
+						{formatMoney(current.expense)}
+					</p>
+				</div>
+				<div class="rounded-ctl bg-tint p-2">
+					<p class="text-xs text-faint">net</p>
+					<p
+						class="text-base font-semibold tabular-nums {current.net >= 0
+							? 'text-ink'
+							: 'text-red-600 dark:text-red-400'}"
+					>
+						{formatMoney(current.net)}
+					</p>
+				</div>
+			</div>
+		{/if}
+		<MonthlyChart {summaries} />
+	</section>
+
+	{#if owed.length > 0}
+		<section class="rounded-card border border-line bg-card p-4 shadow-card">
+			<div class="mb-3 flex flex-wrap items-baseline gap-x-3">
+				<h2 class="text-xs font-semibold tracking-wide text-mute uppercase">Owed</h2>
+				<span class="ml-auto text-xs text-mute tabular-nums">
+					{#if owedToYou > 0}
+						owed to you
+						<span class="font-medium text-amber-600 dark:text-amber-400"
+							>{formatMoney(owedToYou)}</span
+						>
+					{/if}
+					{#if owedToYou > 0 && owedByYou > 0}·{/if}
+					{#if owedByYou > 0}
+						you owe
+						<span class="font-medium text-violet-600 dark:text-violet-400"
+							>{formatMoney(owedByYou)}</span
+						>
+					{/if}
+				</span>
+			</div>
 			<div class="space-y-1">
 				{#each owed as [handle, amount] (handle)}
 					<p class="flex items-center gap-2 text-sm leading-relaxed">
 						<a
 							href={resolve('/people/[handle]', { handle })}
-							class="font-medium text-blue-600 hover:underline"
+							class="font-medium text-accent hover:underline"
 						>
 							@{handle}
 						</a>
 						{#if personName(handle)}
-							<span class="truncate text-gray-400">{personName(handle)}</span>
+							<span class="truncate text-faint">{personName(handle)}</span>
 						{/if}
-						<span class="text-gray-500">{amount > 0 ? 'owes you' : 'you owe'}</span>
+						<span class="text-mute">{amount > 0 ? 'owes you' : 'you owe'}</span>
 						<span
 							class="ml-auto font-medium tabular-nums {amount > 0
-								? 'text-amber-600'
-								: 'text-violet-600'}"
+								? 'text-amber-600 dark:text-amber-400'
+								: 'text-violet-600 dark:text-violet-400'}"
 						>
 							{formatMoney(Math.abs(amount))}
 						</span>
 					</p>
 				{/each}
 			</div>
-			<p class="mt-2 text-xs text-gray-400">
+			<p class="mt-2 text-xs text-faint">
 				Settle up by lending to someone you owe, or recording a borrow from someone who owes you.
 			</p>
-		</div>
-	</section>
-{/if}
-
-<section class="mt-6 rounded-xl border border-gray-200 bg-white p-4">
-	<h2 class="mb-3 text-xs font-semibold tracking-wide text-gray-500 uppercase">Monthly overview</h2>
-	{#if summaries.length > 0}
-		{@const current = summaries[0]}
-		<div class="mb-4 grid grid-cols-3 gap-2 text-center">
-			<div>
-				<p class="text-xs text-gray-400">{monthLabel(current.month)} in</p>
-				<p class="text-base font-semibold text-green-700 tabular-nums">
-					{formatMoney(current.income)}
-				</p>
-			</div>
-			<div>
-				<p class="text-xs text-gray-400">out</p>
-				<p class="text-base font-semibold text-red-600 tabular-nums">
-					{formatMoney(current.expense)}
-				</p>
-			</div>
-			<div>
-				<p class="text-xs text-gray-400">net</p>
-				<p
-					class="text-base font-semibold tabular-nums {current.net >= 0
-						? 'text-gray-900'
-						: 'text-red-600'}"
-				>
-					{formatMoney(current.net)}
-				</p>
-			</div>
-		</div>
+		</section>
 	{/if}
-	<MonthlyChart {summaries} />
-</section>
+</div>
 
 <section class="mt-6">
-	<h2 class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">All transactions</h2>
+	<h2 class="mb-2 text-xs font-semibold tracking-wide text-mute uppercase">All transactions</h2>
 	{#if txns.length === 0}
-		<p class="text-sm text-gray-400">
+		<p class="text-sm text-faint">
 			Nothing yet — add transactions from the Finance panel on any day page.
 		</p>
 	{/if}
 	<div class="space-y-4">
 		{#each monthGroups as group (group.month)}
 			{@const s = summaryFor(group.month)}
-			<div class="rounded-xl border border-gray-200 bg-white p-4">
-				<p class="mb-2 flex flex-wrap items-baseline gap-x-3 border-b border-gray-100 pb-2">
-					<span class="text-sm font-semibold text-gray-900">{monthLabel(group.month)}</span>
+			<div class="rounded-card border border-line bg-card p-4 shadow-card">
+				<p class="mb-2 flex flex-wrap items-baseline gap-x-3 border-b border-line pb-2">
+					<span class="font-display text-sm font-semibold text-ink">{monthLabel(group.month)}</span>
 					{#if s}
-						<span class="ml-auto text-xs text-gray-500 tabular-nums">
-							<span class="text-green-700">+{formatMoney(s.income)}</span>
+						<span class="ml-auto text-xs text-mute tabular-nums">
+							<span class="text-green-700 dark:text-green-400">+{formatMoney(s.income)}</span>
 							·
-							<span class="text-red-600">−{formatMoney(s.expense)}</span>
-							· net <span class="font-medium text-gray-700">{formatMoney(s.net)}</span>
+							<span class="text-red-600 dark:text-red-400">−{formatMoney(s.expense)}</span>
+							· net <span class="font-medium text-ink">{formatMoney(s.net)}</span>
 						</span>
 					{/if}
 				</p>
@@ -391,14 +440,14 @@
 						<p class="group flex items-center gap-2 text-sm leading-relaxed">
 							<a
 								href={dayHref(txn.date)}
-								class="w-12 shrink-0 text-xs text-gray-400 tabular-nums hover:text-blue-600 hover:underline"
+								class="w-12 shrink-0 text-xs text-faint tabular-nums hover:text-accent hover:underline"
 							>
 								{DAY_LABEL.format(fromKey(txn.date))}
 							</a>
 							<span class="rounded-full px-2 py-0.5 text-xs font-medium {KIND_CHIP[txn.kind]}">
 								{txn.category}
 							</span>
-							<span class="truncate text-gray-600">
+							<span class="truncate text-mute">
 								{#if txn.kind === 'transfer'}
 									{accountName(txn.from)} → {accountName(txn.to)}
 								{:else if txn.kind === 'lend'}
@@ -409,7 +458,7 @@
 									{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
 								{/if}
 								{#if txn.note}
-									<span class="text-gray-400">· {txn.note}</span>
+									<span class="text-faint">· {txn.note}</span>
 								{/if}
 							</span>
 							<span class="ml-auto shrink-0 font-medium tabular-nums {AMOUNT_TEXT[txn.kind]}">
@@ -419,7 +468,7 @@
 								type="button"
 								onclick={() => removeTxn(txn)}
 								aria-label="Delete transaction"
-								class="rounded px-1 text-xs text-gray-400 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+								class="rounded px-1 text-xs text-faint opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 								>×</button
 							>
 						</p>
@@ -431,5 +480,7 @@
 </section>
 
 {#if error}
-	<p class="mt-4 text-xs text-red-500">save failed — some changes may not be stored</p>
+	<p class="mt-4 text-xs text-red-500 dark:text-red-400">
+		save failed — some changes may not be stored
+	</p>
 {/if}

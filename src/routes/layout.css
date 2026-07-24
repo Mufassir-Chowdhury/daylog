@@ -1,3 +1,212 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+/*
+ * Theme system — every color/radius/shadow in the app goes through these
+ * semantic tokens. A theme is a block of `--t-*` values keyed off
+ * `data-theme` on <html>; Tailwind utilities (bg-card, text-ink, …) are
+ * wired to the tokens below via @theme inline, so switching themes never
+ * touches markup.
+ */
+
+/* The three dark themes all end in "dark", so `dark:` utilities key off that. */
+@custom-variant dark (&:where([data-theme$='dark'], [data-theme$='dark'] *));
+
+@theme inline {
+	--color-canvas: var(--t-canvas);
+	--color-card: var(--t-card);
+	--color-tint: var(--t-tint);
+	--color-line: var(--t-line);
+	--color-ink: var(--t-ink);
+	--color-mute: var(--t-mute);
+	--color-faint: var(--t-faint);
+	--color-accent: var(--t-accent);
+	--color-accent-fill: var(--t-accent-fill);
+	--color-on-accent: var(--t-on-accent);
+	--radius-card: var(--t-radius-card);
+	--radius-ctl: var(--t-radius-ctl);
+	--shadow-card: var(--t-shadow-card);
+	--font-display: var(--t-font-display);
+}
+
+/* ————— light (default) — clean, soft, indigo accent ————— */
+:root,
+[data-theme='light'] {
+	color-scheme: light;
+	--t-canvas: #f5f6f8;
+	--t-card: #ffffff;
+	--t-tint: #eef0f3;
+	--t-line: #e4e7ec;
+	--t-ink: #101828;
+	--t-mute: #475467;
+	--t-faint: #98a2b3;
+	--t-accent: #4f46e5;
+	--t-accent-fill: #4f46e5;
+	--t-on-accent: #ffffff;
+	--t-up: #027a48;
+	--t-down: #d92d20;
+	--t-radius-card: 0.9rem;
+	--t-radius-ctl: 0.55rem;
+	--t-shadow-card: 0 1px 2px rgb(16 24 40 / 0.06);
+	--t-font-display: var(--font-sans);
+	--t-pattern: none;
+	--t-pattern-size: auto;
+}
+
+/* ————— dark — deep neutral, lifted indigo ————— */
+[data-theme='dark'] {
+	color-scheme: dark;
+	--t-canvas: #0b0d11;
+	--t-card: #151821;
+	--t-tint: #1d212c;
+	--t-line: #252a37;
+	--t-ink: #e7eaf0;
+	--t-mute: #98a2b3;
+	--t-faint: #5d6678;
+	--t-accent: #8b93ff;
+	--t-accent-fill: #5157e8;
+	--t-on-accent: #ffffff;
+	--t-up: #4ade80;
+	--t-down: #f87171;
+	--t-shadow-card: 0 1px 2px rgb(0 0 0 / 0.45);
+}
+
+/* ————— geometric — sharp corners, crosshatch grid, emerald, offset shadows ————— */
+[data-theme='geo-light'] {
+	color-scheme: light;
+	--t-canvas: #f6f6f4;
+	--t-card: #ffffff;
+	--t-tint: #efefec;
+	--t-line: #e2e3de;
+	--t-ink: #191b19;
+	--t-mute: #4b514d;
+	--t-faint: #9aa09b;
+	--t-accent: #047857;
+	--t-accent-fill: #047857;
+	--t-on-accent: #ffffff;
+	--t-up: #027a48;
+	--t-down: #d92d20;
+	--t-radius-card: 0px;
+	--t-radius-ctl: 0px;
+	--t-shadow-card: 3px 3px 0 rgb(15 23 42 / 0.06);
+	--t-pattern:
+		repeating-linear-gradient(45deg, rgb(15 23 42 / 0.03) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(-45deg, rgb(15 23 42 / 0.03) 0 1px, transparent 1px 24px);
+}
+
+[data-theme='geo-dark'] {
+	color-scheme: dark;
+	--t-canvas: #0d0f0e;
+	--t-card: #151815;
+	--t-tint: #1c201d;
+	--t-line: #262b27;
+	--t-ink: #e6eae6;
+	--t-mute: #9aa49d;
+	--t-faint: #5c665f;
+	--t-accent: #34d399;
+	--t-accent-fill: #047857;
+	--t-on-accent: #ffffff;
+	--t-up: #4ade80;
+	--t-down: #f87171;
+	--t-radius-card: 0px;
+	--t-radius-ctl: 0px;
+	--t-shadow-card: 3px 3px 0 rgb(0 0 0 / 0.35);
+	--t-pattern:
+		repeating-linear-gradient(45deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 24px),
+		repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 24px);
+}
+
+/* ————— hi-tech — blueprint grid, cyan, mono display type ————— */
+[data-theme='tech-light'] {
+	color-scheme: light;
+	--t-canvas: #f2f5f9;
+	--t-card: #ffffff;
+	--t-tint: #e9eef5;
+	--t-line: #dbe3ee;
+	--t-ink: #0c1420;
+	--t-mute: #44546a;
+	--t-faint: #8b9bb0;
+	--t-accent: #0e7490;
+	--t-accent-fill: #0e7490;
+	--t-on-accent: #ffffff;
+	--t-up: #027a48;
+	--t-down: #d92d20;
+	--t-radius-card: 0.375rem;
+	--t-radius-ctl: 0.25rem;
+	--t-shadow-card: 0 1px 2px rgb(12 74 110 / 0.08);
+	--t-font-display:
+		ui-monospace, 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+	--t-pattern:
+		linear-gradient(rgb(12 74 110 / 0.05) 1px, transparent 1px),
+		linear-gradient(90deg, rgb(12 74 110 / 0.05) 1px, transparent 1px);
+	--t-pattern-size: 28px 28px;
+}
+
+[data-theme='tech-dark'] {
+	color-scheme: dark;
+	--t-canvas: #070b12;
+	--t-card: #0d1420;
+	--t-tint: #131c2b;
+	--t-line: #1c2739;
+	--t-ink: #dbe7f3;
+	--t-mute: #8fa3bb;
+	--t-faint: #536683;
+	--t-accent: #22d3ee;
+	--t-accent-fill: #22d3ee;
+	--t-on-accent: #05242e;
+	--t-up: #4ade80;
+	--t-down: #f87171;
+	--t-radius-card: 0.375rem;
+	--t-radius-ctl: 0.25rem;
+	--t-shadow-card: 0 0 0 1px rgb(34 211 238 / 0.07);
+	--t-font-display:
+		ui-monospace, 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+	--t-pattern:
+		linear-gradient(rgb(34 211 238 / 0.045) 1px, transparent 1px),
+		linear-gradient(90deg, rgb(34 211 238 / 0.045) 1px, transparent 1px);
+	--t-pattern-size: 28px 28px;
+}
+
+@layer base {
+	body {
+		background-color: var(--t-canvas);
+		background-image: var(--t-pattern);
+		background-size: var(--t-pattern-size);
+		background-attachment: fixed;
+		color: var(--t-ink);
+	}
+
+	::selection {
+		background-color: color-mix(in oklab, var(--t-accent) 24%, transparent);
+	}
+
+	input,
+	select,
+	textarea {
+		accent-color: var(--t-accent);
+	}
+
+	/* Focus states follow the theme accent instead of the forms plugin's blue. */
+	[type='text']:focus,
+	[type='email']:focus,
+	[type='password']:focus,
+	[type='number']:focus,
+	[type='date']:focus,
+	[type='file']:focus,
+	[type='checkbox']:focus,
+	select:focus,
+	textarea:focus {
+		--tw-ring-color: color-mix(in oklab, var(--t-accent) 45%, transparent);
+		border-color: var(--t-accent);
+	}
+
+	code,
+	kbd {
+		background-color: var(--t-tint);
+		border: 1px solid var(--t-line);
+		border-radius: 0.3rem;
+		padding: 0.1em 0.35em;
+		font-size: 0.85em;
+	}
+}

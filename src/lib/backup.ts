@@ -11,7 +11,7 @@ import type {
 	TransactionKind,
 	UserData
 } from './db';
-import type { AppSettings } from './settings.svelte';
+import { THEMES, type AppSettings, type Theme } from './settings.svelte';
 
 /** Shape of a `daylog-backup-*.json` file: the user's data plus an identifying envelope. */
 export interface Backup extends UserData {
@@ -73,6 +73,7 @@ export function parseBackup(json: string): UserData {
 
 	const s = rec(backup.settings);
 	const settings: Partial<AppSettings> = {};
+	if (THEMES.includes(s.theme as Theme)) settings.theme = s.theme as Theme;
 	if (typeof s.currency === 'string') settings.currency = s.currency;
 	if (s.grouping === 'lakh' || s.grouping === 'thousand') settings.grouping = s.grouping;
 	for (const key of [

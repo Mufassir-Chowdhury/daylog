@@ -4,9 +4,9 @@
 
 	let { summaries }: { summaries: MonthSummary[] } = $props();
 
-	// Validated palette (dataviz green/red pair): income green, expense red.
-	const INCOME = '#008300';
-	const EXPENSE = '#e34948';
+	// Theme tokens (--t-up/--t-down) keep the pair readable in dark themes too.
+	const INCOME = 'var(--t-up, #008300)';
+	const EXPENSE = 'var(--t-down, #e34948)';
 
 	const SHORT_MONTH = new Intl.DateTimeFormat('en-US', { month: 'short' });
 
@@ -69,7 +69,7 @@
 </script>
 
 {#if hasData}
-	<div class="mb-1 flex justify-end gap-4 text-xs text-gray-600">
+	<div class="mb-1 flex justify-end gap-4 text-xs text-mute">
 		<span class="flex items-center gap-1.5">
 			<span class="h-2.5 w-2.5 rounded-sm" style="background:{INCOME}"></span> Income
 		</span>
@@ -84,19 +84,25 @@
 		aria-label="Income and expense per month for the last six months"
 	>
 		{#each ticks as tick (tick)}
-			<line x1={M.left} x2={W - M.right} y1={y(tick)} y2={y(tick)} stroke="#e1e0d9" />
+			<line x1={M.left} x2={W - M.right} y1={y(tick)} y2={y(tick)} stroke="var(--t-line)" />
 			<text
 				x={M.left - 6}
 				y={y(tick) + 3.5}
 				text-anchor="end"
 				font-size="10"
-				fill="#898781"
+				fill="var(--t-faint)"
 				style="font-variant-numeric: tabular-nums"
 			>
 				{shortMoney(tick)}
 			</text>
 		{/each}
-		<line x1={M.left} x2={W - M.right} y1={M.top + plotH} y2={M.top + plotH} stroke="#c3c2b7" />
+		<line
+			x1={M.left}
+			x2={W - M.right}
+			y1={M.top + plotH}
+			y2={M.top + plotH}
+			stroke="var(--t-faint)"
+		/>
 		{#each months as m, i (m.month)}
 			{@const cx = M.left + groupW * i + groupW / 2}
 			{#if m.income > 0}
@@ -109,13 +115,13 @@
 					<title>{monthLabel(m.month)} — expense {formatMoney(m.expense)}</title>
 				</path>
 			{/if}
-			<text x={cx} y={H - 8} text-anchor="middle" font-size="10" fill="#898781">
+			<text x={cx} y={H - 8} text-anchor="middle" font-size="10" fill="var(--t-faint)">
 				{m.label}
 			</text>
 		{/each}
 	</svg>
 {:else}
-	<p class="py-6 text-center text-sm text-gray-400">
+	<p class="py-6 text-center text-sm text-faint">
 		No income or expenses recorded yet — add transactions from a day page.
 	</p>
 {/if}

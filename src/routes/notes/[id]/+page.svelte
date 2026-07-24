@@ -64,42 +64,42 @@
 <svelte:window onvisibilitychange={() => document.hidden && flush()} />
 
 <div class="flex items-center justify-between gap-3">
-	<a href={resolve('/notes')} class="text-sm text-gray-500 hover:text-gray-900">← Notes</a>
+	<a href={resolve('/notes')} class="text-sm text-mute hover:text-ink">← Notes</a>
 	<div class="flex items-center gap-3">
-		<span class="text-xs text-gray-400">{saveState === 'saved' ? 'saved' : '…'}</span>
+		<span class="text-xs text-faint">{saveState === 'saved' ? 'saved' : '…'}</span>
 		<button
 			type="button"
 			onclick={remove}
 			disabled={deleting}
-			class="text-sm text-gray-400 hover:text-red-600 disabled:opacity-50"
+			class="text-sm text-faint hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
 		>
 			Delete
 		</button>
 	</div>
 </div>
 
-<div class="mt-4 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+<div class="mt-4 space-y-3 rounded-card border border-line bg-card p-4 shadow-card">
 	<input
 		type="text"
 		bind:value={title}
 		oninput={onInput}
 		placeholder="Title"
-		class="w-full rounded-lg border-gray-300 text-lg font-bold"
+		class="w-full rounded-ctl border-line bg-card text-lg font-bold text-ink"
 	/>
 	<textarea
 		bind:value={content}
 		oninput={onInput}
 		rows={Math.max(8, content.split('\n').length + 1)}
 		placeholder="Write your note…"
-		class="w-full rounded-lg border-gray-300 text-sm leading-relaxed"></textarea>
+		class="w-full rounded-ctl border-line bg-card text-sm leading-relaxed text-ink"></textarea>
 	<label class="block">
-		<span class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Tags</span>
+		<span class="text-xs font-semibold tracking-wide text-mute uppercase">Tags</span>
 		<input
 			type="text"
 			bind:value={tagsInput}
 			oninput={onInput}
 			placeholder="comma, separated, tags"
-			class="mt-1 w-full rounded-lg border-gray-300 text-sm"
+			class="mt-1 w-full rounded-ctl border-line bg-card text-sm text-ink"
 		/>
 	</label>
 </div>

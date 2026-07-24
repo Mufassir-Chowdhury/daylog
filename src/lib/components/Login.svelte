@@ -28,15 +28,24 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-	<div class="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-		<h1 class="text-2xl font-bold text-gray-900">daylog</h1>
-		<p class="mt-1 text-sm text-gray-500">
+<div class="flex min-h-screen items-center justify-center px-4">
+	<div class="w-full max-w-sm rounded-card border border-line bg-card p-6 shadow-card">
+		<div class="flex items-center gap-3">
+			<span
+				class="grid h-10 w-10 place-items-center rounded-ctl bg-accent-fill font-display text-lg font-black text-on-accent"
+			>
+				d
+			</span>
+			<h1 class="font-display text-2xl font-bold tracking-tight text-ink">daylog</h1>
+		</div>
+		<p class="mt-3 text-sm text-mute">
 			One text file per day. Times float to the top, @people get profiles.
 		</p>
 
 		{#if !isConfigured}
-			<div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+			<div
+				class="mt-4 rounded-ctl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300"
+			>
 				Firebase isn't configured yet. Paste your web app config into
 				<code class="font-mono text-xs">src/lib/firebase-config.ts</code> — see README.md.
 			</div>
@@ -46,15 +55,15 @@
 			type="button"
 			onclick={() => run(signInWithGoogle)}
 			disabled={busy}
-			class="mt-5 w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+			class="mt-5 w-full rounded-ctl border border-line px-4 py-2 text-sm font-medium text-mute hover:bg-tint hover:text-ink disabled:opacity-50"
 		>
 			Continue with Google
 		</button>
 
-		<div class="my-4 flex items-center gap-3 text-xs text-gray-400">
-			<div class="h-px flex-1 bg-gray-200"></div>
+		<div class="my-4 flex items-center gap-3 text-xs text-faint">
+			<div class="h-px flex-1 bg-line"></div>
 			or
-			<div class="h-px flex-1 bg-gray-200"></div>
+			<div class="h-px flex-1 bg-line"></div>
 		</div>
 
 		<form onsubmit={submit} class="space-y-3">
@@ -64,7 +73,7 @@
 				placeholder="email"
 				autocomplete="email"
 				bind:value={email}
-				class="w-full rounded-lg border-gray-300 text-sm"
+				class="w-full rounded-ctl border-line bg-card text-sm text-ink"
 			/>
 			<input
 				type="password"
@@ -73,24 +82,24 @@
 				placeholder="password"
 				autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
 				bind:value={password}
-				class="w-full rounded-lg border-gray-300 text-sm"
+				class="w-full rounded-ctl border-line bg-card text-sm text-ink"
 			/>
 			<button
 				type="submit"
 				disabled={busy}
-				class="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
+				class="w-full rounded-ctl bg-accent-fill px-4 py-2 text-sm font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
 			>
 				{mode === 'signin' ? 'Sign in' : 'Create account'}
 			</button>
 		</form>
 
 		{#if error}
-			<p class="mt-3 text-sm text-red-600">{error}</p>
+			<p class="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>
 		{/if}
 
 		<button
 			type="button"
-			class="mt-4 text-sm text-blue-600 hover:underline"
+			class="mt-4 text-sm text-accent hover:underline"
 			onclick={() => (mode = mode === 'signin' ? 'signup' : 'signin')}
 		>
 			{mode === 'signin' ? 'No account? Create one' : 'Have an account? Sign in'}

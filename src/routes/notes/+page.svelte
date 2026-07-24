@@ -39,7 +39,7 @@
 </script>
 
 <div class="flex items-center justify-between gap-3">
-	<h1 class="text-xl font-bold text-gray-900">Notes</h1>
+	<h1 class="font-display text-2xl font-bold tracking-tight text-ink">Notes</h1>
 	<NewNotePanel {uid} />
 </div>
 
@@ -50,8 +50,8 @@
 				type="button"
 				onclick={() => toggleTag(tag)}
 				class="rounded-full border px-2.5 py-1 text-xs font-medium {activeTag === tag
-					? 'border-blue-600 bg-blue-600 text-white'
-					: 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}"
+					? 'border-accent-fill bg-accent-fill text-on-accent'
+					: 'border-line bg-card text-mute hover:bg-tint'}"
 			>
 				#{tag}
 			</button>
@@ -60,7 +60,7 @@
 {/if}
 
 {#if visible.length === 0}
-	<p class="mt-6 text-sm text-gray-400">
+	<p class="mt-6 text-sm text-faint">
 		{#if notes.length === 0}
 			No notes yet — jot something down with "+ New note".
 		{:else}
@@ -68,20 +68,20 @@
 		{/if}
 	</p>
 {:else}
-	<ul class="mt-4 space-y-3">
+	<ul class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 		{#each visible as note (note.id)}
-			<li class="flex items-start rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+			<li
+				class="flex items-start rounded-card border border-line bg-card p-4 shadow-card transition-colors hover:border-accent/40"
+			>
 				<a href={resolve('/notes/[id]', { id: note.id })} class="min-w-0 flex-1">
-					<h2 class="truncate font-medium text-gray-900">{note.title || 'Untitled'}</h2>
+					<h2 class="truncate font-medium text-ink">{note.title || 'Untitled'}</h2>
 					{#if note.content}
-						<p class="mt-0.5 truncate text-sm text-gray-500">{note.content.split('\n')[0]}</p>
+						<p class="mt-0.5 truncate text-sm text-mute">{note.content.split('\n')[0]}</p>
 					{/if}
 					{#if note.tags.length > 0}
 						<div class="mt-2 flex flex-wrap gap-1">
 							{#each note.tags as tag (tag)}
-								<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
-									>#{tag}</span
-								>
+								<span class="rounded-full bg-tint px-2 py-0.5 text-xs text-mute">#{tag}</span>
 							{/each}
 						</div>
 					{/if}
@@ -91,7 +91,7 @@
 					onclick={() => remove(note.id)}
 					disabled={deleting !== null}
 					aria-label="Delete note"
-					class="ml-2 rounded-lg px-2.5 py-1.5 text-sm text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+					class="ml-2 rounded-ctl px-2.5 py-1.5 text-sm text-faint hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
 				>
 					{deleting === note.id ? '…' : '✕'}
 				</button>

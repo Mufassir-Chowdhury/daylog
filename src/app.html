@@ -4,6 +4,15 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// Apply the last-used theme before first paint to avoid a flash; the
+			// root layout keeps this key in sync with the per-user setting.
+			try {
+				document.documentElement.dataset.theme = localStorage.getItem('daylog-theme') || 'light';
+			} catch {
+				document.documentElement.dataset.theme = 'light';
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

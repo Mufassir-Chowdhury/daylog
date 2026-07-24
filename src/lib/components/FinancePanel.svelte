@@ -39,19 +39,19 @@
 	];
 
 	const KIND_CHIP: Record<TransactionKind, string> = {
-		expense: 'bg-red-100 text-red-700',
-		income: 'bg-green-100 text-green-700',
-		transfer: 'bg-blue-100 text-blue-700',
-		lend: 'bg-amber-100 text-amber-700',
-		borrow: 'bg-violet-100 text-violet-700'
+		expense: 'bg-red-500/10 text-red-700 dark:text-red-300',
+		income: 'bg-green-500/10 text-green-700 dark:text-green-300',
+		transfer: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+		lend: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+		borrow: 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
 	};
 
 	const AMOUNT_TEXT: Record<TransactionKind, string> = {
-		expense: 'text-red-600',
-		income: 'text-green-700',
-		transfer: 'text-blue-600',
-		lend: 'text-amber-600',
-		borrow: 'text-violet-600'
+		expense: 'text-red-600 dark:text-red-400',
+		income: 'text-green-700 dark:text-green-400',
+		transfer: 'text-blue-600 dark:text-blue-400',
+		lend: 'text-amber-600 dark:text-amber-400',
+		borrow: 'text-violet-600 dark:text-violet-400'
 	};
 
 	const KIND_HINT: Partial<Record<TransactionKind, string>> = {
@@ -171,12 +171,12 @@
 </script>
 
 {#snippet personSelect(label: string)}
-	<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+	<label class="flex flex-col gap-0.5 text-xs text-mute">
 		{label}
 		<select
 			value={person}
 			onchange={(e) => pickPerson(e.currentTarget.value)}
-			class="rounded-lg border-gray-300 py-1.5 text-sm"
+			class="rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 		>
 			<option value="" disabled>person…</option>
 			{#each people as p (p.handle)}
@@ -188,12 +188,12 @@
 {/snippet}
 
 {#snippet accountSelect(which: 'from' | 'to', label: string, value: string)}
-	<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+	<label class="flex flex-col gap-0.5 text-xs text-mute">
 		{label}
 		<select
 			{value}
 			onchange={(e) => pickAccount(which, e.currentTarget.value)}
-			class="rounded-lg border-gray-300 py-1.5 text-sm"
+			class="rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 		>
 			<option value="" disabled>account…</option>
 			{#each accounts as account (account.id)}
@@ -204,14 +204,15 @@
 	</label>
 {/snippet}
 
-<section class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+<section class="rounded-card border border-line bg-card p-4 shadow-card">
 	<h2
-		class="mb-2 flex items-baseline text-xs font-semibold tracking-wide text-emerald-700 uppercase"
+		class="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-emerald-600 uppercase dark:text-emerald-400"
 	>
+		<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 		Finance
 		<a
 			href={resolve('/finance')}
-			class="ml-auto font-normal text-emerald-600 normal-case hover:underline"
+			class="ml-auto font-normal text-emerald-600 normal-case hover:underline dark:text-emerald-400"
 		>
 			all transactions →
 		</a>
@@ -224,7 +225,7 @@
 					<span class="rounded-full px-2 py-0.5 text-xs font-medium {KIND_CHIP[txn.kind]}">
 						{txn.category}
 					</span>
-					<span class="truncate text-gray-600">
+					<span class="truncate text-mute">
 						{#if txn.kind === 'transfer'}
 							{accountName(txn.from)} → {accountName(txn.to)}
 						{:else if txn.kind === 'lend'}
@@ -235,7 +236,7 @@
 							{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
 						{/if}
 						{#if txn.note}
-							<span class="text-gray-400">· {txn.note}</span>
+							<span class="text-faint">· {txn.note}</span>
 						{/if}
 					</span>
 					<span class="ml-auto font-medium tabular-nums {AMOUNT_TEXT[txn.kind]}">
@@ -245,7 +246,7 @@
 						type="button"
 						onclick={() => removeTxn(txn)}
 						aria-label="Delete transaction"
-						class="rounded px-1 text-xs text-gray-400 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600"
+						class="rounded px-1 text-xs text-faint opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 						>×</button
 					>
 				</p>
@@ -254,7 +255,7 @@
 	{/if}
 
 	{#if accounts.length === 0 && addingFor === null}
-		<p class="mb-2 text-sm text-gray-500">
+		<p class="mb-2 text-sm text-mute">
 			Set up an account first — its starting balance is what you have in it right now.
 		</p>
 		<div class="flex flex-wrap gap-1.5">
@@ -266,7 +267,7 @@
 						acctName = name;
 						acctBalance = '';
 					}}
-					class="rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+					class="rounded-full border border-emerald-500/40 bg-card px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
 				>
 					+ {name}
 				</button>
@@ -278,7 +279,7 @@
 					acctName = '';
 					acctBalance = '';
 				}}
-				class="rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-100"
+				class="rounded-full border border-emerald-500/40 bg-card px-2.5 py-1 text-xs text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
 			>
 				+ other…
 			</button>
@@ -293,16 +294,16 @@
 				addAccount();
 			}}
 		>
-			<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+			<label class="flex flex-col gap-0.5 text-xs text-mute">
 				Account name
 				<input
 					type="text"
 					bind:value={acctName}
 					placeholder="e.g. bKash"
-					class="w-36 rounded-lg border-gray-300 py-1.5 text-sm"
+					class="w-36 rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 				/>
 			</label>
-			<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+			<label class="flex flex-col gap-0.5 text-xs text-mute">
 				Starting balance (৳)
 				<input
 					type="number"
@@ -310,19 +311,19 @@
 					step="any"
 					bind:value={acctBalance}
 					placeholder="0"
-					class="w-32 rounded-lg border-gray-300 py-1.5 text-sm"
+					class="w-32 rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 				/>
 			</label>
 			<button
 				type="submit"
-				class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+				class="rounded-ctl bg-accent-fill px-3 py-1.5 text-sm font-medium text-on-accent hover:opacity-90"
 			>
 				Add account
 			</button>
 			<button
 				type="button"
 				onclick={() => (addingFor = null)}
-				class="rounded-lg px-2 py-1.5 text-sm text-gray-500 hover:bg-emerald-100"
+				class="rounded-ctl px-2 py-1.5 text-sm text-mute hover:bg-tint"
 			>
 				cancel
 			</button>
@@ -337,31 +338,31 @@
 				addPerson();
 			}}
 		>
-			<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+			<label class="flex flex-col gap-0.5 text-xs text-mute">
 				Person handle
 				<input
 					type="text"
 					bind:value={personHandle}
 					oninput={() => (personInvalid = false)}
 					placeholder="e.g. rahim"
-					class="w-36 rounded-lg border-gray-300 py-1.5 text-sm"
+					class="w-36 rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 				/>
 			</label>
 			<button
 				type="submit"
-				class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+				class="rounded-ctl bg-accent-fill px-3 py-1.5 text-sm font-medium text-on-accent hover:opacity-90"
 			>
 				Add person
 			</button>
 			<button
 				type="button"
 				onclick={() => (addingPerson = false)}
-				class="rounded-lg px-2 py-1.5 text-sm text-gray-500 hover:bg-emerald-100"
+				class="rounded-ctl px-2 py-1.5 text-sm text-mute hover:bg-tint"
 			>
 				cancel
 			</button>
 			{#if personInvalid}
-				<span class="text-xs text-red-500">letters, numbers and _ . - only</span>
+				<span class="text-xs text-red-500 dark:text-red-400">letters, numbers and _ . - only</span>
 			{/if}
 		</form>
 	{/if}
@@ -374,21 +375,21 @@
 				addTxn();
 			}}
 		>
-			<div class="flex overflow-hidden rounded-lg border border-gray-300">
+			<div class="flex overflow-hidden rounded-ctl border border-line">
 				{#each KINDS as k (k.kind)}
 					<button
 						type="button"
 						onclick={() => (kind = k.kind)}
-						class="border-r border-gray-300 px-2.5 py-1.5 text-xs font-medium last:border-r-0 {kind ===
+						class="border-r border-line px-2.5 py-1.5 text-xs font-medium last:border-r-0 {kind ===
 						k.kind
 							? k.active
-							: 'bg-white text-gray-600 hover:bg-gray-100'}"
+							: 'bg-card text-mute hover:bg-tint'}"
 					>
 						{k.label}
 					</button>
 				{/each}
 			</div>
-			<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+			<label class="flex flex-col gap-0.5 text-xs text-mute">
 				Amount (৳)
 				<input
 					type="number"
@@ -396,18 +397,18 @@
 					step="any"
 					bind:value={amount}
 					placeholder="0"
-					class="w-28 rounded-lg border-gray-300 py-1.5 text-sm"
+					class="w-28 rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 				/>
 			</label>
 			{#if hasCategory}
-				<label class="flex flex-col gap-0.5 text-xs text-gray-500">
+				<label class="flex flex-col gap-0.5 text-xs text-mute">
 					Category
 					<input
 						type="text"
 						bind:value={category}
 						list="finance-categories-{kind}"
 						placeholder={CATEGORIES[kind][0]}
-						class="w-32 rounded-lg border-gray-300 py-1.5 text-sm"
+						class="w-32 rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 					/>
 					<datalist id="finance-categories-{kind}">
 						{#each CATEGORIES[kind] as c (c)}
@@ -428,28 +429,30 @@
 			{#if kind === 'lend'}
 				{@render personSelect('To whom')}
 			{/if}
-			<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-gray-500">
+			<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-mute">
 				Note (optional)
 				<input
 					type="text"
 					bind:value={note}
 					placeholder=""
-					class="rounded-lg border-gray-300 py-1.5 text-sm"
+					class="rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
 				/>
 			</label>
 			<button
 				type="submit"
-				class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+				class="rounded-ctl bg-accent-fill px-3 py-1.5 text-sm font-medium text-on-accent hover:opacity-90"
 			>
 				Add
 			</button>
 			{#if KIND_HINT[kind]}
-				<p class="w-full text-xs text-gray-400">{KIND_HINT[kind]}</p>
+				<p class="w-full text-xs text-faint">{KIND_HINT[kind]}</p>
 			{/if}
 		</form>
 	{/if}
 
 	{#if error}
-		<p class="mt-2 text-xs text-red-500">save failed — some changes may not be stored</p>
+		<p class="mt-2 text-xs text-red-500 dark:text-red-400">
+			save failed — some changes may not be stored
+		</p>
 	{/if}
 </section>
