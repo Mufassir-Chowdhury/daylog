@@ -7,6 +7,7 @@
 	import LongTermPanel from '$lib/components/LongTermPanel.svelte';
 	import MentionEditor from '$lib/components/MentionEditor.svelte';
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
+	import RoutinePanel from '$lib/components/RoutinePanel.svelte';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
 	import { parseDay, toggleDone } from '$lib/parse';
@@ -24,6 +25,8 @@
 	let longTerm = $derived(data.longTerm);
 	let accounts = $derived(data.accounts);
 	let txns = $derived(data.txns);
+	let routines = $derived(data.routines);
+	let routineValues = $derived(data.routineValues);
 
 	const parsed = $derived(parseDay(text));
 
@@ -141,6 +144,9 @@
 	{/if}
 	{#if settings.showLongTermPanel}
 		<LongTermPanel {uid} {date} bind:tasks={longTerm} />
+	{/if}
+	{#if settings.showRoutinePanel}
+		<RoutinePanel {uid} {date} bind:routines bind:values={routineValues} />
 	{/if}
 	{#if settings.showFinancePanel}
 		<FinancePanel {uid} {date} {people} onnewperson={addPerson} bind:accounts bind:txns />

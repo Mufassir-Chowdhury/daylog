@@ -1,6 +1,7 @@
 import {
 	collection,
 	deleteDoc,
+	deleteField,
 	doc,
 	getDoc,
 	getDocs,
@@ -57,6 +58,28 @@ export interface LongTermTask {
 	subtasks: Subtask[];
 }
 
+/**
+ * A daily routine activity tracked with a number per day — reciting Quran,
+ * reading hadith, pages read. Days where the value reaches the threshold show
+ * green on the day page.
+ */
+export interface Routine {
+	id: string;
+	name: string;
+	/** What the number counts — "pages", "minutes", "verses"; free text, may be empty. */
+	unit: string;
+	/** Daily target — reaching it turns the day's card green. 0 means no target. */
+	threshold: number;
+	/** Lower sorts first. */
+	order: number;
+}
+
+/** One day's routine values, keyed by routine id. Doc id is the day key. */
+export interface RoutineLog {
+	date: string;
+	values: Record<string, number>;
+}
+
 /** A place money lives — bank account, mobile wallet, or cash in hand. */
 export interface Account {
 	id: string;
@@ -100,6 +123,8 @@ const notesCol = (uid: string) => collection(db, 'users', uid, 'notes');
 const longTermCol = (uid: string) => collection(db, 'users', uid, 'longterm');
 const accountsCol = (uid: string) => collection(db, 'users', uid, 'accounts');
 const txnsCol = (uid: string) => collection(db, 'users', uid, 'transactions');
+const routinesCol = (uid: string) => collection(db, 'users', uid, 'routines');
+const routineLogsCol = (uid: string) => collection(db, 'users', uid, 'routineLogs');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -260,6 +285,66 @@ export async function deleteLongTermTask(uid: string, id: string): Promise<void>
 	await deleteDoc(doc(longTermCol(uid), id));
 }
 
+/** Reserves a fresh routine id without writing anything yet. */
+export function newRoutineId(uid: string): string {
+	return doc(routinesCol(uid)).id;
+}
+
+export async function listRoutines(uid: string): Promise<Routine[]> {
+	const snap = await getDocs(query(routinesCol(uid), orderBy('order')));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			name: (data.name as string) ?? '',
+			unit: (data.unit as string) ?? '',
+			threshold: (data.threshold as number) ?? 0,
+			order: (data.order as number) ?? 0
+		};
+	});
+}
+
+export async function saveRoutine(uid: string, routine: Routine): Promise<void> {
+	const { id, ...rest } = routine;
+	await setDoc(doc(routinesCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+/** Deletes the routine definition only — day values it left behind are ignored by the UI. */
+export async function deleteRoutine(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(routinesCol(uid), id));
+}
+
+/** One day's routine values ({} when nothing was logged). */
+export async function loadRoutineLog(uid: string, key: string): Promise<Record<string, number>> {
+	const snap = await getDoc(doc(routineLogsCol(uid), key));
+	return snap.exists() ? ((snap.data().values as Record<string, number>) ?? {}) : {};
+}
+
+/** Sets (or clears, with null) one routine's value for a day without touching the others. */
+export async function saveRoutineValue(
+	uid: string,
+	key: string,
+	routineId: string,
+	value: number | null
+): Promise<void> {
+	await setDoc(
+		doc(routineLogsCol(uid), key),
+		{
+			values: { [routineId]: value === null ? deleteField() : value },
+			updatedAt: serverTimestamp()
+		},
+		{ merge: true }
+	);
+}
+
+/** Every day's routine values, oldest first (doc ids are `YYYY-MM-DD`). */
+export async function listRoutineLogs(uid: string): Promise<RoutineLog[]> {
+	const snap = await getDocs(routineLogsCol(uid));
+	return snap.docs
+		.map((d) => ({ date: d.id, values: (d.data().values as Record<string, number>) ?? {} }))
+		.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** Reserves a fresh account id without writing anything yet. */
 export function newAccountId(uid: string): string {
 	return doc(accountsCol(uid)).id;
@@ -341,19 +426,43 @@ export interface UserData {
 	longTermTasks: LongTermTask[];
 	accounts: Account[];
 	transactions: Transaction[];
+	routines: Routine[];
+	routineLogs: RoutineLog[];
 }
 
 export async function exportUserData(uid: string): Promise<UserData> {
-	const [settings, days, people, notes, longTermTasks, accounts, transactions] = await Promise.all([
+	const [
+		settings,
+		days,
+		people,
+		notes,
+		longTermTasks,
+		accounts,
+		transactions,
+		routines,
+		routineLogs
+	] = await Promise.all([
 		loadSettings(uid),
 		listDays(uid),
 		listPeople(uid),
 		listNotes(uid),
 		listLongTermTasks(uid),
 		listAccounts(uid),
-		listTransactions(uid)
+		listTransactions(uid),
+		listRoutines(uid),
+		listRoutineLogs(uid)
 	]);
-	return { settings, days, people, notes, longTermTasks, accounts, transactions };
+	return {
+		settings,
+		days,
+		people,
+		notes,
+		longTermTasks,
+		accounts,
+		transactions,
+		routines,
+		routineLogs
+	};
 }
 
 /**
@@ -394,6 +503,17 @@ export async function importUserData(uid: string, data: UserData): Promise<void>
 		const { id, ...rest } = txn;
 		ops.push((b) => b.set(doc(txnsCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
 	}
+	for (const routine of data.routines) {
+		const { id, ...rest } = routine;
+		ops.push((b) => b.set(doc(routinesCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const log of data.routineLogs)
+		ops.push((b) =>
+			b.set(doc(routineLogsCol(uid), log.date), {
+				values: log.values,
+				updatedAt: serverTimestamp()
+			})
+		);
 	// Firestore caps a batch at 500 writes, so commit in chunks.
 	for (let i = 0; i < ops.length; i += 450) {
 		const batch = writeBatch(db);

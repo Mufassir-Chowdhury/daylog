@@ -8,6 +8,7 @@ export interface AppSettings {
 	showNotePanel: boolean;
 	showLongTermPanel: boolean;
 	showFinancePanel: boolean;
+	showRoutinePanel: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -15,7 +16,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	grouping: 'lakh',
 	showNotePanel: true,
 	showLongTermPanel: true,
-	showFinancePanel: true
+	showFinancePanel: true,
+	showRoutinePanel: true
 };
 
 /** Live settings — readable anywhere; the root layout applies the stored doc on sign-in. */

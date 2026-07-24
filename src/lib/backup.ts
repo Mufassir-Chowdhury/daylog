@@ -4,6 +4,8 @@ import type {
 	LongTermTask,
 	Note,
 	Person,
+	Routine,
+	RoutineLog,
 	Subtask,
 	Transaction,
 	TransactionKind,
@@ -36,7 +38,9 @@ export function backupSummary(data: UserData): string {
 		`${data.notes.length} notes`,
 		`${data.longTermTasks.length} long-term tasks`,
 		`${data.accounts.length} accounts`,
-		`${data.transactions.length} transactions`
+		`${data.transactions.length} transactions`,
+		`${data.routines.length} routines`,
+		`${data.routineLogs.length} routine days`
 	].join(', ');
 }
 
@@ -71,7 +75,12 @@ export function parseBackup(json: string): UserData {
 	const settings: Partial<AppSettings> = {};
 	if (typeof s.currency === 'string') settings.currency = s.currency;
 	if (s.grouping === 'lakh' || s.grouping === 'thousand') settings.grouping = s.grouping;
-	for (const key of ['showNotePanel', 'showLongTermPanel', 'showFinancePanel'] as const)
+	for (const key of [
+		'showNotePanel',
+		'showLongTermPanel',
+		'showFinancePanel',
+		'showRoutinePanel'
+	] as const)
 		if (typeof s[key] === 'boolean') settings[key] = s[key];
 
 	return {
@@ -129,6 +138,25 @@ export function parseBackup(json: string): UserData {
 				person: strOrNull(t.person),
 				note: str(t.note),
 				createdAt: num(t.createdAt)
+			})),
+		routines: arr(backup.routines)
+			.filter((r) => str(r.id) !== '')
+			.map((r): Routine => ({
+				id: str(r.id),
+				name: str(r.name),
+				unit: str(r.unit),
+				threshold: num(r.threshold),
+				order: num(r.order)
+			})),
+		routineLogs: arr(backup.routineLogs)
+			.filter((l) => isValidKey(str(l.date)))
+			.map((l): RoutineLog => ({
+				date: str(l.date),
+				values: Object.fromEntries(
+					Object.entries(rec(l.values)).filter(
+						(e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])
+					)
+				)
 			}))
 	};
 }

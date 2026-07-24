@@ -31,7 +31,9 @@ const data: UserData = {
 			note: '',
 			createdAt: 5
 		}
-	]
+	],
+	routines: [{ id: 'r1', name: 'Quran', unit: 'pages', threshold: 5, order: 1 }],
+	routineLogs: [{ date: '2026-07-01', values: { r1: 6 } }]
 };
 
 describe('backup round-trip', () => {
@@ -88,13 +90,33 @@ describe('parseBackup', () => {
 		expect(parsed.notes).toEqual([]);
 		expect(parsed.longTermTasks).toEqual([]);
 		expect(parsed.accounts).toEqual([]);
+		expect(parsed.routines).toEqual([]);
+		expect(parsed.routineLogs).toEqual([]);
+	});
+
+	it('drops non-numeric routine values and invalid log dates', () => {
+		const parsed = parseBackup(
+			JSON.stringify({
+				app: 'daylog',
+				version: 1,
+				routines: [{ id: 'r1', name: 'Quran' }, { name: 'no id' }],
+				routineLogs: [
+					{ date: '2026-07-01', values: { r1: 6, bad: 'six', worse: NaN } },
+					{ date: 'nope', values: { r1: 1 } }
+				]
+			})
+		);
+		expect(parsed.routines).toEqual([
+			{ id: 'r1', name: 'Quran', unit: '', threshold: 0, order: 0 }
+		]);
+		expect(parsed.routineLogs).toEqual([{ date: '2026-07-01', values: { r1: 6 } }]);
 	});
 });
 
 describe('backupSummary', () => {
 	it('counts every collection', () => {
 		expect(backupSummary(data)).toBe(
-			'1 days, 1 people, 1 notes, 1 long-term tasks, 1 accounts, 1 transactions'
+			'1 days, 1 people, 1 notes, 1 long-term tasks, 1 accounts, 1 transactions, 1 routines, 1 routine days'
 		);
 	});
 });
