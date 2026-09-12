@@ -112,6 +112,8 @@ export interface Transaction {
 	/** Person handle on the other side of a lend/borrow — null for other kinds. */
 	person: string | null;
 	note: string;
+	/** Recurring bill/income (rent, subscriptions, salary) — tracked separately from one-off spending. */
+	fixed: boolean;
 	/** Client clock millis — orders transactions within a day. */
 	createdAt: number;
 }
@@ -388,6 +390,7 @@ function toTransaction(id: string, data: Record<string, unknown>): Transaction {
 		to: (data.to as string | null) ?? null,
 		person: (data.person as string | null) ?? null,
 		note: (data.note as string) ?? '',
+		fixed: (data.fixed as boolean) ?? false,
 		createdAt: (data.createdAt as number) ?? 0
 	};
 }

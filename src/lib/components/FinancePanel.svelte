@@ -11,8 +11,9 @@
 		type Transaction,
 		type TransactionKind
 	} from '$lib/db';
-	import { CATEGORIES, SUGGESTED_ACCOUNTS, signedAmount } from '$lib/finance';
+	import { CATEGORIES, SUGGESTED_ACCOUNTS } from '$lib/finance';
 	import { isValidHandle } from '$lib/parse';
+	import TransactionRow from './TransactionRow.svelte';
 
 	let {
 		uid,
@@ -38,22 +39,6 @@
 		{ kind: 'borrow', label: 'Borrow', active: 'bg-violet-600 text-white border-violet-600' }
 	];
 
-	const KIND_CHIP: Record<TransactionKind, string> = {
-		expense: 'bg-red-500/10 text-red-700 dark:text-red-300',
-		income: 'bg-green-500/10 text-green-700 dark:text-green-300',
-		transfer: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-		lend: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-		borrow: 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
-	};
-
-	const AMOUNT_TEXT: Record<TransactionKind, string> = {
-		expense: 'text-red-600 dark:text-red-400',
-		income: 'text-green-700 dark:text-green-400',
-		transfer: 'text-blue-600 dark:text-blue-400',
-		lend: 'text-amber-600 dark:text-amber-400',
-		borrow: 'text-violet-600 dark:text-violet-400'
-	};
-
 	const KIND_HINT: Partial<Record<TransactionKind, string>> = {
 		lend: 'Money you hand over — they owe you (or it settles what you owed them).',
 		borrow: 'Money you receive — you owe them (or it settles what they owed you).'
@@ -66,6 +51,7 @@
 	let to = $state('');
 	let person = $state('');
 	let note = $state('');
+	let fixed = $state(false);
 	let error = $state(false);
 
 	// Inline account creation — remembers which select asked for it.
@@ -83,9 +69,6 @@
 	const needsTo = $derived.by(() => kind !== 'expense' && kind !== 'lend');
 	const needsPerson = $derived.by(() => kind === 'lend' || kind === 'borrow');
 	const hasCategory = $derived.by(() => kind === 'expense' || kind === 'income');
-
-	const accountName = (id: string | null) =>
-		id === null ? '' : (accounts.find((a) => a.id === id)?.name ?? '(deleted account)');
 
 	function pickAccount(which: 'from' | 'to', value: string) {
 		if (value === '__new') {
@@ -155,18 +138,25 @@
 			to: needsTo ? to : null,
 			person: needsPerson ? person : null,
 			note: note.trim(),
+			fixed: kind === 'expense' ? fixed : false,
 			createdAt: Date.now()
 		};
 		txns = [...txns, txn];
 		amount = '';
 		category = '';
 		note = '';
+		fixed = false;
 		saveTransaction(uid, txn).catch(() => (error = true));
 	}
 
 	function removeTxn(txn: Transaction) {
 		txns = txns.filter((t) => t.id !== txn.id);
 		deleteTransaction(uid, txn.id).catch(() => (error = true));
+	}
+
+	function updateTxn(updated: Transaction) {
+		txns = txns.map((t) => (t.id === updated.id ? updated : t));
+		saveTransaction(uid, updated).catch(() => (error = true));
 	}
 </script>
 
@@ -221,35 +211,7 @@
 	{#if txns.length > 0}
 		<div class="mb-3 space-y-1">
 			{#each txns as txn (txn.id)}
-				<p class="group flex items-center gap-2 text-sm leading-relaxed">
-					<span class="rounded-full px-2 py-0.5 text-xs font-medium {KIND_CHIP[txn.kind]}">
-						{txn.category}
-					</span>
-					<span class="truncate text-mute">
-						{#if txn.kind === 'transfer'}
-							{accountName(txn.from)} → {accountName(txn.to)}
-						{:else if txn.kind === 'lend'}
-							{accountName(txn.from)} → @{txn.person}
-						{:else if txn.kind === 'borrow'}
-							@{txn.person} → {accountName(txn.to)}
-						{:else}
-							{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
-						{/if}
-						{#if txn.note}
-							<span class="text-faint">· {txn.note}</span>
-						{/if}
-					</span>
-					<span class="ml-auto font-medium tabular-nums {AMOUNT_TEXT[txn.kind]}">
-						{signedAmount(txn.kind, txn.amount)}
-					</span>
-					<button
-						type="button"
-						onclick={() => removeTxn(txn)}
-						aria-label="Delete transaction"
-						class="rounded px-1 text-xs text-faint opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
-						>×</button
-					>
-				</p>
+				<TransactionRow {txn} {accounts} onupdate={updateTxn} ondelete={removeTxn} />
 			{/each}
 		</div>
 	{/if}
@@ -428,6 +390,12 @@
 			{/if}
 			{#if kind === 'lend'}
 				{@render personSelect('To whom')}
+			{/if}
+			{#if kind === 'expense'}
+				<label class="flex items-center gap-1 pb-1.5 text-xs text-mute">
+					<input type="checkbox" bind:checked={fixed} />
+					fixed
+				</label>
 			{/if}
 			<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-mute">
 				Note (optional)

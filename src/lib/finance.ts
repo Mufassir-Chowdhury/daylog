@@ -80,6 +80,53 @@ export function monthlySummaries(txns: Transaction[]): MonthSummary[] {
 	return [...map.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
+export interface CategoryTotal {
+	category: string;
+	amount: number;
+}
+
+/** Totals per category for one kind, optionally scoped to a month (`YYYY-MM`), highest first. */
+export function categoryTotals(
+	txns: Transaction[],
+	kind: TransactionKind,
+	month?: string
+): CategoryTotal[] {
+	const map = new Map<string, number>();
+	for (const t of txns) {
+		if (t.kind !== kind) continue;
+		if (month && monthOf(t.date) !== month) continue;
+		map.set(t.category, (map.get(t.category) ?? 0) + t.amount);
+	}
+	return [...map.entries()]
+		.map(([category, amount]) => ({ category, amount }))
+		.sort((a, b) => b.amount - a.amount);
+}
+
+/** Fixed (recurring) vs variable expense total for one month. */
+export function fixedVsVariable(
+	txns: Transaction[],
+	month: string
+): { fixed: number; variable: number } {
+	let fixed = 0;
+	let variable = 0;
+	for (const t of txns) {
+		if (t.kind !== 'expense' || monthOf(t.date) !== month) continue;
+		if (t.fixed) fixed += t.amount;
+		else variable += t.amount;
+	}
+	return { fixed, variable };
+}
+
+/**
+ * Stable color per category, assigned by alphabetical position within the full
+ * category set so a filter change never repaints the categories that remain.
+ */
+export function categoryColor(category: string, allCategories: string[]): string {
+	const sorted = [...new Set(allCategories)].sort();
+	const idx = Math.max(0, sorted.indexOf(category));
+	return `var(--t-cat-${(idx % 8) + 1})`;
+}
+
 // en-IN grouping matches the Bangladeshi lakh/crore convention (1,00,000).
 const MONEY = {
 	lakh: new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }),

@@ -20,6 +20,7 @@ const txn = (t: Partial<Transaction>): Transaction => ({
 	to: null,
 	person: null,
 	note: '',
+	fixed: false,
 	createdAt: 0,
 	...t
 });

@@ -29,6 +29,7 @@ const data: UserData = {
 			to: null,
 			person: null,
 			note: '',
+			fixed: false,
 			createdAt: 5
 		}
 	],
@@ -84,6 +85,7 @@ describe('parseBackup', () => {
 				to: null,
 				person: null,
 				note: '',
+				fixed: false,
 				createdAt: 0
 			}
 		]);

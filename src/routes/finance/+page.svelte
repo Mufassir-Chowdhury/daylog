@@ -1,25 +1,27 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { session } from '$lib/auth.svelte';
+	import CategoryChart from '$lib/components/CategoryChart.svelte';
 	import MonthlyChart from '$lib/components/MonthlyChart.svelte';
+	import TransactionRow from '$lib/components/TransactionRow.svelte';
 	import {
 		deleteAccount,
 		deleteTransaction,
 		newAccountId,
 		saveAccount,
+		saveTransaction,
 		type Account,
-		type Transaction,
-		type TransactionKind
+		type Transaction
 	} from '$lib/db';
-	import { fromKey } from '$lib/date';
+	import { dateKey } from '$lib/date';
 	import {
 		balances,
+		fixedVsVariable,
 		formatMoney,
 		monthLabel,
 		monthlySummaries,
 		monthOf,
 		personBalances,
-		signedAmount,
 		SUGGESTED_ACCOUNTS
 	} from '$lib/finance';
 
@@ -43,10 +45,29 @@
 
 	const personName = (handle: string) => people.find((p) => p.handle === handle)?.name;
 
-	/** Transactions grouped by month, newest first (txns already arrive sorted). */
+	// Filters — applied to the trend chart, category chart, fixed-expenses card and the list below.
+	let filterAccount = $state('all');
+	let filterCategory = $state('all');
+	const allCategories = $derived([...new Set(txns.map((t) => t.category))].sort());
+	const filteredTxns = $derived(
+		txns.filter((t) => {
+			if (filterAccount !== 'all' && t.from !== filterAccount && t.to !== filterAccount)
+				return false;
+			if (filterCategory !== 'all' && t.category !== filterCategory) return false;
+			return true;
+		})
+	);
+	const filteredSummaries = $derived(monthlySummaries(filteredTxns));
+	const thisMonth = dateKey().slice(0, 7);
+	const fixedSplit = $derived(fixedVsVariable(filteredTxns, thisMonth));
+	const fixedTxns = $derived(
+		filteredTxns.filter((t) => t.fixed && t.kind === 'expense' && monthOf(t.date) === thisMonth)
+	);
+
+	/** Filtered transactions grouped by month, newest first (txns already arrive sorted). */
 	const monthGroups = $derived.by(() => {
 		const groups: { month: string; txns: Transaction[] }[] = [];
-		for (const t of txns) {
+		for (const t of filteredTxns) {
 			const month = monthOf(t.date);
 			const last = groups[groups.length - 1];
 			if (last?.month === month) last.txns.push(t);
@@ -55,28 +76,7 @@
 		return groups;
 	});
 
-	const KIND_CHIP: Record<TransactionKind, string> = {
-		expense: 'bg-red-500/10 text-red-700 dark:text-red-300',
-		income: 'bg-green-500/10 text-green-700 dark:text-green-300',
-		transfer: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-		lend: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-		borrow: 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
-	};
-
-	const AMOUNT_TEXT: Record<TransactionKind, string> = {
-		expense: 'text-red-600 dark:text-red-400',
-		income: 'text-green-700 dark:text-green-400',
-		transfer: 'text-blue-600 dark:text-blue-400',
-		lend: 'text-amber-600 dark:text-amber-400',
-		borrow: 'text-violet-600 dark:text-violet-400'
-	};
-
-	const DAY_LABEL = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-
-	const accountName = (id: string | null) =>
-		id === null ? '' : (accounts.find((a) => a.id === id)?.name ?? '(deleted account)');
-
-	const summaryFor = (month: string) => summaries.find((s) => s.month === month);
+	const summaryFor = (month: string) => filteredSummaries.find((s) => s.month === month);
 
 	// Account add/edit state.
 	let adding = $state(false);
@@ -137,7 +137,11 @@
 		deleteTransaction(uid, txn.id).catch(() => (error = true));
 	}
 
-	const dayHref = (key: string) => resolve('/day/[date]', { date: key });
+	function updateTxn(updated: Transaction) {
+		txns = txns.map((t) => (t.id === updated.id ? updated : t));
+		saveTransaction(uid, updated).catch(() => (error = true));
+	}
+
 	const suggestionsLeft = $derived(
 		SUGGESTED_ACCOUNTS.filter(
 			(s) => !accounts.some((a) => a.name.toLowerCase() === s.toLowerCase())
@@ -330,11 +334,49 @@
 	{/if}
 </section>
 
+<section class="mt-6">
+	<div class="mb-2 flex items-baseline">
+		<h2 class="text-xs font-semibold tracking-wide text-mute uppercase">Filters</h2>
+		{#if filterAccount !== 'all' || filterCategory !== 'all'}
+			<button
+				type="button"
+				onclick={() => {
+					filterAccount = 'all';
+					filterCategory = 'all';
+				}}
+				class="ml-auto text-xs text-accent hover:underline"
+			>
+				clear filters
+			</button>
+		{/if}
+	</div>
+	<div class="flex flex-wrap gap-2">
+		<select
+			bind:value={filterAccount}
+			class="rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
+		>
+			<option value="all">All accounts</option>
+			{#each accounts as a (a.id)}
+				<option value={a.id}>{a.name}</option>
+			{/each}
+		</select>
+		<select
+			bind:value={filterCategory}
+			class="rounded-ctl border-line bg-card py-1.5 text-sm text-ink"
+		>
+			<option value="all">All categories</option>
+			{#each allCategories as c (c)}
+				<option value={c}>{c}</option>
+			{/each}
+		</select>
+	</div>
+</section>
+
 <div class="mt-6 grid items-start gap-4 xl:grid-cols-2">
 	<section class="rounded-card border border-line bg-card p-4 shadow-card">
 		<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">Monthly overview</h2>
-		{#if summaries.length > 0}
-			{@const current = summaries[0]}
+		{#if filteredSummaries.length > 0}
+			{@const current = filteredSummaries[0]}
 			<div class="mb-4 grid grid-cols-3 gap-2 text-center">
 				<div class="rounded-ctl bg-tint p-2">
 					<p class="text-xs text-faint">{monthLabel(current.month)} in</p>
@@ -360,7 +402,43 @@
 				</div>
 			</div>
 		{/if}
-		<MonthlyChart {summaries} />
+		<MonthlyChart summaries={filteredSummaries} />
+	</section>
+
+	<section class="rounded-card border border-line bg-card p-4 shadow-card">
+		<CategoryChart txns={filteredTxns} kind="expense" />
+	</section>
+
+	<section class="rounded-card border border-line bg-card p-4 shadow-card">
+		<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">
+			Fixed expenses — {monthLabel(thisMonth)}
+		</h2>
+		<div class="mb-3 grid grid-cols-2 gap-2 text-center">
+			<div class="rounded-ctl bg-tint p-2">
+				<p class="text-xs text-faint">fixed</p>
+				<p class="text-base font-semibold text-ink tabular-nums">{formatMoney(fixedSplit.fixed)}</p>
+			</div>
+			<div class="rounded-ctl bg-tint p-2">
+				<p class="text-xs text-faint">variable</p>
+				<p class="text-base font-semibold text-ink tabular-nums">
+					{formatMoney(fixedSplit.variable)}
+				</p>
+			</div>
+		</div>
+		{#if fixedTxns.length > 0}
+			<div class="space-y-1">
+				{#each fixedTxns as t (t.id)}
+					<p class="flex items-center justify-between text-sm">
+						<span class="truncate text-mute">{t.category}</span>
+						<span class="text-ink tabular-nums">{formatMoney(t.amount)}</span>
+					</p>
+				{/each}
+			</div>
+		{:else}
+			<p class="text-sm text-faint">
+				Mark an expense "fixed" when adding or editing it to track recurring bills here.
+			</p>
+		{/if}
 	</section>
 
 	{#if owed.length > 0}
@@ -419,6 +497,8 @@
 		<p class="text-sm text-faint">
 			Nothing yet — add transactions from the Finance panel on any day page.
 		</p>
+	{:else if monthGroups.length === 0}
+		<p class="text-sm text-faint">No transactions match these filters.</p>
 	{/if}
 	<div class="space-y-4">
 		{#each monthGroups as group (group.month)}
@@ -437,41 +517,7 @@
 				</p>
 				<div class="space-y-1">
 					{#each group.txns as txn (txn.id)}
-						<p class="group flex items-center gap-2 text-sm leading-relaxed">
-							<a
-								href={dayHref(txn.date)}
-								class="w-12 shrink-0 text-xs text-faint tabular-nums hover:text-accent hover:underline"
-							>
-								{DAY_LABEL.format(fromKey(txn.date))}
-							</a>
-							<span class="rounded-full px-2 py-0.5 text-xs font-medium {KIND_CHIP[txn.kind]}">
-								{txn.category}
-							</span>
-							<span class="truncate text-mute">
-								{#if txn.kind === 'transfer'}
-									{accountName(txn.from)} → {accountName(txn.to)}
-								{:else if txn.kind === 'lend'}
-									{accountName(txn.from)} → @{txn.person}
-								{:else if txn.kind === 'borrow'}
-									@{txn.person} → {accountName(txn.to)}
-								{:else}
-									{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
-								{/if}
-								{#if txn.note}
-									<span class="text-faint">· {txn.note}</span>
-								{/if}
-							</span>
-							<span class="ml-auto shrink-0 font-medium tabular-nums {AMOUNT_TEXT[txn.kind]}">
-								{signedAmount(txn.kind, txn.amount)}
-							</span>
-							<button
-								type="button"
-								onclick={() => removeTxn(txn)}
-								aria-label="Delete transaction"
-								class="rounded px-1 text-xs text-faint opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
-								>×</button
-							>
-						</p>
+						<TransactionRow {txn} {accounts} showDay onupdate={updateTxn} ondelete={removeTxn} />
 					{/each}
 				</div>
 			</div>

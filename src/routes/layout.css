@@ -30,6 +30,28 @@
 	--font-display: var(--t-font-display);
 }
 
+/* Category chart palette — validated categorical hues, shared across all themes. */
+:root {
+	--t-cat-1: #2a78d6;
+	--t-cat-2: #eb6834;
+	--t-cat-3: #1baf7a;
+	--t-cat-4: #eda100;
+	--t-cat-5: #e87ba4;
+	--t-cat-6: #008300;
+	--t-cat-7: #4a3aa7;
+	--t-cat-8: #e34948;
+}
+[data-theme$='dark'] {
+	--t-cat-1: #3987e5;
+	--t-cat-2: #d95926;
+	--t-cat-3: #199e70;
+	--t-cat-4: #c98500;
+	--t-cat-5: #d55181;
+	--t-cat-6: #008300;
+	--t-cat-7: #9085e9;
+	--t-cat-8: #e66767;
+}
+
 /* ————— light (default) — clean, soft, indigo accent ————— */
 :root,
 [data-theme='light'] {
