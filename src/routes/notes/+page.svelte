@@ -3,6 +3,7 @@
 	import { session } from '$lib/auth.svelte';
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import { deleteNote } from '$lib/db';
+	import { toast } from '$lib/toast.svelte';
 
 	let { data } = $props();
 
@@ -11,12 +12,21 @@
 	// Overridable derived: refreshed by navigation, locally updated on delete.
 	let notes = $derived(data.notes);
 	let activeTag: string | null = $state(null);
+	let search = $state('');
 	let deleting: string | null = $state(null);
 
 	const tags = $derived([...new Set(notes.flatMap((n) => n.tags))].sort());
 	const visible = $derived.by(() => {
 		const tag = activeTag;
-		return tag ? notes.filter((n) => n.tags.includes(tag)) : notes;
+		const q = search.trim().toLowerCase();
+		return notes.filter(
+			(n) =>
+				(!tag || n.tags.includes(tag)) &&
+				(!q ||
+					n.title.toLowerCase().includes(q) ||
+					n.content.toLowerCase().includes(q) ||
+					n.tags.some((t) => t.toLowerCase().includes(q)))
+		);
 	});
 
 	function toggleTag(tag: string) {
@@ -31,20 +41,34 @@
 			await deleteNote(uid, id);
 			notes = notes.filter((n) => n.id !== id);
 		} catch {
-			alert('Could not delete note — please try again.');
+			toast('Could not delete note — please try again.', { tone: 'error' });
 		} finally {
 			deleting = null;
 		}
 	}
 </script>
 
+<svelte:head>
+	<title>Notes · daylog</title>
+</svelte:head>
+
 <div class="flex items-center justify-between gap-3">
 	<h1 class="font-display text-2xl font-bold tracking-tight text-ink">Notes</h1>
 	<NewNotePanel {uid} />
 </div>
 
+{#if notes.length > 0}
+	<input
+		type="search"
+		bind:value={search}
+		placeholder="Search notes…"
+		aria-label="Search notes"
+		class="mt-4 w-full rounded-ctl border-line bg-card py-1.5 text-sm text-ink sm:max-w-sm"
+	/>
+{/if}
+
 {#if tags.length > 0}
-	<div class="mt-4 flex flex-wrap gap-2">
+	<div class="mt-3 flex flex-wrap gap-2">
 		{#each tags as tag (tag)}
 			<button
 				type="button"
@@ -63,6 +87,8 @@
 	<p class="mt-6 text-sm text-faint">
 		{#if notes.length === 0}
 			No notes yet — jot something down with "+ New note".
+		{:else if search.trim()}
+			No notes match “{search.trim()}”{activeTag ? ` in #${activeTag}` : ''}.
 		{:else}
 			No notes tagged #{activeTag}.
 		{/if}

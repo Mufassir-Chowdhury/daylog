@@ -76,9 +76,30 @@
 	beforeNavigate(flush);
 
 	const dayHref = (key: string) => resolve('/day/[date]', { date: key });
+
+	// Alt+←/→ steps through days and Alt+T jumps to today — works even while typing.
+	function onkeydown(e: KeyboardEvent) {
+		if (!e.altKey || e.ctrlKey || e.metaKey) return;
+		const target =
+			e.key === 'ArrowLeft'
+				? addDays(date, -1)
+				: e.key === 'ArrowRight'
+					? addDays(date, 1)
+					: e.key.toLowerCase() === 't'
+						? dateKey()
+						: null;
+		if (target === null) return;
+		e.preventDefault();
+		flush();
+		goto(dayHref(target));
+	}
 </script>
 
-<svelte:window onvisibilitychange={() => document.hidden && flush()} />
+<svelte:head>
+	<title>{relativeLabel(date) || humanDate(date)} · daylog</title>
+</svelte:head>
+
+<svelte:window onvisibilitychange={() => document.hidden && flush()} {onkeydown} />
 
 <div
 	class="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-card border border-line bg-card px-4 py-3 shadow-card"
@@ -113,7 +134,8 @@
 		<a
 			href={dayHref(addDays(date, -1))}
 			class="rounded-ctl border border-line bg-card px-2.5 py-1.5 text-sm text-mute hover:bg-tint hover:text-ink"
-			aria-label="Previous day">←</a
+			aria-label="Previous day"
+			title="Previous day (Alt+←)">←</a
 		>
 		<input
 			type="date"
@@ -125,7 +147,8 @@
 		<a
 			href={dayHref(addDays(date, 1))}
 			class="rounded-ctl border border-line bg-card px-2.5 py-1.5 text-sm text-mute hover:bg-tint hover:text-ink"
-			aria-label="Next day">→</a
+			aria-label="Next day"
+			title="Next day (Alt+→)">→</a
 		>
 	</div>
 </div>

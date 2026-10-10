@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { session } from '$lib/auth.svelte';
 	import { deleteNote, saveNote } from '$lib/db';
+	import { saveFailed, toast } from '$lib/toast.svelte';
 
 	let { data } = $props();
 
@@ -14,7 +15,7 @@
 	let content = $derived(data.note.content);
 	let tagsInput = $derived(data.note.tags.join(', '));
 
-	let saveState: 'saved' | 'pending' = $state('saved');
+	let saveState: 'saved' | 'pending' | 'error' = $state('saved');
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
 	let pending: { id: string; title: string; content: string; tags: string[] } | null = null;
 	let deleting = $state(false);
@@ -40,7 +41,10 @@
 	function flush() {
 		clearTimeout(saveTimer);
 		if (!pending) return;
-		saveNote(uid, pending);
+		saveNote(uid, pending).catch(() => {
+			saveState = 'error';
+			saveFailed();
+		});
 		pending = null;
 		saveState = 'saved';
 	}
@@ -53,7 +57,7 @@
 			await deleteNote(uid, id);
 			await goto(resolve('/notes'));
 		} catch {
-			alert('Could not delete note — please try again.');
+			toast('Could not delete note — please try again.', { tone: 'error' });
 			deleting = false;
 		}
 	}
@@ -61,12 +65,22 @@
 	beforeNavigate(flush);
 </script>
 
+<svelte:head>
+	<title>{title || 'Untitled'} · daylog</title>
+</svelte:head>
+
 <svelte:window onvisibilitychange={() => document.hidden && flush()} />
 
 <div class="flex items-center justify-between gap-3">
 	<a href={resolve('/notes')} class="text-sm text-mute hover:text-ink">← Notes</a>
 	<div class="flex items-center gap-3">
-		<span class="text-xs text-faint">{saveState === 'saved' ? 'saved' : '…'}</span>
+		<span class="text-xs text-faint">
+			{#if saveState === 'error'}
+				<span class="text-red-500 dark:text-red-400">save failed</span>
+			{:else}
+				{saveState === 'saved' ? 'saved' : '…'}
+			{/if}
+		</span>
 		<button
 			type="button"
 			onclick={remove}

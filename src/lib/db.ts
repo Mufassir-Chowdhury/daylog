@@ -411,6 +411,14 @@ export async function listDayTransactions(uid: string, key: string): Promise<Tra
 		.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/** Every lend/borrow (any transaction, really) involving one person, newest first. */
+export async function listPersonTransactions(uid: string, handle: string): Promise<Transaction[]> {
+	const snap = await getDocs(query(txnsCol(uid), where('person', '==', handle)));
+	return snap.docs
+		.map((d) => toTransaction(d.id, d.data()))
+		.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+}
+
 export async function saveTransaction(uid: string, txn: Transaction): Promise<void> {
 	const { id, ...rest } = txn;
 	await setDoc(doc(txnsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });

@@ -43,3 +43,25 @@ export function relativeLabel(key: string): string {
 	if (key === addDays(today, -1)) return 'Yesterday';
 	return '';
 }
+
+/** Month key (`YYYY-MM`) of a day key. */
+export function monthOf(key: string): string {
+	return key.slice(0, 7);
+}
+
+export function daysInMonth(month: string): number {
+	const [y, m] = month.split('-').map(Number);
+	return new Date(y, m, 0).getDate();
+}
+
+/** Moves a month key by `delta` months, e.g. `shiftMonth('2026-01', -1)` → `'2025-12'`. */
+export function shiftMonth(month: string, delta: number): string {
+	const [y, m] = month.split('-').map(Number);
+	const d = new Date(y, m - 1 + delta, 1);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** `count` consecutive month keys ending at `last`, oldest first. */
+export function monthsEnding(last: string, count: number): string[] {
+	return Array.from({ length: count }, (_, i) => shiftMonth(last, i - count + 1));
+}

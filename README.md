@@ -10,6 +10,17 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
 - **People.** Write `@rahim` anywhere and Rahim gets a unique profile automatically.
   His profile shows every line that ever mentioned him, plus a freeform name/bio you can
   append notes to — after a while you have a detailed bio of everyone you deal with.
+- **Finance.** Log expenses, income, transfers and lend/borrow from any day page or the
+  Finance page. Charts cover cash flow (income, spending, net and savings rate over 6/12
+  months or all time), spending and income by category with month-over-month change, your
+  spending pace against last month, and a monthly category trend. Click a category for its
+  history and transactions; transactions are grouped by month and only rendered when you expand
+  one. Search, filter (kept in the URL), export CSV, duplicate or edit anything, undo deletes.
+- **Debts per person.** Each person's page shows what they owe you (or you owe them), the full
+  lend/borrow history with a running balance, and a one-click settle-up.
+- **Routines.** Track daily numbers with targets; see streaks and a 30-day heatmap.
+- **Keyboard.** `Alt+←/→` steps through days, `Alt+T` jumps to today, `g` then `d/f/p/n/r/s`
+  jumps between pages, `?` lists every shortcut.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
 - 🎤 Voice input — _coming soon_.

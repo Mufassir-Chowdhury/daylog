@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RoutineLog } from './db';
-import { daysInMonth, elapsedDays, monthlyRoutineStats } from './routines';
+import {
+	daysInMonth,
+	elapsedDays,
+	monthlyRoutineStats,
+	recentValues,
+	routineStreaks
+} from './routines';
 
 describe('daysInMonth', () => {
 	it('knows month lengths', () => {
@@ -55,5 +61,45 @@ describe('monthlyRoutineStats', () => {
 		);
 		expect(months[0].stats.has('quran')).toBe(false);
 		expect(months[0].stats.get('hadith')?.total).toBe(2);
+	});
+});
+
+describe('routineStreaks', () => {
+	const log = (date: string, v: number): RoutineLog => ({ date, values: { q: v } });
+	const logs = [
+		log('2026-07-01', 5),
+		log('2026-07-02', 5),
+		log('2026-07-03', 5),
+		log('2026-07-05', 2), // below target
+		log('2026-07-08', 6),
+		log('2026-07-09', 7)
+	];
+
+	it('finds the best run and a current run ending yesterday', () => {
+		expect(routineStreaks(logs, 'q', 5, '2026-07-10')).toEqual({ current: 2, best: 3 });
+	});
+
+	it('counts today when it is already met', () => {
+		expect(routineStreaks(logs, 'q', 5, '2026-07-09')).toEqual({ current: 2, best: 3 });
+	});
+
+	it('breaks the current run after a missed day', () => {
+		expect(routineStreaks(logs, 'q', 5, '2026-07-11').current).toBe(0);
+	});
+
+	it('treats any value as met when there is no target', () => {
+		expect(routineStreaks(logs, 'q', 0, '2026-07-06').best).toBe(3);
+		expect(routineStreaks(logs, 'q', 0, '2026-07-06').current).toBe(1);
+	});
+});
+
+describe('recentValues', () => {
+	it('fills the window oldest first with nulls for missing days', () => {
+		const r = recentValues([{ date: '2026-07-10', values: { q: 3 } }], 'q', '2026-07-10', 3);
+		expect(r).toEqual([
+			{ date: '2026-07-08', value: null },
+			{ date: '2026-07-09', value: null },
+			{ date: '2026-07-10', value: 3 }
+		]);
 	});
 });

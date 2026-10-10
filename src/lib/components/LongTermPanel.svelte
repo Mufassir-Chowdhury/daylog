@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toast } from '$lib/toast.svelte';
 	import { deleteLongTermTask, newLongTermId, saveLongTermTask, type LongTermTask } from '$lib/db';
 
 	let {
@@ -48,9 +49,14 @@
 	}
 
 	function removeTask(task: LongTermTask) {
-		if (!confirm(`Delete "${task.text}" everywhere? It disappears from every day.`)) return;
 		tasks = tasks.filter((t) => t.id !== task.id);
 		deleteLongTermTask(uid, task.id).catch(() => (error = true));
+		toast(`Deleted “${task.text}” from every day.`, {
+			undo: () => {
+				tasks = [...tasks, task];
+				saveLongTermTask(uid, task).catch(() => (error = true));
+			}
+		});
 	}
 
 	/** Swaps priority with the neighbor above (-1) or below (+1) in the visible list. */
@@ -123,7 +129,7 @@
 						<span class="text-xs text-faint">{doneSubs}/{task.subtasks.length}</span>
 					{/if}
 					<span
-						class="ml-auto flex shrink-0 gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+						class="reveal ml-auto flex shrink-0 gap-0.5 group-focus-within:opacity-100 group-hover:opacity-100"
 					>
 						{#if !done}
 							<button
@@ -178,7 +184,7 @@
 									type="button"
 									onclick={() => removeSubtask(task, i)}
 									aria-label="Delete subtask"
-									class="rounded px-1 text-xs text-faint opacity-0 group-focus-within/sub:opacity-100 group-hover/sub:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+									class="reveal rounded px-1 text-xs text-faint group-focus-within/sub:opacity-100 group-hover/sub:opacity-100 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
 									>×</button
 								>
 							</p>

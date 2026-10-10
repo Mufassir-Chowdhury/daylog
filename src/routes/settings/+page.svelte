@@ -14,6 +14,7 @@
 	} from '$lib/db';
 	import { formatMoney } from '$lib/finance';
 	import { applySettings, settings, type Theme } from '$lib/settings.svelte';
+	import { toast } from '$lib/toast.svelte';
 
 	let { data } = $props();
 
@@ -113,9 +114,15 @@
 	}
 
 	function removeRoutine(routine: Routine) {
-		if (!confirm(`Delete routine "${routine.name}"? Its card disappears from every day.`)) return;
 		routines = routines.filter((r) => r.id !== routine.id);
 		deleteRoutine(uid, routine.id).catch(() => (routineError = true));
+		// Logged values stay in place, so undo just restores the definition.
+		toast(`Deleted routine “${routine.name}”.`, {
+			undo: () => {
+				routines = [...routines, routine].sort((a, b) => a.order - b.order);
+				saveRoutine(uid, routine).catch(() => (routineError = true));
+			}
+		});
 	}
 
 	let saveState: 'saved' | 'pending' | 'error' = $state('saved');
@@ -190,6 +197,10 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<title>Settings · daylog</title>
+</svelte:head>
 
 <div class="mb-5 flex items-baseline">
 	<h1 class="font-display text-2xl font-bold tracking-tight text-ink">Settings</h1>

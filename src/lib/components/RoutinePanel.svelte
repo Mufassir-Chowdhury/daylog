@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { toast } from '$lib/toast.svelte';
 	import {
 		deleteRoutine,
 		newRoutineId,
@@ -70,9 +71,15 @@
 	}
 
 	function removeRoutine(routine: Routine) {
-		if (!confirm(`Delete routine "${routine.name}"? Its card disappears from every day.`)) return;
 		routines = routines.filter((r) => r.id !== routine.id);
 		deleteRoutine(uid, routine.id).catch(() => (error = true));
+		// Logged values stay in place, so undo just restores the definition.
+		toast(`Deleted routine “${routine.name}”.`, {
+			undo: () => {
+				routines = [...routines, routine].sort((a, b) => a.order - b.order);
+				saveRoutine(uid, routine).catch(() => (error = true));
+			}
+		});
 	}
 
 	function setValue(routine: Routine, raw: string) {
@@ -177,7 +184,7 @@
 					>
 						<span class="truncate font-medium">{routine.name}</span>
 						<span
-							class="ml-auto flex shrink-0 gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+							class="reveal ml-auto flex shrink-0 gap-0.5 group-focus-within:opacity-100 group-hover:opacity-100"
 						>
 							<button
 								type="button"
