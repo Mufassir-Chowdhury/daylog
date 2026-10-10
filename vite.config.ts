@@ -2,10 +2,13 @@ import { mdsvex } from 'mdsvex';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
-import adapter from '@sveltejs/adapter-cloudflare';
+import cloudflare from '@sveltejs/adapter-cloudflare';
+import staticAdapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
-export default defineConfig({
+// `vite build --mode desktop` emits a static SPA into desktop/app for the Electron
+// shell to serve locally; every other build targets Cloudflare as before.
+export default defineConfig(({ mode }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -14,7 +17,10 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter(),
+			adapter:
+				mode === 'desktop'
+					? staticAdapter({ pages: 'desktop/app', assets: 'desktop/app', fallback: '200.html' })
+					: cloudflare(),
 			preprocess: [mdsvex({ extensions: ['.svx', '.md'] })],
 			extensions: ['.svelte', '.svx', '.md']
 		})
@@ -47,4 +53,4 @@ export default defineConfig({
 			}
 		]
 	}
-});
+}));

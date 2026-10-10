@@ -1,3 +1,5 @@
+import { dateKey, parseDateWord } from './date';
+
 /**
  * Parsing for day text. The stored text stays exactly as typed — parsing only
  * affects how a day is rendered (timed tasks grouped at top, @mentions linked).
@@ -175,4 +177,29 @@ export function linesMentioning(text: string, handle: string): Line[] {
 	return [...timed, ...notes].filter((line) =>
 		line.segments.some((s) => s.kind === 'mention' && s.handle === handle)
 	);
+}
+
+/** `text` with `line` on a new line at the end, without leaving blank lines behind. */
+export function joinLine(text: string, line: string): string {
+	const body = text.replace(/\s+$/, '');
+	return body ? `${body}\n${line}` : line;
+}
+
+/**
+ * Reads quick-capture input. A leading date and colon picks the day
+ * (`tmr: call @mom`, `fri: 21:00 gym`, `oct 12: exam`); anything else goes to
+ * today. Returns null for blank input.
+ */
+export function parseCapture(
+	input: string,
+	today: string = dateKey()
+): { date: string; line: string } | null {
+	const text = input.trim();
+	if (!text) return null;
+	const m = /^([^:]{1,24}):\s*(\S.*)$/.exec(text);
+	if (m) {
+		const date = parseDateWord(m[1], today);
+		if (date) return { date, line: m[2].trim() };
+	}
+	return { date: today, line: text };
 }

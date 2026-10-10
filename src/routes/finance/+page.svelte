@@ -541,7 +541,7 @@
 {#if txns.length > 0}
 	<!-- One filter row above everything it scopes: every chart and the list re-render against it. -->
 	<section
-		class="sticky top-[57px] z-30 -mx-4 mt-6 border-y border-line bg-canvas/90 px-4 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
+		class="sticky top-[var(--sticky-top,57px)] z-30 -mx-4 mt-6 border-y border-line bg-canvas/90 px-4 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10"
 	>
 		<div class="flex flex-wrap items-center gap-2">
 			<input

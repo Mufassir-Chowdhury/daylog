@@ -5,7 +5,9 @@ export const THEMES = [
 	'geo-light',
 	'geo-dark',
 	'tech-light',
-	'tech-dark'
+	'tech-dark',
+	'jarvis-light',
+	'jarvis-dark'
 ] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -55,4 +57,50 @@ function take<K extends keyof AppSettings>(next: AppSettings, key: K, value: unk
 	if (key === 'grouping' && value !== 'lakh' && value !== 'thousand') return;
 	if (key === 'theme' && !THEMES.includes(value as Theme)) return;
 	next[key] = value as AppSettings[K];
+}
+
+/** The light/dark sibling of a theme (`geo-dark` ↔ `geo-light`). */
+export function counterpartTheme(theme: Theme): Theme {
+	if (theme === 'light') return 'dark';
+	if (theme === 'dark') return 'light';
+	return (
+		theme.endsWith('-dark') ? theme.replace(/-dark$/, '-light') : theme.replace(/-light$/, '-dark')
+	) as Theme;
+}
+
+/**
+ * Per-device theme override. The desktop app defaults to the Jarvis theme
+ * whatever the account theme is, so the web app keeps its own look; 'account'
+ * follows the synced setting. Kept in localStorage.
+ */
+export type DeviceTheme = Theme | 'account';
+
+const DEVICE_THEME_KEY = 'daylog-device-theme';
+
+export const device: { theme: DeviceTheme } = $state({ theme: 'account' });
+
+/** Restores this device's override; `fallback` applies when none was ever chosen. */
+export function loadDeviceTheme(fallback: DeviceTheme): void {
+	let stored: string | null = null;
+	try {
+		stored = localStorage.getItem(DEVICE_THEME_KEY);
+	} catch {
+		/* storage blocked — use the fallback */
+	}
+	device.theme =
+		stored === 'account' || THEMES.includes(stored as Theme) ? (stored as DeviceTheme) : fallback;
+}
+
+export function setDeviceTheme(theme: DeviceTheme): void {
+	device.theme = theme;
+	try {
+		localStorage.setItem(DEVICE_THEME_KEY, theme);
+	} catch {
+		/* storage blocked — applies for this session */
+	}
+}
+
+/** The theme actually on screen. */
+export function effectiveTheme(): Theme {
+	return device.theme === 'account' ? settings.theme : device.theme;
 }

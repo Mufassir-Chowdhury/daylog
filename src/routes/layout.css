@@ -74,6 +74,9 @@
 	--t-font-display: var(--font-sans);
 	--t-pattern: none;
 	--t-pattern-size: auto;
+	--t-glow: color-mix(in oklab, var(--t-accent) 30%, transparent);
+	--t-chrome: var(--t-card);
+	--t-chrome-ink: var(--t-mute);
 }
 
 /* ————— dark — deep neutral, lifted indigo ————— */
@@ -190,6 +193,62 @@
 	--t-pattern-size: 28px 28px;
 }
 
+/* ————— jarvis — deep navy glass, soft blue light, calm and futuristic ————— */
+[data-theme='jarvis-dark'] {
+	color-scheme: dark;
+	--t-canvas: #070b14;
+	--t-card: #0e1526;
+	--t-tint: #141e33;
+	--t-line: #1d2a44;
+	--t-ink: #e6eeff;
+	--t-mute: #9db0d3;
+	--t-faint: #5d6f93;
+	--t-accent: #6aa8ff;
+	--t-accent-fill: #3b82f6;
+	--t-on-accent: #ffffff;
+	--t-up: #4ade80;
+	--t-down: #f87171;
+	--t-radius-card: 1rem;
+	--t-radius-ctl: 0.6rem;
+	--t-shadow-card: 0 0 0 1px rgb(106 168 255 / 0.04), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+	--t-font-display: 'Segoe UI Variable Display', 'Segoe UI', var(--font-sans);
+	--t-glow: rgb(59 130 246 / 0.35);
+	--t-chrome: #0a1120;
+	--t-chrome-ink: #c9d8f5;
+	--t-pattern:
+		radial-gradient(1200px 600px at 10% -10%, rgb(59 130 246 / 0.16), transparent 60%),
+		radial-gradient(900px 500px at 100% 0%, rgb(56 189 248 / 0.08), transparent 55%),
+		radial-gradient(800px 600px at 50% 120%, rgb(99 102 241 / 0.08), transparent 60%);
+	--t-pattern-size: auto;
+}
+
+[data-theme='jarvis-light'] {
+	color-scheme: light;
+	--t-canvas: #f3f6fc;
+	--t-card: #ffffff;
+	--t-tint: #edf2fb;
+	--t-line: #dde5f3;
+	--t-ink: #0b1630;
+	--t-mute: #485a7e;
+	--t-faint: #8d9bb8;
+	--t-accent: #2563eb;
+	--t-accent-fill: #2563eb;
+	--t-on-accent: #ffffff;
+	--t-up: #027a48;
+	--t-down: #d92d20;
+	--t-radius-card: 1rem;
+	--t-radius-ctl: 0.6rem;
+	--t-shadow-card: 0 1px 2px rgb(30 64 175 / 0.05), 0 8px 24px -16px rgb(30 64 175 / 0.25);
+	--t-font-display: 'Segoe UI Variable Display', 'Segoe UI', var(--font-sans);
+	--t-glow: rgb(37 99 235 / 0.22);
+	--t-chrome: #f8faff;
+	--t-chrome-ink: #23365e;
+	--t-pattern:
+		radial-gradient(1200px 600px at 10% -10%, rgb(59 130 246 / 0.12), transparent 60%),
+		radial-gradient(900px 500px at 100% 0%, rgb(56 189 248 / 0.08), transparent 55%);
+	--t-pattern-size: auto;
+}
+
 /*
  * Row actions (edit/delete) appear on hover with a mouse; on touch screens
  * there is no hover, so they stay visible instead of being unreachable.
@@ -289,4 +348,181 @@
 	&::-webkit-scrollbar {
 		display: none;
 	}
+}
+
+/*
+ * Command palette (Ctrl+K in the app, the whole window in the desktop quick bar)
+ * and the desktop shell. Plain CSS because the states are easier to read here
+ * than as stacks of utilities.
+ */
+@layer components {
+	.palette-panel {
+		box-shadow:
+			0 0 0 1px color-mix(in oklab, var(--t-accent) 10%, transparent),
+			0 24px 64px -16px rgb(0 0 0 / 0.55),
+			0 0 48px -12px var(--t-glow);
+	}
+	.palette-quick {
+		max-height: 100%;
+		background: color-mix(in oklab, var(--t-card) 94%, transparent);
+		backdrop-filter: blur(24px) saturate(1.4);
+	}
+	.palette-row {
+		position: relative;
+		color: var(--t-mute);
+		transition: background-color 60ms;
+	}
+	.palette-row[aria-selected='true'] {
+		color: var(--t-ink);
+		background: color-mix(in oklab, var(--t-accent) 13%, transparent);
+	}
+	.palette-row[aria-selected='true']::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 25%;
+		bottom: 25%;
+		width: 2px;
+		border-radius: 2px;
+		background: var(--t-accent);
+		box-shadow: 0 0 8px var(--t-accent);
+	}
+	.palette-icon {
+		background: var(--t-tint);
+		color: var(--t-faint);
+	}
+	.palette-row[aria-selected='true'] .palette-icon {
+		background: color-mix(in oklab, var(--t-accent) 18%, transparent);
+		color: var(--t-accent);
+	}
+	.palette-row[aria-selected='true'] .palette-hint {
+		color: var(--t-mute);
+	}
+
+	/* The "assistant" orb — breathes while idle, spins while saving. */
+	.palette-orb,
+	.brand-orb {
+		position: relative;
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+		border-radius: 9999px;
+		border: 2px solid var(--t-accent);
+		box-shadow:
+			0 0 10px var(--t-glow),
+			inset 0 0 6px var(--t-glow);
+		animation: orb-breathe 3.2s ease-in-out infinite;
+	}
+	.palette-orb::after,
+	.brand-orb::after {
+		content: '';
+		position: absolute;
+		inset: 4px;
+		border-radius: 9999px;
+		background: var(--t-accent);
+		opacity: 0.85;
+	}
+	.palette-orb-busy {
+		border-top-color: transparent;
+		animation: orb-spin 0.6s linear infinite;
+	}
+	@keyframes orb-breathe {
+		50% {
+			box-shadow:
+				0 0 16px var(--t-glow),
+				inset 0 0 8px var(--t-glow);
+		}
+	}
+	@keyframes orb-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	/* ——— Desktop shell ——— */
+	.desk-titlebar {
+		-webkit-app-region: drag;
+		background: var(--t-chrome);
+		color: var(--t-chrome-ink);
+	}
+	.desk-titlebar :where(button, a, input, kbd) {
+		-webkit-app-region: no-drag;
+	}
+	.desk-sidebar {
+		background: color-mix(in oklab, var(--t-chrome) 70%, transparent);
+	}
+	.desk-nav {
+		position: relative;
+		color: var(--t-mute);
+		transition:
+			background-color 80ms,
+			color 80ms;
+	}
+	.desk-nav:hover {
+		background: var(--t-tint);
+		color: var(--t-ink);
+	}
+	.desk-nav[aria-current='page'] {
+		color: var(--t-ink);
+		background: color-mix(in oklab, var(--t-accent) 12%, transparent);
+	}
+	.desk-nav[aria-current='page']::before {
+		content: '';
+		position: absolute;
+		left: -0.5rem;
+		top: 22%;
+		bottom: 22%;
+		width: 3px;
+		border-radius: 3px;
+		background: var(--t-accent);
+		box-shadow: 0 0 10px var(--t-accent);
+	}
+	.desk-nav[aria-current='page'] svg {
+		color: var(--t-accent);
+	}
+	.desk-search {
+		background: color-mix(in oklab, var(--t-tint) 80%, transparent);
+		color: var(--t-faint);
+		transition:
+			border-color 100ms,
+			color 100ms;
+	}
+	.desk-search:hover {
+		border-color: color-mix(in oklab, var(--t-accent) 45%, transparent);
+		color: var(--t-mute);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.palette-orb,
+		.brand-orb {
+			animation: none;
+		}
+	}
+}
+
+/* Desktop quick bar: a transparent window with only the palette panel showing. */
+:root[data-quick],
+:root[data-quick] body {
+	background: transparent;
+	overflow: hidden;
+}
+
+/* Desktop: the app is a tool, not a page — no rubber-band selection of chrome. */
+:root[data-desktop] {
+	user-select: none;
+}
+:root[data-desktop] :where(input, textarea, [contenteditable], main, dialog) {
+	user-select: text;
+}
+:root[data-desktop] ::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+:root[data-desktop] ::-webkit-scrollbar-thumb {
+	border: 3px solid transparent;
+	border-radius: 9999px;
+	background: color-mix(in oklab, var(--t-faint) 45%, transparent) padding-box;
+}
+:root[data-desktop] ::-webkit-scrollbar-track {
+	background: transparent;
 }

@@ -65,3 +65,74 @@ export function shiftMonth(month: string, delta: number): string {
 export function monthsEnding(last: string, count: number): string[] {
 	return Array.from({ length: count }, (_, i) => shiftMonth(last, i - count + 1));
 }
+
+/** Index of the name `word` abbreviates (at least 3 letters: `thu`, `sept`), or -1. */
+function nameIndex(word: string, names: string[]): number {
+	return word.length < 3 ? -1 : names.findIndex((n) => n.startsWith(word));
+}
+
+const WEEKDAYS_FULL = [
+	'sunday',
+	'monday',
+	'tuesday',
+	'wednesday',
+	'thursday',
+	'friday',
+	'saturday'
+];
+const MONTHS_FULL = [
+	'january',
+	'february',
+	'march',
+	'april',
+	'may',
+	'june',
+	'july',
+	'august',
+	'september',
+	'october',
+	'november',
+	'december'
+];
+
+/**
+ * Reads a loosely typed date relative to `today`: `today`, `tmr`, `yesterday`,
+ * weekday names (`fri` = the coming Friday, today if it is Friday; `next fri`
+ * a week later; `last fri` the one before today), `+3` / `-2` days, `oct 12`,
+ * `12 oct 2027`, or an ISO key. Returns a day key, or null if it isn't a date.
+ */
+export function parseDateWord(input: string, today: string = dateKey()): string | null {
+	const text = input.trim().toLowerCase().replace(/\s+/g, ' ');
+	if (!text) return null;
+	if (isValidKey(text)) return text;
+	if (/^(today|tod|now)$/.test(text)) return today;
+	if (/^(tomorrow|tmr|tmrw|tom)$/.test(text)) return addDays(today, 1);
+	if (/^(yesterday|yday|yest)$/.test(text)) return addDays(today, -1);
+	const offset = /^([+-])\s*(\d{1,3})\s*d?$/.exec(text);
+	if (offset) return addDays(today, Number(offset[2]) * (offset[1] === '-' ? -1 : 1));
+
+	const weekday = /^(next |last |this )?([a-z]+)$/.exec(text);
+	if (weekday) {
+		const wd = nameIndex(weekday[2], WEEKDAYS_FULL);
+		if (wd !== -1) {
+			const current = fromKey(today).getDay();
+			if (weekday[1] === 'last ') return addDays(today, -(((current - wd + 6) % 7) + 1));
+			const ahead = (wd - current + 7) % 7;
+			return addDays(today, ahead + (weekday[1] === 'next ' ? 7 : 0));
+		}
+	}
+
+	const monthDay =
+		/^([a-z]+) (\d{1,2})(?:,? (\d{4}))?$/.exec(text) ??
+		/^(\d{1,2}) ([a-z]+)(?:,? (\d{4}))?$/.exec(text);
+	if (monthDay) {
+		const [, a, b, year] = monthDay;
+		const [word, day] = /^\d/.test(a) ? [b, a] : [a, b];
+		const month = nameIndex(word, MONTHS_FULL);
+		if (month === -1) return null;
+		const y = year ?? today.slice(0, 4);
+		const key = `${y}-${String(month + 1).padStart(2, '0')}-${day.padStart(2, '0')}`;
+		return isValidKey(key) ? key : null;
+	}
+	return null;
+}

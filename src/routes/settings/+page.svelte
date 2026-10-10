@@ -12,8 +12,17 @@
 		saveSettings,
 		type Routine
 	} from '$lib/db';
+	import DesktopSettings from '$lib/components/DesktopSettings.svelte';
+	import { desktop } from '$lib/desktop';
 	import { formatMoney } from '$lib/finance';
-	import { applySettings, settings, type Theme } from '$lib/settings.svelte';
+	import {
+		applySettings,
+		device,
+		effectiveTheme,
+		setDeviceTheme,
+		settings,
+		type Theme
+	} from '$lib/settings.svelte';
 	import { toast } from '$lib/toast.svelte';
 
 	let { data } = $props();
@@ -76,10 +85,31 @@
 			canvas: '#070b12',
 			card: '#0d1420',
 			accent: '#22d3ee'
+		},
+		{
+			id: 'jarvis-light',
+			label: 'Jarvis light',
+			hint: 'airy blue glow',
+			canvas: '#f3f6fc',
+			card: '#ffffff',
+			accent: '#2563eb'
+		},
+		{
+			id: 'jarvis-dark',
+			label: 'Jarvis dark',
+			hint: 'navy glass, blue light',
+			canvas: '#070b14',
+			card: '#0e1526',
+			accent: '#6aa8ff'
 		}
 	];
 
+	// In the desktop app a pick applies to this computer only, unless it follows the account.
 	function pickTheme(theme: Theme) {
+		if (desktop && device.theme !== 'account') {
+			setDeviceTheme(theme);
+			return;
+		}
 		settings.theme = theme;
 		persist();
 	}
@@ -224,8 +254,9 @@
 					<button
 						type="button"
 						onclick={() => pickTheme(option.id)}
-						aria-pressed={settings.theme === option.id}
-						class="rounded-card border p-2 text-left transition-colors {settings.theme === option.id
+						aria-pressed={effectiveTheme() === option.id}
+						class="rounded-card border p-2 text-left transition-colors {effectiveTheme() ===
+						option.id
 							? 'border-accent ring-2 ring-accent/30'
 							: 'border-line hover:border-accent/50'}"
 					>
@@ -253,8 +284,15 @@
 			<p class="mt-2 text-xs text-faint">
 				Themes restyle the whole app — colors, corners, background texture and type. Your pick is
 				saved to your account and remembered on this device.
+				{#if desktop && device.theme !== 'account'}
+					In the desktop app, your pick applies to this computer only — the web app keeps its own.
+				{/if}
 			</p>
 		</section>
+
+		{#if desktop}
+			<DesktopSettings />
+		{/if}
 
 		<section class="rounded-card border border-line bg-card p-4 shadow-card">
 			<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">Money</h2>

@@ -2,6 +2,7 @@ import {
 	GoogleAuthProvider,
 	createUserWithEmailAndPassword,
 	onAuthStateChanged,
+	signInWithCredential,
 	signInWithEmailAndPassword,
 	signInWithPopup,
 	signOut,
@@ -37,6 +38,11 @@ export function authReady(): Promise<User | null> {
 
 export function signInWithGoogle() {
 	return signInWithPopup(auth, new GoogleAuthProvider());
+}
+
+/** Desktop: finishes a Google sign-in that happened in the system browser. */
+export function signInWithGoogleTokens(idToken: string | null, accessToken: string | null) {
+	return signInWithCredential(auth, GoogleAuthProvider.credential(idToken, accessToken));
 }
 
 export function signInWithEmail(email: string, password: string) {

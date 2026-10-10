@@ -9,9 +9,10 @@
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import PlanPanel from '$lib/components/PlanPanel.svelte';
 	import RoutinePanel from '$lib/components/RoutinePanel.svelte';
+	import { registerDayAppender } from '$lib/capture';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
-	import { parseDay, toggleDone } from '$lib/parse';
+	import { extractMentions, joinLine, parseDay, toggleDone } from '$lib/parse';
 	import { settings } from '$lib/settings.svelte';
 
 	let { data } = $props();
@@ -77,6 +78,17 @@
 	}
 
 	beforeNavigate(flush);
+
+	// Lines captured from the command palette or the desktop quick bar land in the
+	// live text, so they can't be overwritten by this page's next autosave.
+	$effect(() =>
+		registerDayAppender(date, (line) => {
+			text = joinLine(text, line);
+			for (const handle of extractMentions(line))
+				if (!people.some((p) => p.handle === handle)) addPerson(handle);
+			onInput();
+		})
+	);
 
 	const dayHref = (key: string) => resolve('/day/[date]', { date: key });
 

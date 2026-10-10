@@ -12,6 +12,8 @@
 			} catch {
 				document.documentElement.dataset.theme = 'light';
 			}
+			// The desktop quick bar is a transparent window — keep the page see-through.
+			if (location.pathname === '/quick') document.documentElement.dataset.quick = '';
 		</script>
 		%sveltekit.head%
 	</head>

@@ -27,8 +27,13 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
   **deadlines** list with countdowns. **Print / PDF** gives an A4 routine plus a task plan.
   Today's classes, tasks and close deadlines also show in the **Plan** panel on each day page.
 - **Routines.** Track daily numbers with targets; see streaks and a 30-day heatmap.
-- **Keyboard.** `Alt+←/→` steps through days, `Alt+T` jumps to today, `g` then `d/w/f/p/n/r/s`
-  jumps between pages, `?` lists every shortcut.
+- **Command palette.** `Ctrl+K` (or `/`) searches pages, people, notes and actions, jumps to
+  any day (`fri`, `tmr`, `next mon`, `oct 12`, `+3`), and turns anything else into a line on
+  today. Start with a date and a colon to file it elsewhere: `tmr: call @mom`. `Shift+Enter`
+  always captures; the palette stays open so you can fire off several lines in a row.
+- **Keyboard.** `Alt+1…7` switches pages, `Alt+←/→` steps through days, `Alt+T` jumps to today,
+  `g` then `d/w/f/p/n/r/s` also jumps between pages, `?` lists every shortcut.
+- **Desktop app.** The same app as a native Windows app that lives in the tray — see below.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
 - 🎤 Voice input — _coming soon_.
@@ -60,6 +65,35 @@ npm run dev
 ```sh
 npm run test:unit   # parser + date unit tests (vitest)
 npm run test:e2e    # playwright, builds and runs the real app
+```
+
+## Desktop app (Windows)
+
+The desktop build wraps the same app in Electron and adds what a web page can't do:
+
+- **Always running.** Closing the window hides it to the tray. It can start with Windows,
+  already hidden.
+- **Global hotkeys**, from any app: `Ctrl+Alt+Space` opens the **quick bar** (the command
+  palette, floating over whatever you're doing: type a thought, press Enter, and it's on
+  today's page). `Ctrl+Alt+D` shows or hides the main window. You can change both in
+  **Settings → Desktop app**.
+- **Reminders.** A notification when a timed line comes due (`21:00 gym`), and ten minutes
+  before each class, lab, exam or meeting on your schedule.
+- **Jarvis theme.** Deep navy with soft blue light (or a light version), a sidebar instead of the
+  top bar, native Windows 11 caption buttons (snap layouts work), and a live clock and sync
+  light. The desktop theme is per computer, so the web app keeps its own. Switch in Settings.
+- `Ctrl+B` collapses the sidebar, `Ctrl+=`/`Ctrl+-` zoom, `F12` opens dev tools.
+
+Data, login and offline sync are the same as the web app. The built app is served from
+`http://localhost:47615`. Google blocks sign-in inside embedded browsers, so **Continue with
+Google** opens your normal browser instead: sign in there and the app picks up the account
+(the browser keeps no session). Email/password sign-in works directly in the app.
+
+```sh
+npm run desktop          # build the app and launch it
+npm run desktop:dist     # build a Windows installer into desktop/dist/
+npm run desktop:dev      # run against `npm run dev` (start that first) for hot reload
+npm run desktop:icons    # regenerate desktop/icons/*.png after changing make-icons.mjs
 ```
 
 ## Deploying

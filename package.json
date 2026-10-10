@@ -1,8 +1,11 @@
 {
 	"name": "todo",
+	"productName": "daylog",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"description": "One text file per day — web app and always-on desktop assistant.",
+	"main": "desktop/main.cjs",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "wrangler types && vite build",
@@ -15,12 +18,18 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run && npm run test:e2e",
 		"test:e2e": "playwright install && playwright test",
-		"gen": "wrangler types"
+		"gen": "wrangler types",
+		"desktop": "vite build --mode desktop && electron .",
+		"desktop:dev": "electron . --dev",
+		"desktop:build": "vite build --mode desktop",
+		"desktop:dist": "vite build --mode desktop && electron-builder --win",
+		"desktop:icons": "node desktop/make-icons.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.60.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.8",
+		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.63.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@tailwindcss/forms": "^0.5.11",
@@ -28,6 +37,8 @@
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^22",
 		"@vitest/browser-playwright": "^4.1.8",
+		"electron": "^44.7.0",
+		"electron-builder": "^26.15.3",
 		"eslint": "^10.4.1",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
@@ -49,5 +60,34 @@
 	},
 	"dependencies": {
 		"firebase": "^12.16.0"
+	},
+	"build": {
+		"appId": "app.daylog.desktop",
+		"productName": "daylog",
+		"directories": {
+			"output": "desktop/dist",
+			"buildResources": "desktop/icons"
+		},
+		"files": [
+			"package.json",
+			"desktop/main.cjs",
+			"desktop/preload.cjs",
+			"desktop/app/**",
+			"desktop/icons/**",
+			"!node_modules/**"
+		],
+		"win": {
+			"target": [
+				"nsis"
+			],
+			"icon": "desktop/icons/icon.png"
+		},
+		"nsis": {
+			"oneClick": true,
+			"perMachine": false,
+			"createDesktopShortcut": true,
+			"createStartMenuShortcut": true,
+			"runAfterFinish": true
+		}
 	}
 }

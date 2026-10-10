@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	doneContent,
+	joinLine,
+	parseCapture,
 	extractMentions,
 	highlightLine,
 	isValidHandle,
@@ -180,5 +182,38 @@ describe('linesMentioning', () => {
 	it('finds only lines mentioning the handle', () => {
 		const lines = linesMentioning('09:00PM call @mom\nask @Rahim\nbuy milk', 'rahim');
 		expect(lines.map((l) => l.raw)).toEqual(['ask @Rahim']);
+	});
+});
+
+describe('quick capture', () => {
+	const today = '2026-10-10';
+
+	it('sends plain text to today', () => {
+		expect(parseCapture('  buy milk ', today)).toEqual({ date: today, line: 'buy milk' });
+		expect(parseCapture('   ', today)).toBeNull();
+	});
+
+	it('reads a leading date and colon', () => {
+		expect(parseCapture('tmr: call @mom', today)).toEqual({
+			date: '2026-10-11',
+			line: 'call @mom'
+		});
+		expect(parseCapture('fri: 21:00 gym', today)).toEqual({
+			date: '2026-10-16',
+			line: '21:00 gym'
+		});
+	});
+
+	it('leaves times and non-date prefixes alone', () => {
+		expect(parseCapture('09:00PM call mom', today)).toEqual({
+			date: today,
+			line: '09:00PM call mom'
+		});
+		expect(parseCapture('note: buy milk', today)).toEqual({ date: today, line: 'note: buy milk' });
+	});
+
+	it('appends without blank lines', () => {
+		expect(joinLine('', 'a')).toBe('a');
+		expect(joinLine('a\n\n', 'b')).toBe('a\nb');
 	});
 });
