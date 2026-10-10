@@ -22,6 +22,7 @@ export interface AppSettings {
 	showLongTermPanel: boolean;
 	showFinancePanel: boolean;
 	showRoutinePanel: boolean;
+	showPlanPanel: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -31,7 +32,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	showNotePanel: true,
 	showLongTermPanel: true,
 	showFinancePanel: true,
-	showRoutinePanel: true
+	showRoutinePanel: true,
+	showPlanPanel: true
 };
 
 /** Live settings — readable anywhere; the root layout applies the stored doc on sign-in. */

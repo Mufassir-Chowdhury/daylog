@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
+import type { EventKind, EventStatus, TaskStatus } from './schedule';
 import type { AppSettings } from './settings.svelte';
 
 export interface DayDoc {
@@ -80,6 +81,80 @@ export interface RoutineLog {
 	values: Record<string, number>;
 }
 
+/** A recurring weekly timetable entry — a class or lab that happens every week on one weekday. */
+export interface ScheduleSlot {
+	id: string;
+	/** e.g. "Introduction to Computing Applications (CSE 0612 2102c)". */
+	title: string;
+	kind: EventKind;
+	/** 0 = Sunday … 6 = Saturday. */
+	weekday: number;
+	/** `HH:MM`, 24-hour. */
+	start: string;
+	end: string;
+	room: string;
+	/** Optional day keys bounding when the slot runs (e.g. the semester). */
+	startsOn: string | null;
+	endsOn: string | null;
+}
+
+/**
+ * Something on a specific date: a one-off (exam, meeting, invigilation) or the
+ * stored state of one timetable occurrence (`slotId` set, id from `overrideId`).
+ * `date === null` means the date isn't fixed yet (TBD).
+ */
+export interface ScheduleEvent {
+	id: string;
+	slotId: string | null;
+	date: string | null;
+	start: string;
+	end: string;
+	title: string;
+	kind: EventKind;
+	room: string;
+	status: EventStatus;
+	/** Shown next to the title — "Moved to Thu 9:00", "shifted from Wednesday", "requested by students". */
+	note: string;
+}
+
+/** A to-do on the task plan — on a day, a span of days, or (`date === null`) "Later". */
+export interface PlanTask {
+	id: string;
+	text: string;
+	date: string | null;
+	/** Last day of a span ("Fri–Sat"); null for a single day. */
+	until: string | null;
+	/** Optional suggested time block, `HH:MM`. */
+	start: string;
+	end: string;
+	status: TaskStatus;
+	/** Progress or reason — "Almost done", "Not needed — exam postponed". */
+	note: string;
+	/** Highlighted block (protected time, e.g. thesis or a paid-work block). */
+	highlight: boolean;
+	/** Client clock millis — orders tasks within a day. */
+	createdAt: number;
+}
+
+export interface Deadline {
+	id: string;
+	text: string;
+	/** Earliest due day, used for sorting and the countdown; null when not fixed. */
+	due: string | null;
+	/** Free-text "when" that overrides the date display — "Oct 24 / 25 / 26", "November". */
+	label: string;
+	/** Hard deadline — shown in red. */
+	hard: boolean;
+	done: boolean;
+	note: string;
+}
+
+/** A free-text remark under one week's table. Doc id is the week's Sunday key. */
+export interface WeekNote {
+	week: string;
+	text: string;
+}
+
 /** A place money lives — bank account, mobile wallet, or cash in hand. */
 export interface Account {
 	id: string;
@@ -127,6 +202,11 @@ const accountsCol = (uid: string) => collection(db, 'users', uid, 'accounts');
 const txnsCol = (uid: string) => collection(db, 'users', uid, 'transactions');
 const routinesCol = (uid: string) => collection(db, 'users', uid, 'routines');
 const routineLogsCol = (uid: string) => collection(db, 'users', uid, 'routineLogs');
+const slotsCol = (uid: string) => collection(db, 'users', uid, 'slots');
+const eventsCol = (uid: string) => collection(db, 'users', uid, 'events');
+const tasksCol = (uid: string) => collection(db, 'users', uid, 'tasks');
+const deadlinesCol = (uid: string) => collection(db, 'users', uid, 'deadlines');
+const weekNotesCol = (uid: string) => collection(db, 'users', uid, 'weekNotes');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -428,6 +508,145 @@ export async function deleteTransaction(uid: string, id: string): Promise<void> 
 	await deleteDoc(doc(txnsCol(uid), id));
 }
 
+/** Reserves a fresh id in one of the schedule collections without writing anything yet. */
+export function newScheduleId(
+	uid: string,
+	kind: 'slots' | 'events' | 'tasks' | 'deadlines'
+): string {
+	return doc(collection(db, 'users', uid, kind)).id;
+}
+
+function toSlot(id: string, data: Record<string, unknown>): ScheduleSlot {
+	return {
+		id,
+		title: (data.title as string) ?? '',
+		kind: (data.kind as EventKind) ?? 'class',
+		weekday: (data.weekday as number) ?? 0,
+		start: (data.start as string) ?? '',
+		end: (data.end as string) ?? '',
+		room: (data.room as string) ?? '',
+		startsOn: (data.startsOn as string | null) ?? null,
+		endsOn: (data.endsOn as string | null) ?? null
+	};
+}
+
+function toEvent(id: string, data: Record<string, unknown>): ScheduleEvent {
+	return {
+		id,
+		slotId: (data.slotId as string | null) ?? null,
+		date: (data.date as string | null) ?? null,
+		start: (data.start as string) ?? '',
+		end: (data.end as string) ?? '',
+		title: (data.title as string) ?? '',
+		kind: (data.kind as EventKind) ?? 'other',
+		room: (data.room as string) ?? '',
+		status: (data.status as EventStatus) ?? 'planned',
+		note: (data.note as string) ?? ''
+	};
+}
+
+function toTask(id: string, data: Record<string, unknown>): PlanTask {
+	return {
+		id,
+		text: (data.text as string) ?? '',
+		date: (data.date as string | null) ?? null,
+		until: (data.until as string | null) ?? null,
+		start: (data.start as string) ?? '',
+		end: (data.end as string) ?? '',
+		status: (data.status as TaskStatus) ?? 'open',
+		note: (data.note as string) ?? '',
+		highlight: (data.highlight as boolean) ?? false,
+		createdAt: (data.createdAt as number) ?? 0
+	};
+}
+
+function toDeadline(id: string, data: Record<string, unknown>): Deadline {
+	return {
+		id,
+		text: (data.text as string) ?? '',
+		due: (data.due as string | null) ?? null,
+		label: (data.label as string) ?? '',
+		hard: (data.hard as boolean) ?? false,
+		done: (data.done as boolean) ?? false,
+		note: (data.note as string) ?? ''
+	};
+}
+
+export async function listSlots(uid: string): Promise<ScheduleSlot[]> {
+	const snap = await getDocs(slotsCol(uid));
+	return snap.docs.map((d) => toSlot(d.id, d.data()));
+}
+
+export async function saveSlot(uid: string, slot: ScheduleSlot): Promise<void> {
+	const { id, ...rest } = slot;
+	await setDoc(doc(slotsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+/** Deletes the timetable entry only — overrides it left behind are ignored once the slot is gone. */
+export async function deleteSlot(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(slotsCol(uid), id));
+}
+
+export async function listEvents(uid: string): Promise<ScheduleEvent[]> {
+	const snap = await getDocs(eventsCol(uid));
+	return snap.docs.map((d) => toEvent(d.id, d.data()));
+}
+
+/** One day's events — one-offs and timetable overrides — for the day page. */
+export async function listDayEvents(uid: string, key: string): Promise<ScheduleEvent[]> {
+	const snap = await getDocs(query(eventsCol(uid), where('date', '==', key)));
+	return snap.docs.map((d) => toEvent(d.id, d.data()));
+}
+
+export async function saveEvent(uid: string, event: ScheduleEvent): Promise<void> {
+	const { id, ...rest } = event;
+	await setDoc(doc(eventsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteEvent(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(eventsCol(uid), id));
+}
+
+export async function listTasks(uid: string): Promise<PlanTask[]> {
+	const snap = await getDocs(tasksCol(uid));
+	return snap.docs.map((d) => toTask(d.id, d.data()));
+}
+
+export async function saveTask(uid: string, task: PlanTask): Promise<void> {
+	const { id, ...rest } = task;
+	await setDoc(doc(tasksCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteTask(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(tasksCol(uid), id));
+}
+
+export async function listDeadlines(uid: string): Promise<Deadline[]> {
+	const snap = await getDocs(deadlinesCol(uid));
+	return snap.docs.map((d) => toDeadline(d.id, d.data()));
+}
+
+export async function saveDeadline(uid: string, deadline: Deadline): Promise<void> {
+	const { id, ...rest } = deadline;
+	await setDoc(doc(deadlinesCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteDeadline(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(deadlinesCol(uid), id));
+}
+
+export async function listWeekNotes(uid: string): Promise<WeekNote[]> {
+	const snap = await getDocs(weekNotesCol(uid));
+	return snap.docs.map((d) => ({ week: d.id, text: (d.data().text as string) ?? '' }));
+}
+
+/** Saves a week's remark; an empty one deletes the doc. */
+export async function saveWeekNote(uid: string, note: WeekNote): Promise<void> {
+	const ref = doc(weekNotesCol(uid), note.week);
+	if (note.text.trim() === '') await deleteDoc(ref);
+	else await setDoc(ref, { text: note.text, updatedAt: serverTimestamp() });
+}
+
 /** Everything a user has stored — the unit of backup export/import. */
 export interface UserData {
 	settings: Partial<AppSettings>;
@@ -439,6 +658,11 @@ export interface UserData {
 	transactions: Transaction[];
 	routines: Routine[];
 	routineLogs: RoutineLog[];
+	slots: ScheduleSlot[];
+	events: ScheduleEvent[];
+	tasks: PlanTask[];
+	deadlines: Deadline[];
+	weekNotes: WeekNote[];
 }
 
 export async function exportUserData(uid: string): Promise<UserData> {
@@ -451,7 +675,12 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		accounts,
 		transactions,
 		routines,
-		routineLogs
+		routineLogs,
+		slots,
+		events,
+		tasks,
+		deadlines,
+		weekNotes
 	] = await Promise.all([
 		loadSettings(uid),
 		listDays(uid),
@@ -461,7 +690,12 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		listAccounts(uid),
 		listTransactions(uid),
 		listRoutines(uid),
-		listRoutineLogs(uid)
+		listRoutineLogs(uid),
+		listSlots(uid),
+		listEvents(uid),
+		listTasks(uid),
+		listDeadlines(uid),
+		listWeekNotes(uid)
 	]);
 	return {
 		settings,
@@ -472,7 +706,12 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		accounts,
 		transactions,
 		routines,
-		routineLogs
+		routineLogs,
+		slots,
+		events,
+		tasks,
+		deadlines,
+		weekNotes
 	};
 }
 
@@ -524,6 +763,26 @@ export async function importUserData(uid: string, data: UserData): Promise<void>
 				values: log.values,
 				updatedAt: serverTimestamp()
 			})
+		);
+	for (const slot of data.slots) {
+		const { id, ...rest } = slot;
+		ops.push((b) => b.set(doc(slotsCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const event of data.events) {
+		const { id, ...rest } = event;
+		ops.push((b) => b.set(doc(eventsCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const task of data.tasks) {
+		const { id, ...rest } = task;
+		ops.push((b) => b.set(doc(tasksCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const deadline of data.deadlines) {
+		const { id, ...rest } = deadline;
+		ops.push((b) => b.set(doc(deadlinesCol(uid), id), { ...rest, updatedAt: serverTimestamp() }));
+	}
+	for (const note of data.weekNotes)
+		ops.push((b) =>
+			b.set(doc(weekNotesCol(uid), note.week), { text: note.text, updatedAt: serverTimestamp() })
 		);
 	// Firestore caps a batch at 500 writes, so commit in chunks.
 	for (let i = 0; i < ops.length; i += 450) {

@@ -7,6 +7,7 @@
 	import LongTermPanel from '$lib/components/LongTermPanel.svelte';
 	import MentionEditor from '$lib/components/MentionEditor.svelte';
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
+	import PlanPanel from '$lib/components/PlanPanel.svelte';
 	import RoutinePanel from '$lib/components/RoutinePanel.svelte';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
@@ -27,6 +28,8 @@
 	let txns = $derived(data.txns);
 	let routines = $derived(data.routines);
 	let routineValues = $derived(data.routineValues);
+	let events = $derived(data.events);
+	let tasks = $derived(data.tasks);
 
 	const parsed = $derived(parseDay(text));
 
@@ -193,6 +196,16 @@ buy milk"
 		{/if}
 	</div>
 	<div class="min-w-0 space-y-5">
+		{#if settings.showPlanPanel}
+			<PlanPanel
+				{uid}
+				{date}
+				slots={data.slots}
+				bind:events
+				bind:tasks
+				deadlines={data.deadlines}
+			/>
+		{/if}
 		{#if settings.showNotePanel}
 			<NewNotePanel {uid} />
 		{/if}

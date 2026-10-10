@@ -1,6 +1,11 @@
 import { isValidKey } from './date';
 import type {
 	Account,
+	Deadline,
+	PlanTask,
+	ScheduleEvent,
+	ScheduleSlot,
+	WeekNote,
 	LongTermTask,
 	Note,
 	Person,
@@ -11,6 +16,7 @@ import type {
 	TransactionKind,
 	UserData
 } from './db';
+import { EVENT_KINDS, type EventKind, type EventStatus, type TaskStatus } from './schedule';
 import { THEMES, type AppSettings, type Theme } from './settings.svelte';
 
 /** Shape of a `daylog-backup-*.json` file: the user's data plus an identifying envelope. */
@@ -40,7 +46,11 @@ export function backupSummary(data: UserData): string {
 		`${data.accounts.length} accounts`,
 		`${data.transactions.length} transactions`,
 		`${data.routines.length} routines`,
-		`${data.routineLogs.length} routine days`
+		`${data.routineLogs.length} routine days`,
+		`${data.slots.length} timetable slots`,
+		`${data.events.length} events`,
+		`${data.tasks.length} plan tasks`,
+		`${data.deadlines.length} deadlines`
 	].join(', ');
 }
 
@@ -52,6 +62,13 @@ const rec = (v: unknown): Record<string, unknown> =>
 const arr = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.map(rec) : []);
 
 const KINDS: TransactionKind[] = ['income', 'expense', 'transfer', 'lend', 'borrow'];
+const EVENT_KIND_IDS: EventKind[] = EVENT_KINDS.map((k) => k.id);
+const EVENT_STATUSES: EventStatus[] = ['planned', 'done', 'cancelled', 'moved'];
+const TASK_STATUSES: TaskStatus[] = ['open', 'done', 'dropped', 'moved'];
+const dayOrNull = (v: unknown): string | null =>
+	typeof v === 'string' && isValidKey(v) ? v : null;
+const eventKind = (v: unknown, fallback: EventKind): EventKind =>
+	EVENT_KIND_IDS.includes(v as EventKind) ? (v as EventKind) : fallback;
 
 /**
  * Parses and sanitizes a backup file: unknown fields are dropped, missing ones
@@ -80,7 +97,8 @@ export function parseBackup(json: string): UserData {
 		'showNotePanel',
 		'showLongTermPanel',
 		'showFinancePanel',
-		'showRoutinePanel'
+		'showRoutinePanel',
+		'showPlanPanel'
 	] as const)
 		if (typeof s[key] === 'boolean') settings[key] = s[key];
 
@@ -159,6 +177,63 @@ export function parseBackup(json: string): UserData {
 						(e): e is [string, number] => typeof e[1] === 'number' && Number.isFinite(e[1])
 					)
 				)
-			}))
+			})),
+		slots: arr(backup.slots)
+			.filter((sl) => str(sl.id) !== '')
+			.map((sl): ScheduleSlot => ({
+				id: str(sl.id),
+				title: str(sl.title),
+				kind: eventKind(sl.kind, 'class'),
+				weekday: Math.min(6, Math.max(0, Math.trunc(num(sl.weekday)))),
+				start: str(sl.start),
+				end: str(sl.end),
+				room: str(sl.room),
+				startsOn: dayOrNull(sl.startsOn),
+				endsOn: dayOrNull(sl.endsOn)
+			})),
+		events: arr(backup.events)
+			.filter((e) => str(e.id) !== '')
+			.map((e): ScheduleEvent => ({
+				id: str(e.id),
+				slotId: strOrNull(e.slotId),
+				date: dayOrNull(e.date),
+				start: str(e.start),
+				end: str(e.end),
+				title: str(e.title),
+				kind: eventKind(e.kind, 'other'),
+				room: str(e.room),
+				status: EVENT_STATUSES.includes(e.status as EventStatus)
+					? (e.status as EventStatus)
+					: 'planned',
+				note: str(e.note)
+			})),
+		tasks: arr(backup.tasks)
+			.filter((t) => str(t.id) !== '')
+			.map((t): PlanTask => ({
+				id: str(t.id),
+				text: str(t.text),
+				date: dayOrNull(t.date),
+				until: dayOrNull(t.until),
+				start: str(t.start),
+				end: str(t.end),
+				status: TASK_STATUSES.includes(t.status as TaskStatus) ? (t.status as TaskStatus) : 'open',
+				note: str(t.note),
+				highlight: t.highlight === true,
+				createdAt: num(t.createdAt)
+			})),
+		deadlines: arr(backup.deadlines)
+			.filter((d) => str(d.id) !== '')
+			.map((d): Deadline => ({
+				id: str(d.id),
+				text: str(d.text),
+				due: dayOrNull(d.due),
+				label: str(d.label),
+				hard: d.hard === true,
+				done: d.done === true,
+				note: str(d.note)
+			})),
+		weekNotes: arr(backup.weekNotes)
+			.filter((w) => isValidKey(str(w.week)))
+			.map((w): WeekNote => ({ week: str(w.week), text: str(w.text) }))
 	};
 }

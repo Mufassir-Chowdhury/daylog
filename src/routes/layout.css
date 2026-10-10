@@ -232,6 +232,7 @@
 	[type='password']:focus,
 	[type='number']:focus,
 	[type='date']:focus,
+	[type='time']:focus,
 	[type='file']:focus,
 	[type='checkbox']:focus,
 	select:focus,
@@ -247,6 +248,39 @@
 		border-radius: 0.3rem;
 		padding: 0.1em 0.35em;
 		font-size: 0.85em;
+	}
+}
+
+/*
+ * Printing (Schedule → Print / PDF): always light, no page pattern, so a dark
+ * theme doesn't print as white-on-white or burn a page of toner.
+ */
+@media print {
+	:root,
+	[data-theme] {
+		color-scheme: light;
+		--t-canvas: #ffffff;
+		--t-card: #ffffff;
+		--t-tint: #f2f4f7;
+		--t-line: #d0d5dd;
+		--t-ink: #101828;
+		--t-mute: #475467;
+		--t-faint: #667085;
+		--t-accent: #1f3a5f;
+		--t-pattern: none;
+		--t-shadow-card: none;
+	}
+	body {
+		print-color-adjust: exact;
+		-webkit-print-color-adjust: exact;
+	}
+	@page {
+		size: A4;
+		margin: 14mm;
+	}
+	tr,
+	li {
+		break-inside: avoid;
 	}
 }
 

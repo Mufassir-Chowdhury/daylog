@@ -34,7 +34,60 @@ const data: UserData = {
 		}
 	],
 	routines: [{ id: 'r1', name: 'Quran', unit: 'pages', threshold: 5, order: 1 }],
-	routineLogs: [{ date: '2026-07-01', values: { r1: 6 } }]
+	routineLogs: [{ date: '2026-07-01', values: { r1: 6 } }],
+	slots: [
+		{
+			id: 's1',
+			title: 'ICA',
+			kind: 'class',
+			weekday: 0,
+			start: '09:00',
+			end: '11:00',
+			room: '329',
+			startsOn: null,
+			endsOn: '2026-11-18'
+		}
+	],
+	events: [
+		{
+			id: 's1_2026-07-05',
+			slotId: 's1',
+			date: '2026-07-05',
+			start: '09:00',
+			end: '11:00',
+			title: 'ICA',
+			kind: 'class',
+			room: '329',
+			status: 'cancelled',
+			note: ''
+		}
+	],
+	tasks: [
+		{
+			id: 'k1',
+			text: 'SWE questions',
+			date: '2026-07-03',
+			until: '2026-07-04',
+			start: '',
+			end: '',
+			status: 'open',
+			note: 'Almost done',
+			highlight: false,
+			createdAt: 3
+		}
+	],
+	deadlines: [
+		{
+			id: 'd1',
+			text: 'Thesis',
+			due: '2026-07-20',
+			label: '',
+			hard: true,
+			done: false,
+			note: ''
+		}
+	],
+	weekNotes: [{ week: '2026-07-05', text: 'No CSE classes' }]
 };
 
 describe('backup round-trip', () => {
@@ -94,6 +147,40 @@ describe('parseBackup', () => {
 		expect(parsed.accounts).toEqual([]);
 		expect(parsed.routines).toEqual([]);
 		expect(parsed.routineLogs).toEqual([]);
+		expect(parsed.slots).toEqual([]);
+		expect(parsed.events).toEqual([]);
+		expect(parsed.tasks).toEqual([]);
+		expect(parsed.deadlines).toEqual([]);
+		expect(parsed.weekNotes).toEqual([]);
+	});
+
+	it('sanitizes schedule entries', () => {
+		const parsed = parseBackup(
+			JSON.stringify({
+				app: 'daylog',
+				version: 1,
+				slots: [{ id: 's', kind: 'weird', weekday: 9, startsOn: 'nope' }, { title: 'no id' }],
+				events: [{ id: 'e', date: '2026-13-01', status: 'weird', kind: 'exam' }],
+				tasks: [{ id: 't', status: 'done', date: '2026-07-01', highlight: 'yes' }],
+				weekNotes: [{ week: 'nope', text: 'x' }]
+			})
+		);
+		expect(parsed.slots).toEqual([
+			{
+				id: 's',
+				title: '',
+				kind: 'class',
+				weekday: 6,
+				start: '',
+				end: '',
+				room: '',
+				startsOn: null,
+				endsOn: null
+			}
+		]);
+		expect(parsed.events[0]).toMatchObject({ date: null, status: 'planned', kind: 'exam' });
+		expect(parsed.tasks[0]).toMatchObject({ status: 'done', date: '2026-07-01', highlight: false });
+		expect(parsed.weekNotes).toEqual([]);
 	});
 
 	it('drops non-numeric routine values and invalid log dates', () => {
@@ -118,7 +205,7 @@ describe('parseBackup', () => {
 describe('backupSummary', () => {
 	it('counts every collection', () => {
 		expect(backupSummary(data)).toBe(
-			'1 days, 1 people, 1 notes, 1 long-term tasks, 1 accounts, 1 transactions, 1 routines, 1 routine days'
+			'1 days, 1 people, 1 notes, 1 long-term tasks, 1 accounts, 1 transactions, 1 routines, 1 routine days, 1 timetable slots, 1 events, 1 plan tasks, 1 deadlines'
 		);
 	});
 });

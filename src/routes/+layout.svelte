@@ -27,6 +27,7 @@
 
 	const NAV = [
 		{ label: 'Today', href: today, match: '/day', key: 'd' },
+		{ label: 'Schedule', href: () => resolve('/schedule'), match: '/schedule', key: 'w' },
 		{ label: 'People', href: () => resolve('/people'), match: '/people', key: 'p' },
 		{ label: 'Notes', href: () => resolve('/notes'), match: '/notes', key: 'n' },
 		{ label: 'Routines', href: () => resolve('/routines'), match: '/routines', key: 'r' },
@@ -95,7 +96,9 @@
 	<Login />
 {:else}
 	<div class="min-h-screen">
-		<header class="sticky top-0 z-40 border-b border-line bg-card/85 shadow-card backdrop-blur-md">
+		<header
+			class="sticky top-0 z-40 border-b border-line bg-card/85 shadow-card backdrop-blur-md print:hidden"
+		>
 			<nav class="flex w-full items-center gap-x-1 px-4 py-3 sm:px-6 lg:px-10">
 				<a href={today()} class="mr-2 flex shrink-0 items-center gap-2.5 sm:mr-4">
 					<span
@@ -146,7 +149,7 @@
 				</div>
 			</nav>
 		</header>
-		<main class="w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+		<main class="w-full px-4 py-6 sm:px-6 lg:px-10 lg:py-8 print:p-0">
 			{@render children()}
 		</main>
 	</div>

@@ -292,6 +292,15 @@
 				<label class="flex items-center gap-2 text-sm text-ink">
 					<input
 						type="checkbox"
+						bind:checked={settings.showPlanPanel}
+						onchange={persist}
+						class="rounded border-line bg-card text-accent-fill"
+					/>
+					Plan panel (today's classes, tasks and close deadlines)
+				</label>
+				<label class="flex items-center gap-2 text-sm text-ink">
+					<input
+						type="checkbox"
 						bind:checked={settings.showNotePanel}
 						onchange={persist}
 						class="rounded border-line bg-card text-accent-fill"
@@ -328,7 +337,7 @@
 			</div>
 			<p class="mt-2 text-xs text-faint">
 				Hiding a panel only tucks it away on day pages — nothing is deleted, and the People, Notes,
-				Routines and Finance pages keep working.
+				Schedule, Routines and Finance pages keep working.
 			</p>
 		</section>
 	</div>

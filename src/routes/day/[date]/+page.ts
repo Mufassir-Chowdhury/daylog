@@ -3,10 +3,14 @@ import { authReady } from '$lib/auth.svelte';
 import { dateKey, isValidKey } from '$lib/date';
 import {
 	listAccounts,
+	listDayEvents,
 	listDayTransactions,
+	listDeadlines,
 	listLongTermTasks,
 	listPeople,
 	listRoutines,
+	listSlots,
+	listTasks,
 	loadDay,
 	loadRoutineLog
 } from '$lib/db';
@@ -24,16 +28,49 @@ export const load: PageLoad = async ({ params }) => {
 			accounts: [],
 			txns: [],
 			routines: [],
-			routineValues: {}
+			routineValues: {},
+			slots: [],
+			events: [],
+			tasks: [],
+			deadlines: []
 		};
-	const [text, people, longTerm, accounts, txns, routines, routineValues] = await Promise.all([
+	const [
+		text,
+		people,
+		longTerm,
+		accounts,
+		txns,
+		routines,
+		routineValues,
+		slots,
+		events,
+		tasks,
+		deadlines
+	] = await Promise.all([
 		loadDay(user.uid, params.date),
 		listPeople(user.uid),
 		listLongTermTasks(user.uid),
 		listAccounts(user.uid),
 		listDayTransactions(user.uid, params.date),
 		listRoutines(user.uid),
-		loadRoutineLog(user.uid, params.date)
+		loadRoutineLog(user.uid, params.date),
+		listSlots(user.uid),
+		listDayEvents(user.uid, params.date),
+		listTasks(user.uid),
+		listDeadlines(user.uid)
 	]);
-	return { date: params.date, text, people, longTerm, accounts, txns, routines, routineValues };
+	return {
+		date: params.date,
+		text,
+		people,
+		longTerm,
+		accounts,
+		txns,
+		routines,
+		routineValues,
+		slots,
+		events,
+		tasks,
+		deadlines
+	};
 };

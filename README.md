@@ -18,8 +18,16 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
   one. Search, filter (kept in the URL), export CSV, duplicate or edit anything, undo deletes.
 - **Debts per person.** Each person's page shows what they owe you (or you owe them), the full
   lend/borrow history with a running balance, and a one-click settle-up.
+- **Schedule.** A weekly timetable (classes and labs that repeat every week) plus one-off events
+  (exams, invigilation, meetings). This week and next week show as tables. Mark any class
+  done, cancel it, move it to another day or room (the original stays crossed out with a note),
+  or cancel a whole week. Undated events show as "Date TBD", and each week gets a note line.
+  Below the tables are a day-by-day **task plan** (time blocks, spans like Fri–Sat, a "Later"
+  bucket, highlighted protected blocks, and open tasks from past days resurfacing) and a
+  **deadlines** list with countdowns. **Print / PDF** gives an A4 routine plus a task plan.
+  Today's classes, tasks and close deadlines also show in the **Plan** panel on each day page.
 - **Routines.** Track daily numbers with targets; see streaks and a 30-day heatmap.
-- **Keyboard.** `Alt+←/→` steps through days, `Alt+T` jumps to today, `g` then `d/f/p/n/r/s`
+- **Keyboard.** `Alt+←/→` steps through days, `Alt+T` jumps to today, `g` then `d/w/f/p/n/r/s`
   jumps between pages, `?` lists every shortcut.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
