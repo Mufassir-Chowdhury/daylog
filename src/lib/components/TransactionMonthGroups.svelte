@@ -12,10 +12,12 @@
 		people = [],
 		open,
 		suggest,
+		groups: groupNames,
 		onupdate,
 		ondelete,
 		onduplicate,
-		oncategory
+		oncategory,
+		ongroup
 	}: {
 		/** Newest first. */
 		txns: Transaction[];
@@ -24,10 +26,13 @@
 		/** Expanded month keys — owned by the parent so charts can open a month. */
 		open: SvelteSet<string>;
 		suggest?: (kind: TransactionKind) => string[];
+		/** Group labels to suggest when editing a row. */
+		groups?: string[];
 		onupdate: (txn: Transaction) => void;
 		ondelete: (txn: Transaction) => void;
 		onduplicate?: (txn: Transaction) => void;
 		oncategory?: (category: string, kind: TransactionKind) => void;
+		ongroup?: (group: string) => void;
 	} = $props();
 
 	const groups = $derived(
@@ -133,10 +138,12 @@
 										{accounts}
 										{people}
 										{suggest}
+										groups={groupNames}
 										{onupdate}
 										{ondelete}
 										{onduplicate}
 										{oncategory}
+										{ongroup}
 									/>
 								{/each}
 							</div>

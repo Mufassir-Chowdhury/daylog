@@ -157,6 +157,7 @@ export function parseBackup(json: string): UserData {
 				person: strOrNull(t.person),
 				note: str(t.note),
 				fixed: t.fixed === true,
+				group: str(t.group).trim() || null,
 				createdAt: num(t.createdAt)
 			})),
 		routines: arr(backup.routines)

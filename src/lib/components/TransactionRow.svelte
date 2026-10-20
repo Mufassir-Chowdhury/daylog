@@ -10,10 +10,12 @@
 		people = [],
 		showDay = false,
 		suggest = (kind) => CATEGORIES[kind],
+		groups = [],
 		onupdate,
 		ondelete,
 		onduplicate,
-		oncategory
+		oncategory,
+		ongroup
 	}: {
 		txn: Transaction;
 		accounts: Account[];
@@ -22,12 +24,16 @@
 		showDay?: boolean;
 		/** Category suggestions per kind (presets + previously used). */
 		suggest?: (kind: TransactionKind) => string[];
+		/** Group labels to suggest when editing. */
+		groups?: string[];
 		onupdate: (txn: Transaction) => void;
 		ondelete: (txn: Transaction) => void;
 		/** Copy this transaction to today. Omitted → no duplicate button. */
 		onduplicate?: (txn: Transaction) => void;
 		/** Clicking the category chip drills into that category. Omitted → plain chip. */
 		oncategory?: (category: string, kind: TransactionKind) => void;
+		/** Clicking the group chip opens that group. Omitted → plain chip. */
+		ongroup?: (group: string) => void;
 	} = $props();
 
 	const KIND_CHIP: Record<TransactionKind, string> = {
@@ -66,6 +72,7 @@
 	let person = $state('');
 	let note = $state('');
 	let fixed = $state(false);
+	let group = $state('');
 	let invalid = $state('');
 
 	function startEdit() {
@@ -77,6 +84,7 @@
 		person = txn.person ?? '';
 		note = txn.note;
 		fixed = txn.fixed;
+		group = txn.group ?? '';
 		invalid = '';
 		editing = true;
 	}
@@ -95,7 +103,8 @@
 			to: needsTo ? to || null : txn.to,
 			person: needsPerson ? person || txn.person : txn.person,
 			note: note.trim(),
-			fixed: txn.kind === 'expense' ? fixed : false
+			fixed: txn.kind === 'expense' ? fixed : false,
+			group: group.trim() || null
 		});
 		editing = false;
 	}
@@ -178,6 +187,22 @@
 				</select>
 			</label>
 		{/if}
+		<label class="flex flex-col gap-0.5 text-xs text-mute">
+			Group
+			<input
+				onkeydown={esc}
+				type="text"
+				bind:value={group}
+				list="txn-groups-{txn.id}"
+				placeholder="none"
+				class="w-36 {input}"
+			/>
+			<datalist id="txn-groups-{txn.id}">
+				{#each groups as g (g)}
+					<option value={g}></option>
+				{/each}
+			</datalist>
+		</label>
 		<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-mute">
 			Note
 			<input onkeydown={esc} type="text" bind:value={note} class={input} />
@@ -233,6 +258,20 @@
 		{/if}
 		{#if txn.fixed}
 			<span class="shrink-0 rounded-full bg-tint px-1.5 py-0.5 text-[10px] text-faint">fixed</span>
+		{/if}
+		{#if txn.group}
+			{@const chip =
+				'max-w-40 shrink-0 truncate rounded-full border border-dashed border-line px-1.5 py-0.5 text-[10px] text-mute'}
+			{#if ongroup}
+				<button
+					type="button"
+					onclick={() => ongroup(txn.group!)}
+					title="Everything in “{txn.group}”"
+					class="{chip} hover:border-accent hover:text-accent">{txn.group}</button
+				>
+			{:else}
+				<span class={chip} title="Group">{txn.group}</span>
+			{/if}
 		{/if}
 		<span class="min-w-0 truncate text-mute">
 			{#snippet personLink(handle: string | null)}

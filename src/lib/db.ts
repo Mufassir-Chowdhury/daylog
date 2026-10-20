@@ -189,6 +189,11 @@ export interface Transaction {
 	note: string;
 	/** Recurring bill/income (rent, subscriptions, salary) — tracked separately from one-off spending. */
 	fixed: boolean;
+	/**
+	 * Free-text label tying related transactions together across days and kinds —
+	 * e.g. "Dhaka trip October 2026". Null when the transaction isn't grouped.
+	 */
+	group: string | null;
 	/** Client clock millis — orders transactions within a day. */
 	createdAt: number;
 }
@@ -471,6 +476,7 @@ function toTransaction(id: string, data: Record<string, unknown>): Transaction {
 		person: (data.person as string | null) ?? null,
 		note: (data.note as string) ?? '',
 		fixed: (data.fixed as boolean) ?? false,
+		group: (data.group as string | null) || null,
 		createdAt: (data.createdAt as number) ?? 0
 	};
 }

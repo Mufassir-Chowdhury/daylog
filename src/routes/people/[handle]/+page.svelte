@@ -97,6 +97,7 @@
 			person: handle,
 			note: formNote.trim(),
 			fixed: false,
+			group: null,
 			createdAt: Date.now()
 		};
 		txns = [txn, ...txns];

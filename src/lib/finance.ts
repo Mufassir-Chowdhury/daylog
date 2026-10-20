@@ -1,4 +1,4 @@
-import { daysInMonth, monthOf } from './date';
+import { daysInMonth, fromKey, monthOf } from './date';
 import type { Account, Person, Transaction, TransactionKind } from './db';
 import { settings } from './settings.svelte';
 
@@ -39,6 +39,71 @@ export function categorySuggestions(txns: Transaction[], kind: TransactionKind):
 		.sort((a, b) => b[1] - a[1])
 		.map(([c]) => c);
 	return [...CATEGORIES[kind], ...custom];
+}
+
+/** Group labels used so far, most recently active first — offered when tagging a transaction. */
+export function groupSuggestions(txns: Transaction[]): string[] {
+	return groupSummaries(txns).map((g) => g.group);
+}
+
+export interface GroupSummary {
+	group: string;
+	/** Money spent under this group (expenses only). */
+	spent: number;
+	/** Income recorded under this group (refunds, reimbursements, …). */
+	earned: number;
+	lent: number;
+	borrowed: number;
+	count: number;
+	/** Day keys of the earliest and latest transaction. */
+	first: string;
+	last: string;
+}
+
+/** Totals per group label, the most recently active group first. */
+export function groupSummaries(txns: Transaction[]): GroupSummary[] {
+	const map = new Map<string, GroupSummary>();
+	for (const t of txns) {
+		if (!t.group) continue;
+		let g = map.get(t.group);
+		if (!g)
+			map.set(
+				t.group,
+				(g = {
+					group: t.group,
+					spent: 0,
+					earned: 0,
+					lent: 0,
+					borrowed: 0,
+					count: 0,
+					first: t.date,
+					last: t.date
+				})
+			);
+		if (t.kind === 'expense') g.spent += t.amount;
+		else if (t.kind === 'income') g.earned += t.amount;
+		else if (t.kind === 'lend') g.lent += t.amount;
+		else if (t.kind === 'borrow') g.borrowed += t.amount;
+		g.count += 1;
+		if (t.date < g.first) g.first = t.date;
+		if (t.date > g.last) g.last = t.date;
+	}
+	for (const g of map.values()) {
+		g.spent = roundCents(g.spent);
+		g.earned = roundCents(g.earned);
+	}
+	return [...map.values()].sort(
+		(a, b) => b.last.localeCompare(a.last) || a.group.localeCompare(b.group)
+	);
+}
+
+const RANGE = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+/** "Oct 3 – 6, 2026" — a group's span; a single day reads "Oct 3, 2026". */
+export function rangeLabel(first: string, last: string): string {
+	return first === last
+		? RANGE.format(fromKey(first))
+		: RANGE.formatRange(fromKey(first), fromKey(last));
 }
 
 /** Current balance per account id: starting balance + everything in − everything out. */
@@ -331,7 +396,7 @@ export function groupByMonth(
 	return groups;
 }
 
-/** Case-insensitive match against category, note, person (handle + name) and account names. */
+/** Case-insensitive match against category, note, group, person (handle + name) and account names. */
 export function matchesSearch(
 	t: Transaction,
 	query: string,
@@ -341,6 +406,7 @@ export function matchesSearch(
 	const q = query.trim().toLowerCase();
 	if (!q) return true;
 	const fields = [t.category, t.note, t.kind, String(t.amount)];
+	if (t.group) fields.push(t.group);
 	if (t.person) {
 		fields.push(t.person, `@${t.person}`);
 		const name = people.find((p) => p.handle === t.person)?.name;
@@ -359,7 +425,18 @@ export function transactionsToCsv(txns: Transaction[], accounts: Account[]): str
 		const s = String(v);
 		return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 	};
-	const header = ['date', 'kind', 'category', 'amount', 'from', 'to', 'person', 'fixed', 'note'];
+	const header = [
+		'date',
+		'kind',
+		'category',
+		'amount',
+		'from',
+		'to',
+		'person',
+		'fixed',
+		'group',
+		'note'
+	];
 	const rows = txns.map((t) =>
 		[
 			t.date,
@@ -370,6 +447,7 @@ export function transactionsToCsv(txns: Transaction[], accounts: Account[]): str
 			name(t.to),
 			t.person ?? '',
 			t.fixed ? 'yes' : '',
+			t.group ?? '',
 			t.note
 		]
 			.map(cell)
