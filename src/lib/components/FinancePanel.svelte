@@ -214,7 +214,7 @@
 		deleteTransaction(uid, txn.id).catch(saveFailed);
 		toast(`Deleted ${txn.category} ${formatMoney(txn.amount)}.`, {
 			undo: () => {
-				txns = [...txns, txn];
+				txns = [...txns, txn].sort((a, b) => a.createdAt - b.createdAt);
 				saveTransaction(uid, txn).catch(saveFailed);
 			}
 		});
@@ -261,9 +261,10 @@
 
 {#snippet body()}
 	{#if !embedded && txns.length > 0}
-		<div class="mb-3 space-y-0.5">
+		<div class="mb-3 space-y-2">
 			{#each txns as txn (txn.id)}
 				<TransactionRow
+					card
 					{txn}
 					{accounts}
 					{people}

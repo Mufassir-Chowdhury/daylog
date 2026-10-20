@@ -22,7 +22,7 @@ export function toast(
 	toasts.push({ id, message, tone: opts.tone ?? 'info', undo: opts.undo });
 	// Keep the stack short — the oldest message goes first.
 	if (toasts.length > 3) dismiss(toasts[0].id);
-	timers[id] = setTimeout(() => dismiss(id), opts.duration ?? (opts.undo ? 6000 : 3500));
+	timers[id] = setTimeout(() => dismiss(id), opts.duration ?? (opts.undo ? 9000 : 3500));
 }
 
 export function dismiss(id: number): void {
