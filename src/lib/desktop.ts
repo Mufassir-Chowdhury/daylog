@@ -28,6 +28,53 @@ export interface DesktopPrefs {
 	failed: string[];
 }
 
+/** Activity-tracker state from the main process (desktop/activity.cjs). */
+export interface ActivityStatus {
+	enabled: boolean;
+	/** Record window titles (needed for browser sites and per-document breakdowns). */
+	titles: boolean;
+	/** Minutes without keyboard or mouse input before time stops counting. */
+	idleMinutes: number;
+	/** App or process names never recorded. */
+	exclude: string[];
+	retentionDays: number;
+	/** Epoch millis tracking resumes at, or 0 when not paused. */
+	pausedUntil: number;
+	platform: string;
+	/** This computer, so its synced activity doesn't collide with another's. */
+	device: { id: string; name: string };
+	/** Why sampling isn't working, if it isn't. */
+	error: string;
+	current: { app: string; exe: string; title: string; since: number } | null;
+}
+
+export type ActivityCategory = 'focus' | 'communication' | 'neutral' | 'distraction';
+
+export type ActivityPatch = Partial<
+	Pick<
+		ActivityStatus,
+		'enabled' | 'titles' | 'idleMinutes' | 'exclude' | 'retentionDays' | 'pausedUntil'
+	>
+>;
+
+/** One stretch of time with the same window in front. */
+export interface ActivitySpan {
+	/** Start and end, epoch millis. */
+	s: number;
+	e: number;
+	/** Process name (`Code`, `chrome`) — stable across languages and versions. */
+	exe: string;
+	/** Friendly app name (`Visual Studio Code`). */
+	app: string;
+	title?: string;
+	/** Added by hand on the Activity page rather than recorded. */
+	manual?: boolean;
+	/** Manual entries: their id, for deleting. */
+	id?: string;
+	/** Manual entries: the app/site key they count towards (`app:code`, `site:youtube`, `manual:reading`). */
+	subject?: string;
+}
+
 /** Google tokens from the system-browser sign-in (see src/routes/desktop-auth). */
 export interface GoogleTokens {
 	idToken: string | null;
@@ -50,6 +97,11 @@ export interface DesktopBridge {
 	setPrefs(
 		patch: Partial<Pick<DesktopPrefs, 'summonKey' | 'quickKey' | 'launchAtLogin'>>
 	): Promise<{ ok: boolean; error?: string }>;
+	activityStatus(): Promise<ActivityStatus | null>;
+	setActivity(patch: ActivityPatch): Promise<ActivityStatus | null>;
+	/** Recorded spans per day key, for days between `from` and `to` inclusive. */
+	activityDays(from: string, to: string): Promise<Record<string, ActivitySpan[]>>;
+	clearActivity(): Promise<void>;
 	onNavigate(callback: (route: string) => void): () => void;
 	onCapture(callback: (entry: CaptureEntry) => void): () => void;
 	onQuickOpen(callback: () => void): () => void;

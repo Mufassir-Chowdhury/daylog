@@ -42,6 +42,13 @@ export const NAV: NavItem[] = [
 		icon: 'finance'
 	},
 	{
+		label: 'Activity',
+		href: () => resolve('/activity'),
+		match: '/activity',
+		key: 'a',
+		icon: 'activity'
+	},
+	{
 		label: 'Settings',
 		href: () => resolve('/settings'),
 		match: '/settings',

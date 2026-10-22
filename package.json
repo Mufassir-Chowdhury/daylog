@@ -71,6 +71,7 @@
 		"files": [
 			"package.json",
 			"desktop/main.cjs",
+			"desktop/activity.cjs",
 			"desktop/preload.cjs",
 			"desktop/app/**",
 			"desktop/icons/**",
@@ -83,6 +84,7 @@
 			"icon": "desktop/icons/icon.png"
 		},
 		"nsis": {
+			"artifactName": "daylog-setup.${ext}",
 			"oneClick": true,
 			"perMachine": false,
 			"createDesktopShortcut": true,

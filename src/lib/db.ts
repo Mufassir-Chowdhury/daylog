@@ -5,6 +5,7 @@ import {
 	doc,
 	getDoc,
 	getDocs,
+	onSnapshot,
 	orderBy,
 	query,
 	serverTimestamp,
@@ -13,6 +14,8 @@ import {
 	writeBatch,
 	type WriteBatch
 } from 'firebase/firestore';
+import type { ActivityCategory, ActivityGoal, ActivitySpan } from './activity';
+import { cleanGoals } from './activity';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
 import type { EventKind, EventStatus, TaskStatus } from './schedule';
@@ -207,6 +210,9 @@ const eventsCol = (uid: string) => collection(db, 'users', uid, 'events');
 const tasksCol = (uid: string) => collection(db, 'users', uid, 'tasks');
 const deadlinesCol = (uid: string) => collection(db, 'users', uid, 'deadlines');
 const weekNotesCol = (uid: string) => collection(db, 'users', uid, 'weekNotes');
+const activityCol = (uid: string) => collection(db, 'users', uid, 'activity');
+const activityGoalsCol = (uid: string) => collection(db, 'users', uid, 'activityGoals');
+const activityConfigDoc = (uid: string) => doc(db, 'users', uid, 'activityConfig', 'main');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -790,4 +796,123 @@ export async function importUserData(uid: string, data: UserData): Promise<void>
 		for (const op of ops.slice(i, i + 450)) op(batch);
 		await batch.commit();
 	}
+}
+
+// ——— Activity (see src/lib/activity.ts) ———
+
+/** Pseudo-device for time added by hand on the Activity page. */
+export const MANUAL_DEVICE = 'manual';
+
+/**
+ * One computer's recorded activity for one day (or the day's manual entries).
+ * Doc id is `${date}_${device}`, so computers never overwrite each other.
+ */
+export interface ActivityDayDoc {
+	date: string;
+	device: string;
+	deviceName: string;
+	spans: ActivitySpan[];
+}
+
+/** Category overrides and default goals, shared by every device. */
+export interface ActivityConfig {
+	categories: Record<string, ActivityCategory>;
+	defaultGoals: ActivityGoal[];
+}
+
+const activityDocId = (date: string, device: string) => `${date}_${device}`;
+
+function toActivityDayDoc(data: Record<string, unknown>): ActivityDayDoc {
+	return {
+		date: String(data.date ?? ''),
+		device: String(data.device ?? ''),
+		deviceName: String(data.deviceName ?? ''),
+		spans: Array.isArray(data.spans) ? (data.spans as ActivitySpan[]) : []
+	};
+}
+
+export async function saveActivityDay(uid: string, day: ActivityDayDoc): Promise<void> {
+	// Firestore rejects `undefined` fields; a JSON round trip drops them.
+	const spans = JSON.parse(JSON.stringify(day.spans)) as ActivitySpan[];
+	await setDoc(doc(activityCol(uid), activityDocId(day.date, day.device)), {
+		...day,
+		spans,
+		updatedAt: serverTimestamp()
+	});
+}
+
+export async function loadActivityDay(
+	uid: string,
+	date: string,
+	device: string
+): Promise<ActivityDayDoc | null> {
+	const snap = await getDoc(doc(activityCol(uid), activityDocId(date, device)));
+	return snap.exists() ? toActivityDayDoc(snap.data()) : null;
+}
+
+/** Live view of every device's docs for days `from`–`to`; returns an unsubscribe function. */
+export function watchActivity(
+	uid: string,
+	from: string,
+	to: string,
+	callback: (docs: ActivityDayDoc[]) => void
+): () => void {
+	const q = query(activityCol(uid), where('date', '>=', from), where('date', '<=', to));
+	return onSnapshot(
+		q,
+		(snap) => callback(snap.docs.map((d) => toActivityDayDoc(d.data()))),
+		() => callback([])
+	);
+}
+
+/** Deletes every device's activity, manual entries included (goals and settings stay). */
+export async function deleteAllActivity(uid: string): Promise<void> {
+	const snap = await getDocs(activityCol(uid));
+	for (let i = 0; i < snap.docs.length; i += 450) {
+		const batch = writeBatch(db);
+		for (const d of snap.docs.slice(i, i + 450)) batch.delete(d.ref);
+		await batch.commit();
+	}
+}
+
+export function watchActivityConfig(
+	uid: string,
+	callback: (config: ActivityConfig) => void
+): () => void {
+	return onSnapshot(activityConfigDoc(uid), (snap) => {
+		const data = snap.data() ?? {};
+		callback({
+			categories: (data.categories as Record<string, ActivityCategory>) ?? {},
+			defaultGoals: cleanGoals(data.defaultGoals)
+		});
+	});
+}
+
+export async function saveActivityConfig(
+	uid: string,
+	patch: Partial<ActivityConfig>
+): Promise<void> {
+	await setDoc(activityConfigDoc(uid), { ...patch, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+/** A day's own goals, or null when it uses the default goals. */
+export function watchActivityGoals(
+	uid: string,
+	date: string,
+	callback: (goals: ActivityGoal[] | null) => void
+): () => void {
+	return onSnapshot(doc(activityGoalsCol(uid), date), (snap) =>
+		callback(snap.exists() ? cleanGoals(snap.data().goals) : null)
+	);
+}
+
+/** Sets a day's own goals; null goes back to the default goals. */
+export async function saveActivityGoals(
+	uid: string,
+	date: string,
+	goals: ActivityGoal[] | null
+): Promise<void> {
+	const ref = doc(activityGoalsCol(uid), date);
+	if (goals === null) await deleteDoc(ref);
+	else await setDoc(ref, { goals, updatedAt: serverTimestamp() });
 }

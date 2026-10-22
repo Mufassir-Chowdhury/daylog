@@ -31,9 +31,11 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
   any day (`fri`, `tmr`, `next mon`, `oct 12`, `+3`), and turns anything else into a line on
   today. Start with a date and a colon to file it elsewhere: `tmr: call @mom`. `Shift+Enter`
   always captures; the palette stays open so you can fire off several lines in a row.
-- **Keyboard.** `Alt+1…7` switches pages, `Alt+←/→` steps through days, `Alt+T` jumps to today,
-  `g` then `d/w/f/p/n/r/s` also jumps between pages, `?` lists every shortcut.
+- **Keyboard.** `Alt+1…8` switches pages, `Alt+←/→` steps through days, `Alt+T` jumps to today,
+  `g` then `d/w/p/n/r/f/a/s` also jumps between pages, `?` lists every shortcut.
 - **Desktop app.** The same app as a native Windows app that lives in the tray — see below.
+- **Activity.** Where your computer time goes, daily time goals, and time added by hand —
+  recorded by the desktop app, viewable everywhere.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
 - 🎤 Voice input — _coming soon_.
@@ -69,6 +71,10 @@ npm run test:e2e    # playwright, builds and runs the real app
 
 ## Desktop app (Windows)
 
+**Download:** [daylog-setup.exe](https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/daylog-setup.exe)
+— built by GitHub Actions from every push to `main` ([all releases](https://github.com/Mufassir-Chowdhury/daylog/releases)).
+The installer isn't code-signed, so SmartScreen may warn the first time: **More info → Run anyway**.
+
 The desktop build wraps the same app in Electron and adds what a web page can't do:
 
 - **Always running.** Closing the window hides it to the tray. It can start with Windows,
@@ -82,6 +88,23 @@ The desktop build wraps the same app in Electron and adds what a web page can't 
 - **Jarvis theme.** Deep navy with soft blue light (or a light version), a sidebar instead of the
   top bar, native Windows 11 caption buttons (snap layouts work), and a live clock and sync
   light. The desktop theme is per computer, so the web app keeps its own. Switch in Settings.
+- **Activity tracker** (opt-in, Activity page). It notices which app — and in a browser, which
+  site — is in front, and shows where your time went: hour-by-hour focus / messages / distraction,
+  deep-work sessions (25+ minutes, surviving detours under 2 minutes), how often you switch, your
+  biggest distractions against your own averages, and your sharpest hours over the last weeks.
+  - **Goals per day.** Set targets ("4h of focus", "2h in Word") or limits ("YouTube at most
+    30m") and recorded time fills them up. Save them for one day or as your defaults.
+  - **Add time by hand** for anything the tracker missed or got wrong (a meeting, reading on
+    paper) — on any past day. It replaces whatever was recorded in those minutes.
+  - **Synced.** Activity, goals and categories sync to your account, so the Activity page works in
+    the web app and on your phone, and several computers add up.
+  - **Idle isn't counted**, but watching isn't idle: when no key or mouse input arrives for the
+    idle limit, the time is trimmed — unless a video or call is playing (Windows and macOS report
+    when an app keeps the display awake; media players and call apps always count, up to 3 hours
+    without input).
+  - Pause it from the page or the tray, leave out apps, or stop recording window titles.
+    Works on Windows (via a small PowerShell loop), with best-effort macOS (`osascript`) and Linux
+    (`xdotool`, X11) support.
 - `Ctrl+B` collapses the sidebar, `Ctrl+=`/`Ctrl+-` zoom, `F12` opens dev tools.
 
 Data, login and offline sync are the same as the web app. The built app is served from
