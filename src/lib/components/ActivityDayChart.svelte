@@ -210,6 +210,7 @@
 				{formatTime(s.span.s)} – {formatTime(s.span.e)} · {formatDuration(s.span.e - s.span.s)}
 			</p>
 			{#if s.span.title}<p class="mt-1 max-w-64 truncate text-faint">{s.span.title}</p>{/if}
+			{#if s.span.manual}<p class="mt-1 text-faint">added by hand</p>{/if}
 		</ChartTooltip>
 	{/if}
 </div>

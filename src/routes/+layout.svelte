@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { logOut, session } from '$lib/auth.svelte';
+	import { startActivitySync } from '$lib/activity-sync';
 	import { appendToDay } from '$lib/capture';
 	import CommandPalette, { type PaletteAction } from '$lib/components/CommandPalette.svelte';
 	import DesktopShell from '$lib/components/DesktopShell.svelte';
@@ -68,6 +69,7 @@
 		const sync = () => syncReminders(uid).catch(() => {});
 		sync();
 		const timer = setInterval(sync, 60_000);
+		const stopActivitySync = startActivitySync(uid);
 		const offNavigate = desktop.onNavigate((route) => {
 			closePalette();
 			go(route === '/' ? NAV[0].href() : route);
@@ -82,6 +84,7 @@
 		});
 		return () => {
 			clearInterval(timer);
+			stopActivitySync();
 			offNavigate();
 			offCapture();
 		};

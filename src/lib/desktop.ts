@@ -40,9 +40,9 @@ export interface ActivityStatus {
 	retentionDays: number;
 	/** Epoch millis tracking resumes at, or 0 when not paused. */
 	pausedUntil: number;
-	/** Category picked for an app or site, keyed by `keyOf` in activity.ts. */
-	categories: Record<string, ActivityCategory>;
 	platform: string;
+	/** This computer, so its synced activity doesn't collide with another's. */
+	device: { id: string; name: string };
 	/** Why sampling isn't working, if it isn't. */
 	error: string;
 	current: { app: string; exe: string; title: string; since: number } | null;
@@ -53,13 +53,7 @@ export type ActivityCategory = 'focus' | 'communication' | 'neutral' | 'distract
 export type ActivityPatch = Partial<
 	Pick<
 		ActivityStatus,
-		| 'enabled'
-		| 'titles'
-		| 'idleMinutes'
-		| 'exclude'
-		| 'retentionDays'
-		| 'pausedUntil'
-		| 'categories'
+		'enabled' | 'titles' | 'idleMinutes' | 'exclude' | 'retentionDays' | 'pausedUntil'
 	>
 >;
 
@@ -73,6 +67,12 @@ export interface ActivitySpan {
 	/** Friendly app name (`Visual Studio Code`). */
 	app: string;
 	title?: string;
+	/** Added by hand on the Activity page rather than recorded. */
+	manual?: boolean;
+	/** Manual entries: their id, for deleting. */
+	id?: string;
+	/** Manual entries: the app/site key they count towards (`app:code`, `site:youtube`, `manual:reading`). */
+	subject?: string;
 }
 
 /** Google tokens from the system-browser sign-in (see src/routes/desktop-auth). */

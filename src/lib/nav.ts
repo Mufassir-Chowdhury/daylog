@@ -3,7 +3,6 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import type { IconName } from './components/Icon.svelte';
 import { dateKey } from './date';
-import { desktop } from './desktop';
 
 export interface NavItem {
 	label: string;
@@ -42,18 +41,13 @@ export const NAV: NavItem[] = [
 		key: 'f',
 		icon: 'finance'
 	},
-	// Activity tracking needs to see other apps, which only the desktop app can.
-	...(desktop
-		? [
-				{
-					label: 'Activity',
-					href: () => resolve('/activity'),
-					match: '/activity',
-					key: 'a',
-					icon: 'activity'
-				} satisfies NavItem
-			]
-		: []),
+	{
+		label: 'Activity',
+		href: () => resolve('/activity'),
+		match: '/activity',
+		key: 'a',
+		icon: 'activity'
+	},
 	{
 		label: 'Settings',
 		href: () => resolve('/settings'),

@@ -86,12 +86,15 @@
 			></textarea>
 		</label>
 		<p class="text-xs text-faint">
-			Everything stays on this computer, in daylog's own folder — nothing is synced to your account
-			or sent anywhere. Time stops counting when you lock the screen or step away.
+			Activity syncs to your daylog account (window titles too, unless turned off above), so the
+			Activity page works on every device; nothing goes anywhere else. Time stops counting when you
+			lock the screen or step away — but not while a video or call is playing. History on this
+			computer is pruned after the period above; what's synced stays until you delete it.
 		</p>
 		<div class="flex flex-wrap items-center gap-2">
 			{#if confirming}
-				<span class="text-ink">Delete all recorded activity?</span>
+				<span class="text-ink">Delete all activity, here and in your account (every computer)?</span
+				>
 				<button
 					type="button"
 					onclick={() => {

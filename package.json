@@ -84,6 +84,7 @@
 			"icon": "desktop/icons/icon.png"
 		},
 		"nsis": {
+			"artifactName": "daylog-setup.${ext}",
 			"oneClick": true,
 			"perMachine": false,
 			"createDesktopShortcut": true,

@@ -11,18 +11,35 @@
 		formatTime,
 		hourLabel,
 		insights,
+		mergeSources,
 		summarizeDay,
 		summaryLine,
 		type ActivityCategory,
-		type SubjectStat
+		type ActivityGoal,
+		type Subject
 	} from '$lib/activity';
+	import { forgetSynced } from '$lib/activity-sync';
 	import { session } from '$lib/auth.svelte';
 	import { appendToDay } from '$lib/capture';
 	import ActivityDayChart from '$lib/components/ActivityDayChart.svelte';
 	import ActivityDaysChart from '$lib/components/ActivityDaysChart.svelte';
+	import ActivityGoals from '$lib/components/ActivityGoals.svelte';
+	import ActivityManual from '$lib/components/ActivityManual.svelte';
 	import ActivitySettings from '$lib/components/ActivitySettings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
+	import {
+		deleteAllActivity,
+		MANUAL_DEVICE,
+		saveActivityConfig,
+		saveActivityDay,
+		saveActivityGoals,
+		watchActivity,
+		watchActivityConfig,
+		watchActivityGoals,
+		type ActivityConfig,
+		type ActivityDayDoc
+	} from '$lib/db';
 	import {
 		desktop,
 		type ActivityPatch,
@@ -37,48 +54,107 @@
 	/** Days in the trend chart. */
 	const TREND = 14;
 
-	let status = $state<ActivityStatus | null>(null);
-	let loaded = $state(false);
+	const uid = $derived(session.user?.uid ?? '');
 	let date = $state(dateKey());
-	let raw = $state<Record<string, ActivitySpan[]>>({});
-
 	const today = $derived(dateKey());
 	const isToday = $derived(date === today);
+	const dayLabel = $derived(relativeLabel(date) || humanDate(date));
 
-	async function refresh() {
+	// ——— Data: this computer's spans straight from the tracker (freshest), every
+	// other computer's and the manual entries from the account.
+	let status = $state<ActivityStatus | null>(null);
+	let local = $state<Record<string, ActivitySpan[]>>({});
+	let localLoaded = $state(!desktop);
+	let remote = $state<ActivityDayDoc[]>([]);
+	let remoteLoaded = $state(false);
+	let config = $state<ActivityConfig>({ categories: {}, defaultGoals: [] });
+	let ownGoals = $state<ActivityGoal[] | null>(null);
+	const loaded = $derived(localLoaded && remoteLoaded);
+
+	async function refreshLocal() {
 		if (!desktop) return;
 		const [s, days] = await Promise.all([
 			desktop.activityStatus(),
 			desktop.activityDays(addDays(date, -HISTORY), date)
 		]);
 		status = s;
-		raw = days;
-		loaded = true;
+		local = days;
+		localLoaded = true;
 	}
 
-	// Reload when the day changes; keep today live while the page is open.
 	$effect(() => {
 		void date;
-		refresh();
+		refreshLocal();
 		const timer = setInterval(() => {
-			if (date === dateKey()) refresh();
+			if (date === dateKey()) refreshLocal();
 		}, 30_000);
 		return () => clearInterval(timer);
 	});
 
+	$effect(() => {
+		if (!uid) return;
+		return watchActivity(uid, addDays(date, -HISTORY), date, (docs) => {
+			remote = docs;
+			remoteLoaded = true;
+		});
+	});
+	$effect(() => {
+		if (!uid) return;
+		return watchActivityConfig(uid, (c) => (config = c));
+	});
+	$effect(() => {
+		if (!uid) return;
+		const d = date;
+		return watchActivityGoals(uid, d, (g) => (ownGoals = g));
+	});
+
+	const thisDevice = $derived(status?.device.id ?? null);
+	const manualDocs = $derived(
+		Object.fromEntries(
+			remote.filter((d) => d.device === MANUAL_DEVICE).map((d) => [d.date, d.spans])
+		) as Record<string, ActivitySpan[]>
+	);
+	/** Every source merged, per day. */
+	const raw = $derived.by(() => {
+		const out: Record<string, ActivitySpan[]> = {};
+		for (const key of dayRange(date, HISTORY + 1)) {
+			const tracked = [...(local[key] ?? [])];
+			for (const d of remote) {
+				if (d.date !== key || d.device === MANUAL_DEVICE) continue;
+				// This computer's own doc only fills in days the tracker no longer keeps.
+				if (d.device === thisDevice && key in local) continue;
+				tracked.push(...d.spans);
+			}
+			const merged = mergeSources(tracked, manualDocs[key] ?? []);
+			if (merged.length) out[key] = merged;
+		}
+		return out;
+	});
+	const devices = $derived(
+		[...new Set(remote.filter((d) => d.device !== MANUAL_DEVICE).map((d) => d.deviceName))].filter(
+			Boolean
+		)
+	);
+
 	async function update(patch: ActivityPatch) {
 		if (!desktop) return;
 		status = await desktop.setActivity(patch);
-		refresh();
+		refreshLocal();
 	}
 
 	async function clearAll() {
-		await desktop?.clearActivity();
-		toast('Activity history deleted');
-		refresh();
+		try {
+			await desktop?.clearActivity();
+			forgetSynced(uid);
+			await deleteAllActivity(uid);
+			toast('Activity history deleted');
+		} catch {
+			saveFailed();
+		}
+		refreshLocal();
 	}
 
-	const overrides = $derived(status?.categories ?? {});
+	const overrides = $derived(config.categories);
 	const history = $derived(
 		dayRange(date, HISTORY + 1).map((k) => summarizeDay(k, raw[k] ?? [], overrides))
 	);
@@ -145,18 +221,72 @@
 	let showAll = $state(false);
 	let expanded = $state<string | null>(null);
 	const subjects = $derived(showAll ? day.subjects : day.subjects.slice(0, 10));
+
+	/** Everything seen in the last weeks (most used first), for goals and manual entries. */
+	const known = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local to this derivation
+		const totals = new Map<string, { key: string; label: string; ms: number }>();
+		for (const d of history) {
+			for (const s of d.subjects) {
+				const t = totals.get(s.key) ?? { key: s.key, label: s.label, ms: 0 };
+				t.ms += s.ms;
+				totals.set(s.key, t);
+			}
+		}
+		return [...totals.values()].sort((a, b) => b.ms - a.ms);
+	});
 	const topMs = $derived(day.subjects[0]?.ms ?? 1);
 
-	function setCategory(subject: SubjectStat, category: ActivityCategory) {
+	/** A subject's category: the user's pick, else the built-in guess. */
+	function categoryOf(key: string, label = key.slice(key.indexOf(':') + 1)): ActivityCategory {
+		const subject: Subject = { key, label };
+		const name = key.slice(key.indexOf(':') + 1);
+		return overrides[key] ?? defaultCategory(subject, { exe: name, app: label });
+	}
+
+	function setCategory(subject: Subject, category: ActivityCategory) {
 		const next = { ...overrides };
-		// Picking the default again drops the override, so better defaults can still apply later.
-		const fallback = defaultCategory(subject, {
-			exe: subject.key.slice(subject.key.indexOf(':') + 1),
-			app: subject.label
-		});
-		if (category === fallback) delete next[subject.key];
-		else next[subject.key] = category;
-		update({ categories: next });
+		// Picking the built-in guess again drops the override, so better defaults still apply later.
+		const name = subject.key.slice(subject.key.indexOf(':') + 1);
+		if (category === defaultCategory(subject, { exe: name, app: subject.label })) {
+			delete next[subject.key];
+		} else next[subject.key] = category;
+		if (JSON.stringify(next) === JSON.stringify(overrides)) return;
+		saveActivityConfig(uid, { categories: next }).catch(saveFailed);
+	}
+
+	// ——— Goals and manual entries.
+	const goals = $derived(ownGoals ?? config.defaultGoals);
+
+	async function saveGoals(next: ActivityGoal[], asDefault: boolean) {
+		try {
+			if (asDefault) {
+				await Promise.all([
+					saveActivityConfig(uid, { defaultGoals: next }),
+					ownGoals ? saveActivityGoals(uid, date, null) : null
+				]);
+			} else await saveActivityGoals(uid, date, next);
+		} catch {
+			saveFailed();
+		}
+	}
+
+	async function saveManual(spans: ActivitySpan[]) {
+		await saveActivityDay(uid, {
+			date,
+			device: MANUAL_DEVICE,
+			deviceName: 'Added by hand',
+			spans
+		}).catch(saveFailed);
+	}
+
+	function addManual(span: ActivitySpan, category: ActivityCategory) {
+		setCategory({ key: span.subject!, label: span.app }, category);
+		saveManual([...(manualDocs[date] ?? []), span]);
+	}
+
+	function deleteManual(id: string) {
+		saveManual((manualDocs[date] ?? []).filter((s) => s.id !== id));
 	}
 
 	// ——— Live status line.
@@ -205,7 +335,7 @@
 			Where your computer time actually goes — apps, sites, focus and switching.
 		</p>
 	</div>
-	{#if desktop && status?.enabled}
+	{#if loaded}
 		<div class="ml-auto flex items-center gap-1">
 			<button
 				type="button"
@@ -240,87 +370,112 @@
 	{/if}
 </div>
 
-{#if !desktop}
-	<section class="mt-5 max-w-2xl rounded-card border border-line bg-card p-5 shadow-card">
-		<h2 class="font-display text-base font-semibold text-ink">This one needs the desktop app</h2>
-		<p class="mt-2 text-sm text-mute">
-			The activity tracker notices which app or website is in front of you and turns that into focus
-			time, distraction patterns and your best hours. A browser tab can't see other apps, so it only
-			runs in the daylog desktop app — see the README for how to install it.
-		</p>
-	</section>
-{:else if !loaded || !status}
+{#if !loaded}
 	<p class="mt-6 text-sm text-faint">loading…</p>
-{:else if !status.enabled && !hasAnyData}
-	<section class="mt-5 max-w-2xl rounded-card border border-line bg-card p-5 shadow-card">
-		<h2 class="font-display text-base font-semibold text-ink">See where your day really goes</h2>
-		<ul class="mt-3 space-y-1.5 text-sm text-mute">
-			<li>• Which apps and websites take your time, hour by hour</li>
-			<li>• Deep work: stretches of 25+ minutes in focus apps, and what breaks them</li>
-			<li>• How often you switch, your biggest distractions, and your sharpest hours</li>
-			<li>• Comparisons with your own averages, and a one-click summary on the day page</li>
-		</ul>
-		<p class="mt-3 text-xs text-faint">
-			Private by design: the data never leaves this computer. Idle and locked time isn't counted,
-			you can pause any time from here or the tray, and leave out apps you'd rather not record.
-		</p>
-		<button
-			type="button"
-			onclick={() => update({ enabled: true })}
-			class="mt-4 rounded-ctl bg-accent-fill px-4 py-2 text-sm font-medium text-on-accent hover:opacity-90"
-		>
-			Start tracking
-		</button>
-	</section>
 {:else}
-	<!-- Live status -->
-	<div
-		class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line bg-card px-4 py-2.5 text-sm shadow-card"
-	>
-		{#if !status.enabled}
-			<span class="h-2 w-2 rounded-full bg-[var(--t-faint)]"></span>
-			<span class="text-mute">Tracking is off — showing what was recorded before.</span>
+	{#if !desktop}
+		<p class="mt-3 max-w-3xl text-sm text-mute">
+			Recording happens in the daylog desktop app (a browser tab can't see other apps){devices.length
+				? ` — this shows what ${devices.join(', ')} synced`
+				: ''}. You can set goals and add time by hand here.
+		</p>
+	{:else if status && !status.enabled && !hasAnyData}
+		<section class="mt-5 max-w-2xl rounded-card border border-line bg-card p-5 shadow-card">
+			<h2 class="font-display text-base font-semibold text-ink">See where your day really goes</h2>
+			<ul class="mt-3 space-y-1.5 text-sm text-mute">
+				<li>• Which apps and websites take your time, hour by hour</li>
+				<li>• Daily goals — “4h of focus”, “YouTube under 30m” — that fill up as you work</li>
+				<li>• Deep work: stretches of 25+ minutes in focus apps, and what breaks them</li>
+				<li>• How often you switch, your biggest distractions, and your sharpest hours</li>
+			</ul>
+			<p class="mt-3 text-xs text-faint">
+				It syncs to your account, so you can check it from your phone. Idle and locked time isn't
+				counted (videos and calls still are), you can pause any time from here or the tray, and
+				leave out apps you'd rather not record.
+			</p>
 			<button
 				type="button"
 				onclick={() => update({ enabled: true })}
-				class="ml-auto rounded-ctl px-2.5 py-1 font-medium text-accent hover:bg-tint"
-				>Turn on</button
+				class="mt-4 rounded-ctl bg-accent-fill px-4 py-2 text-sm font-medium text-on-accent hover:opacity-90"
 			>
-		{:else if status.pausedUntil}
-			<span class="h-2 w-2 rounded-full bg-amber-500"></span>
-			<span class="text-mute">Paused until {formatTime(status.pausedUntil)}</span>
-			<button
-				type="button"
-				onclick={() => update({ pausedUntil: 0 })}
-				class="ml-auto rounded-ctl px-2.5 py-1 font-medium text-accent hover:bg-tint">Resume</button
-			>
-		{:else}
-			<span class="relative flex h-2 w-2">
-				<span class="absolute inset-0 animate-ping rounded-full bg-[var(--t-up)] opacity-60"></span>
-				<span class="h-2 w-2 rounded-full bg-[var(--t-up)]"></span>
-			</span>
-			{#if status.error}
-				<span class="text-amber-600 dark:text-amber-400">{status.error}</span>
-			{:else if status.current}
-				<span class="min-w-0 truncate text-mute">
-					Now: <span class="font-medium text-ink">{status.current.app}</span>
-					<span class="text-faint">· {formatDuration(now - status.current.since)}</span>
-				</span>
+				Start tracking
+			</button>
+		</section>
+	{/if}
+
+	{#if desktop && status && (status.enabled || hasAnyData)}
+		<!-- Live status -->
+		<div
+			class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line bg-card px-4 py-2.5 text-sm shadow-card"
+		>
+			{#if !status.enabled}
+				<span class="h-2 w-2 rounded-full bg-[var(--t-faint)]"></span>
+				<span class="text-mute">Tracking is off — showing what was recorded before.</span>
+				<button
+					type="button"
+					onclick={() => update({ enabled: true })}
+					class="ml-auto rounded-ctl px-2.5 py-1 font-medium text-accent hover:bg-tint"
+					>Turn on</button
+				>
+			{:else if status.pausedUntil}
+				<span class="h-2 w-2 rounded-full bg-amber-500"></span>
+				<span class="text-mute">Paused until {formatTime(status.pausedUntil)}</span>
+				<button
+					type="button"
+					onclick={() => update({ pausedUntil: 0 })}
+					class="ml-auto rounded-ctl px-2.5 py-1 font-medium text-accent hover:bg-tint"
+					>Resume</button
+				>
 			{:else}
-				<span class="text-mute">Tracking — idle right now</span>
+				<span class="relative flex h-2 w-2">
+					<span class="absolute inset-0 animate-ping rounded-full bg-[var(--t-up)] opacity-60"
+					></span>
+					<span class="h-2 w-2 rounded-full bg-[var(--t-up)]"></span>
+				</span>
+				{#if status.error}
+					<span class="text-amber-600 dark:text-amber-400">{status.error}</span>
+				{:else if status.current}
+					<span class="min-w-0 truncate text-mute">
+						Now: <span class="font-medium text-ink">{status.current.app}</span>
+						<span class="text-faint">· {formatDuration(now - status.current.since)}</span>
+					</span>
+				{:else}
+					<span class="text-mute">Tracking — idle right now</span>
+				{/if}
+				<span class="ml-auto flex items-center gap-1 text-xs">
+					<span class="text-faint">Pause</span>
+					{#each PAUSES as [m, label] (m)}
+						<button
+							type="button"
+							onclick={() => pause(m * 60_000)}
+							class="rounded-ctl border border-line px-2 py-0.5 text-mute hover:bg-tint hover:text-ink"
+							>{label}</button
+						>
+					{/each}
+				</span>
 			{/if}
-			<span class="ml-auto flex items-center gap-1 text-xs">
-				<span class="text-faint">Pause</span>
-				{#each PAUSES as [m, label] (m)}
-					<button
-						type="button"
-						onclick={() => pause(m * 60_000)}
-						class="rounded-ctl border border-line px-2 py-0.5 text-mute hover:bg-tint hover:text-ink"
-						>{label}</button
-					>
-				{/each}
-			</span>
-		{/if}
+		</div>
+	{/if}
+
+	<div class="mt-4 grid items-start gap-4 lg:grid-cols-2">
+		<ActivityGoals
+			{goals}
+			own={ownGoals !== null}
+			{day}
+			{isToday}
+			{dayLabel}
+			options={known}
+			onsave={saveGoals}
+			onreset={() => saveActivityGoals(uid, date, null).catch(saveFailed)}
+		/>
+		<ActivityManual
+			{date}
+			entries={manualDocs[date] ?? []}
+			options={known}
+			{categoryOf}
+			onadd={addManual}
+			ondelete={deleteManual}
+		/>
 	</div>
 
 	{#if day.active === 0}
@@ -564,7 +719,9 @@
 		</section>
 	{/if}
 
-	<div class="mt-4 max-w-3xl">
-		<ActivitySettings {status} {update} clear={clearAll} />
-	</div>
+	{#if desktop && status}
+		<div class="mt-4 max-w-3xl">
+			<ActivitySettings {status} {update} clear={clearAll} />
+		</div>
+	{/if}
 {/if}

@@ -1,15 +1,21 @@
 /**
  * Activity tracking — which app (and window) is in front, sampled every few
  * seconds, stored as time spans in one JSON file per day under the user-data
- * folder. Nothing here leaves the computer: the app reads the files over IPC
- * and does all the analysis itself (src/lib/activity.ts).
+ * folder. The app reads the files over IPC, syncs them to the user's account
+ * (src/lib/activity-sync.ts) and does all the analysis (src/lib/activity.ts).
  *
  * A web page can't see other apps, which is why this lives in the desktop shell.
  * Windows reads the foreground window through a long-running PowerShell loop
  * (no native modules to build); macOS and Linux shell out once per sample.
+ *
+ * No keyboard or mouse input normally means the user stepped away, but not
+ * while a video or call is playing: Windows and macOS report when some app is
+ * keeping the display awake, which players and browsers do during playback.
  */
 const { execFile, spawn } = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { powerMonitor } = require('electron');
 
@@ -17,6 +23,8 @@ const SAMPLE_SECONDS = 5;
 /** A gap longer than this between samples (sleep, a stalled sampler) ends the span. */
 const MAX_GAP = SAMPLE_SECONDS * 3 * 1000;
 const FLUSH_MS = 60_000;
+/** Even a playing video stops counting after this long without input (fell asleep watching). */
+const MEDIA_MAX_IDLE = 3 * 3600 * 1000;
 
 const DEFAULTS = {
 	enabled: false,
@@ -24,12 +32,22 @@ const DEFAULTS = {
 	idleMinutes: 5,
 	exclude: [],
 	retentionDays: 90,
-	pausedUntil: 0,
-	/** Category overrides picked on the Activity page, keyed like src/lib/activity.ts `keyOf`. */
-	categories: {}
+	pausedUntil: 0
 };
 
-const CATEGORIES = ['focus', 'communication', 'neutral', 'distraction'];
+/** Players and call apps: being in front of one without typing is still watching or listening. */
+const MEDIA_APPS =
+	/^(vlc|mpc-hc|mpc-hc64|mpc-be64|mpv|potplayer|potplayermini64|wmplayer|video\.ui|microsoft\.media\.player|kodi|plex|netflix|iina|quicktime player|tv|zoom|teams|ms-teams|webex|skype)$/i;
+/** Only used where the OS can't say whether the display is being kept awake (Linux). */
+const MEDIA_TITLES =
+	/\b(YouTube|Netflix|Prime Video|Twitch|Disney\+|Hulu|Vimeo|Google Meet|Coursera|Udemy)\b/i;
+
+/** True while the sample looks like watching a video or sitting in a call. */
+function watchingMedia(sample) {
+	if ([sample.exe, sample.app].some((n) => MEDIA_APPS.test(n))) return true;
+	if (typeof sample.media === 'boolean') return sample.media;
+	return MEDIA_TITLES.test(sample.title);
+}
 
 function dayKey(ms) {
 	const d = new Date(ms);
@@ -56,6 +74,7 @@ public static class DaylogForeground {
 	[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 	[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
 	[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+	[DllImport("powrprof.dll")] public static extern uint CallNtPowerInformation(int level, IntPtr inBuf, uint inLen, out uint state, uint outLen);
 }
 "@
 $names = @{}
@@ -71,7 +90,13 @@ while ($true) {
 		$names[$procId] = @($p.ProcessName, $p.Description)
 	}
 	$n = $names[$procId]
-	$line = @{ exe = [string]$n[0]; app = [string]$n[1]; title = $sb.ToString() } | ConvertTo-Json -Compress
+	# SystemExecutionState (16): ES_DISPLAY_REQUIRED (2) is set while a video or call keeps the screen on.
+	[uint32]$state = 0
+	$media = $null
+	if ([DaylogForeground]::CallNtPowerInformation(16, [IntPtr]::Zero, 0, [ref]$state, 4) -eq 0) {
+		$media = (($state -band 2) -ne 0)
+	}
+	$line = @{ exe = [string]$n[0]; app = [string]$n[1]; title = $sb.ToString(); media = $media } | ConvertTo-Json -Compress
 	[Console]::Out.WriteLine($line)
 	[Console]::Out.Flush()
 	Start-Sleep -Seconds ${SAMPLE_SECONDS}
@@ -128,16 +153,19 @@ function windowsSampler(onSample, onError, scriptPath) {
 	};
 }
 
-function normalizeWindows({ exe, app, title }) {
+function normalizeWindows({ exe, app, title, media }) {
 	exe = String(exe || '').trim();
 	title = String(title || '').trim();
 	if (!exe) return null;
 	// Store apps (Calculator, Photos…) all run inside ApplicationFrameHost; the title names the app.
-	if (/^ApplicationFrameHost$/i.test(exe)) return title ? { exe: title, app: title, title } : null;
+	media = typeof media === 'boolean' ? media : null;
+	if (/^ApplicationFrameHost$/i.test(exe)) {
+		return title ? { exe: title, app: title, title, media } : null;
+	}
 	// The desktop, taskbar and Alt+Tab switcher aren't really "using" anything.
 	if (/^explorer$/i.test(exe) && !title) return null;
 	if (/^(LockApp|ShellExperienceHost|SearchHost|StartMenuExperienceHost)$/i.test(exe)) return null;
-	return { exe, app: String(app || '').trim() || exe, title };
+	return { exe, app: String(app || '').trim() || exe, title, media };
 }
 
 /** macOS / Linux: run a small command per sample. */
@@ -184,7 +212,12 @@ function readMac(done) {
 		(err, out) => {
 			if (err) return done('macOS refused — allow daylog under Privacy → Automation');
 			const [app, ...rest] = out.replace(/\n$/, '').split('\n');
-			done(null, app ? { exe: app, app, title: rest.join(' ').trim() } : null);
+			if (!app) return done(null, null);
+			// Players and browsers hold a display-sleep assertion while a video plays.
+			execFile('pmset', ['-g', 'assertions'], { timeout: 4000 }, (err2, assertions) => {
+				const media = err2 ? null : /PreventUserIdleDisplaySleep\s+1/.test(assertions);
+				done(null, { exe: app, app, title: rest.join(' ').trim(), media });
+			});
 		}
 	);
 }
@@ -203,7 +236,7 @@ function readLinux(done) {
 			} catch {
 				/* the window closed between the two reads */
 			}
-			done(null, exe ? { exe, app: exe, title: rest.join(' ').trim() } : null);
+			done(null, exe ? { exe, app: exe, title: rest.join(' ').trim(), media: null } : null);
 		}
 	);
 }
@@ -222,6 +255,11 @@ function startSampler(onSample, onError, scriptPath) {
  */
 function createActivityTracker({ dir, prefs, save, onChange }) {
 	prefs.activity = { ...DEFAULTS, ...(prefs.activity || {}) };
+	// Names this computer's synced activity, so several computers don't overwrite each other.
+	if (!prefs.deviceId) {
+		prefs.deviceId = crypto.randomUUID();
+		save();
+	}
 	const settings = () => prefs.activity;
 
 	/** @type {Map<string, { s: number, e: number, exe: string, app: string, title?: string }[]>} */
@@ -321,8 +359,9 @@ function createActivityTracker({ dir, prefs, save, onChange }) {
 		lastSampleAt = now;
 		error = '';
 		const idleMs = powerMonitor.getSystemIdleTime() * 1000;
-		if (!active() || !sample || idleMs >= settings().idleMinutes * 60_000 || excluded(sample)) {
-			const isIdle = idleMs >= settings().idleMinutes * 60_000;
+		const watching = !!sample && idleMs < MEDIA_MAX_IDLE && watchingMedia(sample);
+		const isIdle = idleMs >= settings().idleMinutes * 60_000 && !watching;
+		if (!active() || !sample || isIdle || excluded(sample)) {
 			close(now);
 			if (isIdle) trimAfter(now - idleMs);
 			onChange?.();
@@ -394,7 +433,7 @@ function createActivityTracker({ dir, prefs, save, onChange }) {
 				exclude: s.exclude,
 				retentionDays: s.retentionDays,
 				pausedUntil: s.pausedUntil > Date.now() ? s.pausedUntil : 0,
-				categories: s.categories,
+				device: { id: prefs.deviceId, name: os.hostname() },
 				platform: process.platform,
 				error,
 				current:
@@ -428,13 +467,6 @@ function createActivityTracker({ dir, prefs, save, onChange }) {
 					.filter((x) => typeof x === 'string' && x.trim())
 					.map((x) => x.trim().slice(0, 100))
 					.slice(0, 100);
-			}
-			if (patch?.categories && typeof patch.categories === 'object') {
-				const next = {};
-				for (const [key, value] of Object.entries(patch.categories)) {
-					if (CATEGORIES.includes(value) && key.length <= 200) next[key] = value;
-				}
-				s.categories = next;
 			}
 			save();
 			sync();

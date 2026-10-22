@@ -4,6 +4,11 @@ import {
 	bestFocusWindow,
 	browserSite,
 	categorize,
+	cleanGoals,
+	goalLabel,
+	goalProgress,
+	mergeSources,
+	type ActivityGoal,
 	formatDuration,
 	insights,
 	subjectOf,
@@ -159,5 +164,75 @@ describe('formatting', () => {
 		expect(summaryLine(day)).toBe(
 			'activity — screen time 30m · deep work 30m · top: Visual Studio Code 30m'
 		);
+	});
+});
+
+describe('mergeSources', () => {
+	it('lets manual time replace recorded time in the same minutes', () => {
+		const merged = mergeSources(
+			[span(at(9), 120, 'chrome', 'x - YouTube - Chrome')],
+			[{ ...span(at(10), 30, 'Reading'), subject: 'manual:reading' }]
+		);
+		expect(merged.map((s) => [(s.s - at(9)) / MIN, (s.e - s.s) / MIN, s.manual ?? false])).toEqual([
+			[0, 60, false],
+			[60, 30, true],
+			[90, 30, false]
+		]);
+	});
+
+	it('names manual entries by their subject', () => {
+		const manual = { ...span(at(10), 30, 'Visual Studio Code'), subject: 'app:code' };
+		const day = summarizeDay('2026-10-22', mergeSources([span(at(9), 30, 'Code')], [manual]));
+		expect(day.subjects).toHaveLength(1);
+		expect(day.subjects[0]).toMatchObject({ key: 'app:code', ms: 60 * MIN, category: 'focus' });
+	});
+});
+
+describe('goals', () => {
+	const goal = (g: Partial<ActivityGoal>): ActivityGoal => ({
+		id: 'g',
+		kind: 'total',
+		category: 'focus',
+		keys: [],
+		names: [],
+		minutes: 60,
+		limit: false,
+		...g
+	});
+	const day = summarizeDay('2026-10-22', [
+		span(at(9), 50, 'Code'),
+		span(at(9, 50), 40, 'chrome', 'x - YouTube - Chrome')
+	]);
+
+	it('counts recorded time towards targets and limits', () => {
+		expect(goalProgress(goal({ kind: 'category', category: 'focus' }), day)).toMatchObject({
+			ms: 50 * MIN,
+			met: false
+		});
+		expect(goalProgress(goal({ kind: 'deep', minutes: 45 }), day).met).toBe(true);
+		const yt = goal({
+			kind: 'subjects',
+			keys: ['site:youtube'],
+			names: ['YouTube'],
+			minutes: 30,
+			limit: true
+		});
+		expect(goalProgress(yt, day)).toMatchObject({ ms: 40 * MIN, met: false });
+		expect(goalLabel(yt)).toBe('YouTube · at most 30m');
+		expect(goalProgress(goal({ kind: 'total', minutes: 90 }), day).met).toBe(true);
+	});
+
+	it('drops malformed goals read from storage', () => {
+		expect(
+			cleanGoals([
+				{ id: 'a', kind: 'deep', minutes: 120 },
+				{ id: 'b', kind: 'nope', minutes: 10 },
+				{ id: 'c', kind: 'total', minutes: 0 },
+				'junk'
+			])
+		).toEqual([
+			{ id: 'a', kind: 'deep', category: 'focus', keys: [], names: [], minutes: 120, limit: false }
+		]);
+		expect(cleanGoals(undefined)).toEqual([]);
 	});
 });

@@ -1,0 +1,61 @@
+# Builds the Windows installer on every push to main and publishes it as the
+# repository's latest release, so it can be downloaded straight from GitHub:
+#   https://github.com/<owner>/<repo>/releases/latest/download/daylog-setup.exe
+name: Desktop app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'static/**'
+      - 'desktop/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the app and the installer
+        run: |
+          npm run desktop:build
+          npx electron-builder --win --publish never
+
+      - name: Point the desktop-latest tag at this commit
+        shell: bash
+        run: |
+          git tag -f desktop-latest
+          git push -f origin desktop-latest
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-latest
+          name: daylog for Windows (latest)
+          make_latest: true
+          body: |
+            Latest Windows build of the daylog desktop app, from ${{ github.sha }}.
+
+            Download **daylog-setup.exe** and run it. The installer isn't code-signed, so
+            Windows SmartScreen may warn the first time — choose **More info → Run anyway**.
+          files: desktop/dist/daylog-setup.exe

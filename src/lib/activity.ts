@@ -1,7 +1,8 @@
 /**
  * Activity insights — turns the desktop app's raw foreground-window spans
- * (desktop/activity.cjs) into totals, focus sessions and plain-language
- * observations. Pure functions over plain data, so it's all unit-tested.
+ * (desktop/activity.cjs), plus time added by hand, into totals, focus
+ * sessions, goal progress and plain-language observations. Pure functions
+ * over plain data, so it's all unit-tested.
  */
 import { addDays } from './date';
 import type { ActivityCategory, ActivitySpan } from './desktop';
@@ -119,6 +120,7 @@ export interface Subject {
 
 /** What a span was spent on — the app, or for a browser the site. */
 export function subjectOf(span: ActivitySpan): Subject {
+	if (span.subject) return { key: span.subject, label: span.app };
 	if (isBrowser(span)) {
 		const site = browserSite(span.title);
 		if (site) return { key: `site:${site.toLowerCase()}`, label: site, via: span.app };
@@ -351,6 +353,136 @@ export function summarizeDay(
 		last: spans[spans.length - 1]?.e ?? null,
 		lateNight: spans.filter((sp) => new Date(sp.s).getHours() < 4).at(-1)?.e ?? null
 	};
+}
+
+/**
+ * One day's spans from every source: recorded spans (from any number of
+ * computers) and time added by hand. A manual entry wins over whatever was
+ * recorded in the same minutes — "2–3 PM was a meeting" overrides the
+ * browser that happened to be open.
+ */
+export function mergeSources(tracked: ActivitySpan[], manual: ActivitySpan[]): ActivitySpan[] {
+	const blocks = manual.filter((m) => m.e > m.s).sort((a, b) => a.s - b.s);
+	const out: ActivitySpan[] = [];
+	for (const span of tracked) {
+		let pieces = [span];
+		for (const b of blocks) {
+			pieces = pieces.flatMap((p) => {
+				if (b.e <= p.s || b.s >= p.e) return [p];
+				const keep: ActivitySpan[] = [];
+				if (b.s > p.s) keep.push({ ...p, e: b.s });
+				if (b.e < p.e) keep.push({ ...p, s: b.e });
+				return keep;
+			});
+		}
+		out.push(...pieces);
+	}
+	return [...out, ...blocks.map((b) => ({ ...b, manual: true }))].sort((a, b) => a.s - b.s);
+}
+
+// ——— Goals ———
+
+/** What a goal counts. */
+export type GoalKind = 'total' | 'deep' | 'category' | 'subjects';
+
+export interface ActivityGoal {
+	id: string;
+	kind: GoalKind;
+	/** For `category` goals. */
+	category: ActivityCategory;
+	/** For `subjects` goals: the app/site keys that count (`app:code`, `site:github`). */
+	keys: string[];
+	/** Labels for `keys`, so the goal reads well on days those apps weren't used. */
+	names: string[];
+	minutes: number;
+	/** A limit ("at most") rather than a target ("at least"). */
+	limit: boolean;
+}
+
+export interface GoalProgress {
+	goal: ActivityGoal;
+	ms: number;
+	target: number;
+	/** 0–1+, how far along (for limits: how much of the allowance is used). */
+	ratio: number;
+	/** Targets: reached. Limits: still within it. */
+	met: boolean;
+}
+
+/** Recorded time that counts towards a goal. */
+export function goalTime(goal: ActivityGoal, day: DaySummary): number {
+	switch (goal.kind) {
+		case 'total':
+			return day.active;
+		case 'deep':
+			return day.deepWork;
+		case 'category':
+			return day.byCategory[goal.category] ?? 0;
+		case 'subjects': {
+			const keys = new Set(goal.keys);
+			return day.subjects.filter((s) => keys.has(s.key)).reduce((sum, s) => sum + s.ms, 0);
+		}
+	}
+}
+
+export function goalProgress(goal: ActivityGoal, day: DaySummary): GoalProgress {
+	const ms = goalTime(goal, day);
+	const target = goal.minutes * MINUTE;
+	return {
+		goal,
+		ms,
+		target,
+		ratio: target > 0 ? ms / target : 0,
+		met: goal.limit ? ms <= target : ms >= target
+	};
+}
+
+/** `Deep work`, `Focus`, `VS Code + GitHub`. */
+export function goalSubject(goal: ActivityGoal): string {
+	switch (goal.kind) {
+		case 'total':
+			return 'Time at the computer';
+		case 'deep':
+			return 'Deep work';
+		case 'category':
+			return CATEGORY_LABEL[goal.category];
+		case 'subjects':
+			if (goal.names.length === 0) return 'Chosen apps';
+			return goal.names.length > 3
+				? `${goal.names.slice(0, 3).join(', ')} +${goal.names.length - 3}`
+				: goal.names.join(', ');
+	}
+}
+
+/** `Deep work · at least 4h 00m`. */
+export function goalLabel(goal: ActivityGoal): string {
+	return `${goalSubject(goal)} · ${goal.limit ? 'at most' : 'at least'} ${formatDuration(goal.minutes * MINUTE)}`;
+}
+
+/** Drops anything malformed from goals read back from storage. */
+export function cleanGoals(raw: unknown): ActivityGoal[] {
+	if (!Array.isArray(raw)) return [];
+	const kinds: GoalKind[] = ['total', 'deep', 'category', 'subjects'];
+	return raw.flatMap((g): ActivityGoal[] => {
+		if (!g || typeof g !== 'object') return [];
+		const r = g as Record<string, unknown>;
+		const kind = kinds.find((k) => k === r.kind);
+		const minutes = Number(r.minutes);
+		if (!kind || !(minutes > 0)) return [];
+		const strings = (v: unknown) =>
+			Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+		return [
+			{
+				id: typeof r.id === 'string' ? r.id : crypto.randomUUID(),
+				kind,
+				category: CATEGORIES.find((c) => c === r.category) ?? 'focus',
+				keys: strings(r.keys),
+				names: strings(r.names),
+				minutes: Math.round(minutes),
+				limit: r.limit === true
+			}
+		];
+	});
 }
 
 // ——— Across days ———
