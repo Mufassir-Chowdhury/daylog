@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('daylogDesktop', {
 	onGoogleCredential: (callback) => listen('auth:google', callback),
 	getPrefs: () => ipcRenderer.invoke('prefs:get'),
 	setPrefs: (patch) => ipcRenderer.invoke('prefs:set', patch),
+	activityStatus: () => ipcRenderer.invoke('activity:status'),
+	setActivity: (patch) => ipcRenderer.invoke('activity:set', patch),
+	activityDays: (from, to) => ipcRenderer.invoke('activity:days', from, to),
+	clearActivity: () => ipcRenderer.invoke('activity:clear'),
 	onNavigate: (callback) => listen('navigate', callback),
 	onCapture: (callback) => listen('capture', callback),
 	onQuickOpen: (callback) => listen('quick:open', callback)

@@ -71,6 +71,7 @@
 		"files": [
 			"package.json",
 			"desktop/main.cjs",
+			"desktop/activity.cjs",
 			"desktop/preload.cjs",
 			"desktop/app/**",
 			"desktop/icons/**",

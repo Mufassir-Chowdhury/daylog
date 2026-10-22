@@ -31,8 +31,8 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
   any day (`fri`, `tmr`, `next mon`, `oct 12`, `+3`), and turns anything else into a line on
   today. Start with a date and a colon to file it elsewhere: `tmr: call @mom`. `Shift+Enter`
   always captures; the palette stays open so you can fire off several lines in a row.
-- **Keyboard.** `Alt+1…7` switches pages, `Alt+←/→` steps through days, `Alt+T` jumps to today,
-  `g` then `d/w/f/p/n/r/s` also jumps between pages, `?` lists every shortcut.
+- **Keyboard.** `Alt+1…7` (…8 in the desktop app) switches pages, `Alt+←/→` steps through days, `Alt+T` jumps to today,
+  `g` then `d/w/f/p/n/r/s` (and `a` for Activity on desktop) also jumps between pages, `?` lists every shortcut.
 - **Desktop app.** The same app as a native Windows app that lives in the tray — see below.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
@@ -82,6 +82,16 @@ The desktop build wraps the same app in Electron and adds what a web page can't 
 - **Jarvis theme.** Deep navy with soft blue light (or a light version), a sidebar instead of the
   top bar, native Windows 11 caption buttons (snap layouts work), and a live clock and sync
   light. The desktop theme is per computer, so the web app keeps its own. Switch in Settings.
+- **Activity tracker** (opt-in, Activity page). It notices which app — and in a browser, which
+  site — is in front, and shows where your time went: hour-by-hour focus / messages / distraction,
+  deep-work sessions (25+ minutes, surviving detours under 2 minutes), how often you switch, your
+  biggest distractions against your own averages, and your sharpest hours over the last weeks. Pick
+  a category for any app or site to teach it, and add a one-line summary to the day page. Idle and
+  locked time isn't counted (time with no input for the idle limit is trimmed, so reading or watching
+  for longer than that doesn't count), you can pause it from the page or the tray, leave out apps,
+  or turn off window titles. Everything stays on the computer, as one JSON file per day in daylog's
+  user-data folder — never synced. Works on Windows (via a small PowerShell loop), with best-effort
+  macOS (`osascript`) and Linux (`xdotool`, X11) support.
 - `Ctrl+B` collapses the sidebar, `Ctrl+=`/`Ctrl+-` zoom, `F12` opens dev tools.
 
 Data, login and offline sync are the same as the web app. The built app is served from

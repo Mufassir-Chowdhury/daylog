@@ -168,7 +168,7 @@
 		go(route);
 	}
 
-	// ——— Keyboard shortcuts: Ctrl+K palette, Alt+1…7 pages, "g" then a letter, "?" help.
+	// ——— Keyboard shortcuts: Ctrl+K palette, Alt+1…8 pages, "g" then a letter, "?" help.
 	let leader = false;
 	let leaderTimer: ReturnType<typeof setTimeout> | undefined;
 	let helpOpen = $state(false);

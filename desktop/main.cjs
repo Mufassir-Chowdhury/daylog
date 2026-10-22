@@ -2,7 +2,8 @@
  * daylog desktop — an Electron shell around the same SvelteKit app the web
  * build serves. It stays running in the tray, answers two global hotkeys
  * (summon the window, open the quick bar from any app), fires reminders for
- * timed lines, and remembers its window size.
+ * timed lines, tracks which apps you use (opt-in, see activity.cjs), and
+ * remembers its window size.
  *
  * The built SPA (desktop/app, from `npm run desktop:build`) is served on a fixed
  * localhost port: Firebase already trusts `localhost` for Google sign-in, and a
@@ -24,6 +25,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const { createActivityTracker } = require('./activity.cjs');
 
 const DEV = process.argv.includes('--dev');
 const DEV_URL = process.env.DAYLOG_DEV_URL || 'http://localhost:5173';
@@ -429,6 +431,8 @@ function refreshTrayMenu() {
 			{ label: 'Today', click: () => showMain('/') },
 			{ label: 'Schedule', click: () => showMain('/schedule') },
 			{ label: 'Finance', click: () => showMain('/finance') },
+			{ label: 'Activity', click: () => showMain('/activity') },
+			...activityMenu(),
 			{ type: 'separator' },
 			{
 				label: 'Start with Windows',
@@ -443,10 +447,63 @@ function refreshTrayMenu() {
 	);
 }
 
+function activityMenu() {
+	const status = activity?.status();
+	if (!status?.enabled) return [];
+	if (status.pausedUntil) {
+		return [
+			{ type: 'separator' },
+			{ label: 'Resume activity tracking', click: () => activity.set({ pausedUntil: 0 }) }
+		];
+	}
+	return [
+		{ type: 'separator' },
+		{
+			label: 'Pause activity tracking',
+			submenu: [
+				{ label: 'For 30 minutes', click: () => pauseActivity(30 * 60_000) },
+				{ label: 'For an hour', click: () => pauseActivity(60 * 60_000) },
+				{
+					label: 'Until tomorrow',
+					click: () => {
+						const d = new Date();
+						d.setHours(24, 0, 0, 0);
+						activity.set({ pausedUntil: d.getTime() });
+					}
+				}
+			]
+		}
+	];
+}
+
+const pauseActivity = (ms) => activity.set({ pausedUntil: Date.now() + ms });
+
 const launchAtLogin = () => !DEV && app.getLoginItemSettings().openAtLogin;
 function setLaunchAtLogin(on) {
 	if (DEV) return;
 	app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] });
+	refreshTrayMenu();
+}
+
+// ——— Activity tracking ———
+
+/** @type {ReturnType<typeof createActivityTracker> | null} */
+let activity = null;
+let activityMenuKey = '';
+let resumeTimer;
+
+/** Rebuilds the tray menu when tracking turns on/off or a pause starts/ends. */
+function onActivityChange() {
+	const status = activity?.status();
+	const key = `${status?.enabled}:${status?.pausedUntil}`;
+	if (key === activityMenuKey) return;
+	activityMenuKey = key;
+	clearTimeout(resumeTimer);
+	if (status?.pausedUntil) {
+		// Flip the menu back to "Pause" when the pause runs out.
+		const wait = Math.min(status.pausedUntil - Date.now() + 500, 2 ** 31 - 1);
+		resumeTimer = setTimeout(onActivityChange, wait);
+	}
 	refreshTrayMenu();
 }
 
@@ -482,6 +539,15 @@ ipcMain.on('quick:capture', (_e, entry) => {
 });
 ipcMain.on('reminders:set', (_e, list) => setReminders(list));
 ipcMain.on('auth:google-start', startGoogleSignIn);
+ipcMain.handle('activity:status', () => activity?.status() ?? null);
+ipcMain.handle('activity:set', (_e, patch) => {
+	activity?.set(patch);
+	return activity?.status() ?? null;
+});
+ipcMain.handle('activity:days', (_e, from, to) =>
+	typeof from === 'string' && typeof to === 'string' ? (activity?.days(from, to) ?? {}) : {}
+);
+ipcMain.handle('activity:clear', () => activity?.clear());
 ipcMain.handle('prefs:get', () => ({
 	summonKey: prefs.summonKey,
 	quickKey: prefs.quickKey,
@@ -513,7 +579,10 @@ app.on('second-instance', () => showMain());
 app.on('before-quit', () => {
 	quitting = true;
 });
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+	globalShortcut.unregisterAll();
+	activity?.shutdown();
+});
 // Keep running in the tray when every window is closed/hidden.
 app.on('window-all-closed', () => {});
 
@@ -529,6 +598,12 @@ app.whenReady().then(async () => {
 	origin = DEV ? DEV_URL : `http://localhost:${serverPort}`;
 	createMain();
 	createQuick();
+	activity = createActivityTracker({
+		dir: path.join(app.getPath('userData'), 'activity'),
+		prefs,
+		save: savePrefs,
+		onChange: onActivityChange
+	});
 	createTray();
 	registeredFailures = registerHotkeys();
 });
