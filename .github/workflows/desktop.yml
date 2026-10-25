@@ -1,8 +1,9 @@
 # Builds the Windows installer on every push to main and publishes it as the
 # repository's latest release, so it can be downloaded straight from GitHub:
 #   https://github.com/<owner>/<repo>/releases/latest/download/daylog-setup.exe
-# Each build is versioned 0.1.<run number>, and the release carries latest.yml,
-# which installed apps poll to update themselves (desktop/updater.cjs).
+# Each build is versioned 0.1.<run number> and gets its own release (tag
+# desktop-v0.1.<run number>), which carries latest.yml: installed apps poll the
+# latest release's copy to update themselves (desktop/updater.cjs).
 #
 # Once SignPath is set up (the SIGNPATH_ORGANIZATION_ID variable and the
 # SIGNPATH_API_TOKEN secret), the installer is code-signed by SignPath Foundation
@@ -76,16 +77,11 @@ jobs:
         if: vars.SIGNPATH_ORGANIZATION_ID != ''
         run: node desktop/refresh-update-info.mjs desktop/dist/signed/daylog-setup.exe desktop/dist
 
-      - name: Point the desktop-latest tag at this commit
-        shell: bash
-        run: |
-          git tag -f desktop-latest
-          git push -f origin desktop-latest
-
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: desktop-latest
+          tag_name: desktop-v0.1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           name: daylog for Windows 0.1.${{ github.run_number }}
           make_latest: true
           body: |
