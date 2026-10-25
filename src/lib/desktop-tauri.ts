@@ -6,6 +6,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { DesktopBridge } from './desktop';
 
 declare global {
@@ -38,9 +39,51 @@ function listen<T>(event: string, callback: (payload: T) => void): () => void {
 	};
 }
 
+/**
+ * What Electron gave the windows for free: dragging by the title bar (its CSS
+ * `-webkit-app-region: drag`, see layout.css), double-click to maximize, and the
+ * dev-tools and reload keys. Zoom keys are the webview's own (`zoom_hotkeys_enabled`).
+ */
+function installWindowChrome(): void {
+	const inTitleBar = (target: EventTarget | null) =>
+		target instanceof Element &&
+		!!target.closest('.desk-titlebar') &&
+		!target.closest('button, a, input, kbd');
+	// Dragging starts on the first move, not on mousedown: once the OS has the
+	// mouse it swallows the second click of a double-click.
+	let pressed = false;
+	window.addEventListener('mousedown', (e) => {
+		pressed = e.button === 0 && inTitleBar(e.target);
+	});
+	window.addEventListener('mouseup', () => (pressed = false));
+	window.addEventListener('mousemove', (e) => {
+		if (!pressed || !(e.buttons & 1)) return;
+		pressed = false;
+		getCurrentWindow()
+			.startDragging()
+			.catch(() => {});
+	});
+	window.addEventListener('dblclick', (e) => {
+		if (inTitleBar(e.target)) send('window_toggle_maximize');
+	});
+	window.addEventListener('keydown', (e) => {
+		const ctrl = e.ctrlKey || e.metaKey;
+		const key = e.key.toLowerCase();
+		if (e.key === 'F12' || (ctrl && e.shiftKey && key === 'i')) send('devtools_toggle');
+		else if (ctrl && !e.shiftKey && !e.altKey && key === 'r') location.reload();
+		else return;
+		e.preventDefault();
+	});
+}
+
 export function tauriBridge(): DesktopBridge {
+	installWindowChrome();
+	const platform = window.__daylogPlatform ?? 'unknown';
 	return {
-		platform: window.__daylogPlatform ?? 'unknown',
+		platform,
+		// macOS keeps its traffic lights (an overlay title bar); elsewhere there's no native frame.
+		captionButtons: platform !== 'darwin',
+		isMaximized: () => getCurrentWindow().isMaximized(),
 		hide: () => send('window_hide'),
 		minimize: () => send('window_minimize'),
 		toggleMaximize: () => send('window_toggle_maximize'),

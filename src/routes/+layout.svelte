@@ -6,6 +6,7 @@
 	import { logOut, session } from '$lib/auth.svelte';
 	import { startActivitySync } from '$lib/activity-sync';
 	import { appendToDay } from '$lib/capture';
+	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
 	import CommandPalette, { type PaletteAction } from '$lib/components/CommandPalette.svelte';
 	import DesktopShell from '$lib/components/DesktopShell.svelte';
 	import Login from '$lib/components/Login.svelte';
@@ -406,3 +407,5 @@
 		</dialog>
 	{/if}
 {/if}
+
+{#if desktop?.captionButtons && session.ready && !isBare}<CaptionButtons />{/if}

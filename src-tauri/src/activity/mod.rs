@@ -755,7 +755,11 @@ mod tests {
             &std::fs::read_to_string(dir.join(format!("{today}.json"))).unwrap(),
         )
         .unwrap();
-        assert_eq!(written.len(), 1, "the chrome span fell inside the idle time");
+        assert_eq!(
+            written.len(),
+            1,
+            "the chrome span fell inside the idle time"
+        );
         assert_eq!(written[0].title.as_deref(), Some("main.rs"));
         let kept = written[0].e - written[0].s;
         assert!((9 * 60_000..=11 * 60_000).contains(&kept), "{kept}");

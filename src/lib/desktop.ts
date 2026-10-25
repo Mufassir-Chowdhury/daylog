@@ -99,6 +99,9 @@ export interface GoogleTokens {
 
 export interface DesktopBridge {
 	platform: string;
+	/** The app draws its own minimize/maximize/close buttons (Tauri; Electron overlays native ones). */
+	captionButtons?: boolean;
+	isMaximized?(): Promise<boolean>;
 	hide(): void;
 	minimize(): void;
 	toggleMaximize(): void;

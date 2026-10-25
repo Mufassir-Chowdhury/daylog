@@ -12,29 +12,25 @@ activity tracker — with the same features and no change to the web app.
 | Step | What                                                                                                                                                                                        | PR                                                        | State     |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------- |
 | 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7) | merged    |
-| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | (this PR)                                                 | in review |
-| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | —                                                         | todo      |
+| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8) | merged    |
+| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | (this PR)                                                 | in review |
 | 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | —                                                         | todo      |
 | 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | —                                                         | todo      |
 
 ## Next up
 
-Step 3, the title bar. Electron hides the native frame and overlays native
-caption buttons (`titleBarOverlay`) on the app's own 40px title bar
-(`src/lib/components/DesktopShell.svelte`, which pads `pr-[150px]` for them).
-Tauri has no overlay, so: `decorations(false)` on the main window, draw
-minimize / maximize / close in `DesktopShell.svelte` when running on Tauri
-(the bridge already has `minimize`, `toggleMaximize`, `hide`), make the bar a
-drag region (`data-tauri-drag-region`; needs `core:window:allow-start-dragging`
-and friends in the capability), and keep `titlebar_colors` setting the window
-background. Also restore Electron's keys: F12 / Ctrl+Shift+I devtools, Ctrl+R
-reload, Ctrl+= / Ctrl+- / Ctrl+0 zoom (`webview.set_zoom`).
+Step 4, the updater, in `src-tauri/src/updater.rs` (a stub reporting
+`unsupported` today). Plan: download the feed with `ureq` (native TLS, the OS
+certificate store), compare versions, download the installer to the temp
+folder while reporting progress (`update:status` events, tray item every
+10%), verify size + sha512, notify "daylog X is ready", and on "Restart to
+update" run the NSIS installer with `/S /UPDATE /R` (silent, relaunch) and
+quit; install on quit otherwise. Until step 5 the Tauri app must read a
+separate feed, `latest-tauri.yml`, which CI writes for
+`daylog-tauri-setup.exe` (`latest.yml` still describes the Electron installer).
 
-Known gaps in the preview until later steps:
-
-- the native title bar sits above the app's own one, which still leaves room on
-  the right for Electron's caption buttons (step 3);
-- no auto-update (step 4) — install new previews by hand.
+Known gap in the preview until step 4: no auto-update — install new previews
+by hand.
 
 ## Design decisions (and why)
 
@@ -137,3 +133,16 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   samples closes the span, as before). Live-checked on Linux (Xvfb + openbox
   - xdotool): enabling tracking records the window in front and the status
     and days commands return the same shapes as Electron's.
+- Step 3: the main window is frameless (`decorations(false)`; macOS keeps its
+  traffic lights via an overlay title bar). `CaptionButtons.svelte` draws
+  minimize / maximize-restore / close in Windows 11's style and colours from
+  `--t-chrome`, shown when the bridge says `captionButtons` (Tauri only).
+  `desktop-tauri.ts` does what Electron's `-webkit-app-region: drag` did:
+  pressing on `.desk-titlebar` (not on its buttons/links/inputs) and moving
+  drags the window; double-click maximizes. Dragging starts on the first
+  move rather than on mousedown so double-clicks still arrive. F12 /
+  Ctrl+Shift+I toggle dev tools (`devtools_toggle`), Ctrl+R reloads, zoom
+  keys are WebView2's own (`zoom_hotkeys_enabled`). Checked on Linux with
+  xdotool: drag moves the window, maximize/restore and double-click work,
+  close hides to the tray. Windows 11 snap layouts on hovering maximize are
+  not available without a native caption (Win+Z and edge snapping still work).
