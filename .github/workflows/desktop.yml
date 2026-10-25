@@ -6,7 +6,8 @@
 # latest release's copy to update themselves (desktop/updater.cjs).
 #
 # During the move to Tauri (docs/tauri-migration.md) each release also carries
-# the Tauri preview installer, daylog-tauri-setup.exe. Pull requests that touch
+# the Tauri preview installer, daylog-tauri-setup.exe, and latest-tauri.yml,
+# which installed previews update from (src-tauri/src/updater.rs). Pull requests that touch
 # the desktop app build it too, without publishing anything.
 #
 # Once SignPath is set up (the SIGNPATH_ORGANIZATION_ID variable and the
@@ -73,13 +74,14 @@ jobs:
         shell: bash
         run: |
           npx tauri build --ci --config '{"version":"0.1.${{ github.run_number }}"}'
-          cp src-tauri/target/release/bundle/nsis/daylog_0.1.${{ github.run_number }}_x64-setup.exe daylog-tauri-setup.exe
-          ls -l daylog-tauri-setup.exe
+          mkdir -p tauri-dist
+          cp src-tauri/target/release/bundle/nsis/daylog_0.1.${{ github.run_number }}_x64-setup.exe tauri-dist/daylog-tauri-setup.exe
+          node desktop/write-update-info.mjs tauri-dist/daylog-tauri-setup.exe 0.1.${{ github.run_number }} tauri-dist/latest-tauri.yml
 
       - uses: actions/upload-artifact@v4
         with:
           name: daylog-tauri-setup
-          path: daylog-tauri-setup.exe
+          path: tauri-dist/
           if-no-files-found: error
 
   windows:
@@ -149,8 +151,9 @@ jobs:
             Windows SmartScreen may warn the first time — choose **More info → Run anyway**.
             Installed copies update themselves from this release.
 
-            **Preview:** daylog-tauri-setup.exe is the same app on Tauri — a much smaller download. It doesn't update itself yet; quit the regular app before trying it.
+            **Preview:** daylog-tauri-setup.exe is the same app on Tauri — a much smaller download, updating itself from latest-tauri.yml. Quit the regular app before trying it.
           files: |
             desktop/dist/daylog-setup.exe
             desktop/dist/latest.yml
             desktop/dist/daylog-tauri-setup.exe
+            desktop/dist/latest-tauri.yml

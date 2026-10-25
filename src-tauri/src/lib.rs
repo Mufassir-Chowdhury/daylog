@@ -2,8 +2,9 @@
 //! serves. It stays running in the tray, answers two global hotkeys (summon the
 //! window, open the quick bar from any app), fires reminders for timed lines,
 //! signs in with Google through the system browser, tracks which apps you use
-//! (opt-in, see activity/), and remembers its window size. See
-//! docs/tauri-migration.md for how it maps onto the Electron shell.
+//! (opt-in, see activity/), keeps itself up to date (updater.rs), and
+//! remembers its window size. See docs/tauri-migration.md for how it maps onto
+//! the Electron shell.
 
 mod activity;
 mod auth;
@@ -85,6 +86,7 @@ pub fn run() {
             });
             windows::create_main(&handle)?;
             windows::create_quick(&handle)?;
+            updater::start(&handle);
             tray::create(&handle)?;
             reminders::start(handle.clone());
             activity::start(handle.clone());
@@ -107,6 +109,7 @@ pub fn run() {
         RunEvent::Exit => {
             activity::shutdown();
             prefs::store().save_now();
+            updater::install_on_quit();
         }
         _ => {}
     });

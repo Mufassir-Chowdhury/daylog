@@ -169,14 +169,16 @@ pub fn activity_clear() {
 }
 
 #[tauri::command]
-pub fn update_status(app: AppHandle) -> Value {
+pub fn update_status(app: AppHandle) -> updater::Status {
     updater::status(&app)
 }
 
 #[tauri::command]
-pub fn update_check(app: AppHandle) -> Value {
-    updater::status(&app)
+pub fn update_check() -> updater::Status {
+    updater::check()
 }
 
 #[tauri::command]
-pub fn update_install() {}
+pub fn update_install(app: AppHandle) {
+    updater::install(&app);
+}

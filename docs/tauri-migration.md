@@ -13,24 +13,27 @@ activity tracker — with the same features and no change to the web app.
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------- |
 | 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7) | merged    |
 | 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8) | merged    |
-| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | (this PR)                                                 | in review |
-| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | —                                                         | todo      |
+| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | [#9](https://github.com/Mufassir-Chowdhury/daylog/pull/9) | merged    |
+| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | (this PR)                                                 | in review |
 | 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | —                                                         | todo      |
 
 ## Next up
 
-Step 4, the updater, in `src-tauri/src/updater.rs` (a stub reporting
-`unsupported` today). Plan: download the feed with `ureq` (native TLS, the OS
-certificate store), compare versions, download the installer to the temp
-folder while reporting progress (`update:status` events, tray item every
-10%), verify size + sha512, notify "daylog X is ready", and on "Restart to
-update" run the NSIS installer with `/S /UPDATE /R` (silent, relaunch) and
-quit; install on quit otherwise. Until step 5 the Tauri app must read a
-separate feed, `latest-tauri.yml`, which CI writes for
-`daylog-tauri-setup.exe` (`latest.yml` still describes the Electron installer).
+Step 5, the switch-over:
 
-Known gap in the preview until step 4: no auto-update — install new previews
-by hand.
+- CI builds only the Tauri installer and publishes it as `daylog-setup.exe`
+  with `latest.yml` (and the same manifest as `latest-tauri.yml` for previews).
+  The Tauri updater switches its feed to `latest.yml`.
+- Installed Electron copies then download it through electron-updater, which
+  runs it as `--updated /S --force-run`. NSIS hooks
+  (`src-tauri/windows/hooks.nsh`) remove the Electron install
+  (`%LOCALAPPDATA%\Programs\daylog`, via its own uninstaller, keeping
+  `%APPDATA%\daylog`) and relaunch on `--force-run`.
+- On first run the app moves "Start with Windows" over from Electron's Run
+  entry and deletes Chromium caches (`migrate.rs`).
+- Remove `desktop/*.cjs`, the electron packages and the `build` config.
+- Test the whole path on a Windows runner: install the last Electron release,
+  run the new installer like electron-updater, check the result.
 
 ## Design decisions (and why)
 
@@ -146,3 +149,14 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   xdotool: drag moves the window, maximize/restore and double-click work,
   close hides to the tray. Windows 11 snap layouts on hovering maximize are
   not available without a native caption (Win+Z and edge snapping still work).
+- Step 4: `updater.rs` — reads the manifest with `ureq` (native TLS with the
+  OS certificate store; redirects followed by hand, since ureq's own
+  redirect handling broke on GitHub's chunked 302s behind a proxy), compares
+  versions numerically, downloads to `%TEMP%\daylog-update` reporting
+  progress, checks size + sha512, notifies, and runs the installer with
+  `/S /UPDATE /R` on "Restart to update" (`/S /UPDATE` on quit). CI now
+  writes `latest-tauri.yml` for the preview (`desktop/write-update-info.mjs`).
+  A unit test serves a manifest and installer from a local server and checks
+  both a good download and a tampered one; fetching the real `latest.yml`
+  from GitHub was checked by hand. `DAYLOG_UPDATE_FEED` overrides the feed URL
+  for testing.
