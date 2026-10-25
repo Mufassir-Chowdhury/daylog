@@ -50,6 +50,8 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-latest
+    # Generous: release signing can wait up to an hour for approval on signpath.io.
+    timeout-minutes: 120
     env:
       VERSION: 0.1.${{ github.run_number }}
     steps:
@@ -97,6 +99,7 @@ jobs:
 
       - name: Test updating from the Electron app
         if: github.event_name == 'pull_request'
+        timeout-minutes: 15
         shell: pwsh
         run: ./desktop/test-migration.ps1 desktop/dist/daylog-setup.exe
 

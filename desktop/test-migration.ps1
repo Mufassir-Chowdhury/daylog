@@ -18,6 +18,12 @@ function Check([bool]$ok, [string]$what) {
   if ($ok) { Write-Host "ok   $what" } else { Write-Host "FAIL $what"; $script:failed = $true }
 }
 
+# Start-Process -Wait would also wait for the app the installer launches.
+function Install([string]$exe, [string[]]$arguments) {
+  $p = Start-Process $exe -ArgumentList $arguments -PassThru
+  if (-not $p.WaitForExit(180000)) { throw "$exe $arguments didn't finish in 3 minutes" }
+}
+
 function RunEntries {
   foreach ($hive in 'HKCU', 'HKLM') {
     $key = Get-Item "${hive}:\$runKey" -ErrorAction SilentlyContinue
@@ -30,7 +36,7 @@ function RunEntries {
 Write-Host '— Installing the last Electron release'
 $old = Join-Path $env:RUNNER_TEMP 'daylog-electron-setup.exe'
 Invoke-WebRequest 'https://github.com/Mufassir-Chowdhury/daylog/releases/download/desktop-v0.1.7/daylog-setup.exe' -OutFile $old
-Start-Process $old -ArgumentList '/S' -Wait
+Install $old @('/S')
 Check (Test-Path "$electronDir\daylog.exe") 'Electron app installed'
 
 Write-Host '— First run of the Electron app (writes prefs, turns on Start with Windows)'
@@ -44,7 +50,7 @@ Write-Host "Run entries before: $((RunEntries) -join '; ')"
 Write-Host '— Updating into the Tauri installer like electron-updater does'
 Get-Process daylog -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 2
-Start-Process $Installer -ArgumentList '--updated', '/S', '--force-run' -Wait
+Install $Installer @('--updated', '/S', '--force-run')
 Start-Sleep 15
 
 Check (-not (Test-Path $electronDir)) 'Electron copy removed'
@@ -68,7 +74,7 @@ try {
 
 Write-Host '— Updating the running Tauri app like its own updater does'
 $before = Get-Process daylog -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $tauriExe }
-Start-Process $Installer -ArgumentList '/S', '/UPDATE', '/R' -Wait
+Install $Installer @('/S', '/UPDATE', '/R')
 Start-Sleep 10
 $after = Get-Process daylog -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $tauriExe }
 Check ($null -ne $after) 'Tauri app running again after its update'
