@@ -73,7 +73,8 @@ npm run test:e2e    # playwright, builds and runs the real app
 
 **Download:** [daylog-setup.exe](https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/daylog-setup.exe)
 — built by GitHub Actions from every push to `main` ([all releases](https://github.com/Mufassir-Chowdhury/daylog/releases)).
-The installer isn't code-signed, so SmartScreen may warn the first time: **More info → Run anyway**.
+The installer is code-signed (see [Code signing policy](#code-signing-policy)), but SmartScreen
+may still warn while the certificate builds up reputation: **More info → Run anyway**.
 After that the app **updates itself**: it checks for a new release a few hours apart, downloads
 it in the background and installs it when daylog quits — or right away from **Restart to update**
 in the tray, the notification, or **Settings → Desktop app**.
@@ -121,6 +122,28 @@ npm run desktop:dist     # build a Windows installer into desktop/dist/
 npm run desktop:dev      # run against `npm run dev` (start that first) for hot reload
 npm run desktop:icons    # regenerate desktop/icons/*.png after changing make-icons.mjs
 ```
+
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- Committers and approvers: [Mufassir Chowdhury](https://github.com/Mufassir-Chowdhury)
+- Reviewers: [Mufassir Chowdhury](https://github.com/Mufassir-Chowdhury)
+
+Only `daylog-setup.exe` built by the [Desktop app workflow](.github/workflows/desktop.yml) from
+this repository's `main` branch is signed, and each signing request is approved by hand.
+
+**Privacy.** The desktop app talks to other systems only to do what you ask of it, and to update
+itself:
+
+- your days, schedule, finance and synced activity go to your own Firebase account
+  (Google Firebase Authentication and Cloud Firestore) once you sign in;
+- Google sign-in opens your web browser at Google;
+- it checks this repository's GitHub releases for updates and downloads new versions from GitHub.
+
+Activity tracking is off until you turn it on; what it records stays on your computer and in your
+own account. Nothing is sent to the developers.
 
 ## Deploying
 
