@@ -1,7 +1,7 @@
 /**
- * Typed access to the desktop shell: Electron (desktop/preload.cjs) or Tauri
- * (src-tauri, bridged by ./desktop-tauri.ts). In the web build `desktop` is
- * null, so every caller degrades to plain web behaviour.
+ * Typed access to the desktop app (src-tauri, bridged by ./desktop-tauri.ts).
+ * In the web build `desktop` is null, so every caller degrades to plain web
+ * behaviour.
  */
 import { tauriBridge } from './desktop-tauri';
 
@@ -11,7 +11,7 @@ export interface CaptureEntry {
 	line: string;
 }
 
-/** A reminder handed to the main process, which owns the timers. */
+/** A reminder handed to the desktop shell, which owns the timers. */
 export interface Reminder {
 	/** Epoch millis. */
 	at: number;
@@ -30,7 +30,7 @@ export interface DesktopPrefs {
 	failed: string[];
 }
 
-/** Activity-tracker state from the main process (desktop/activity.cjs). */
+/** Activity-tracker state from the desktop shell (src-tauri/src/activity). */
 export interface ActivityStatus {
 	enabled: boolean;
 	/** Record window titles (needed for browser sites and per-document breakdowns). */
@@ -77,7 +77,7 @@ export interface ActivitySpan {
 	subject?: string;
 }
 
-/** Auto-update progress from the main process (desktop/updater.cjs). */
+/** Auto-update progress from the desktop shell (src-tauri/src/updater.rs). */
 export interface UpdateStatus {
 	/** `unsupported` in dev runs, which have no installer to replace. */
 	state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported';
@@ -99,9 +99,9 @@ export interface GoogleTokens {
 
 export interface DesktopBridge {
 	platform: string;
-	/** The app draws its own minimize/maximize/close buttons (Tauri; Electron overlays native ones). */
-	captionButtons?: boolean;
-	isMaximized?(): Promise<boolean>;
+	/** The app draws its own minimize/maximize/close buttons (everywhere but macOS). */
+	captionButtons: boolean;
+	isMaximized(): Promise<boolean>;
 	hide(): void;
 	minimize(): void;
 	toggleMaximize(): void;
@@ -132,19 +132,8 @@ export interface DesktopBridge {
 	onGoogleCredential(callback: (tokens: GoogleTokens) => void): () => void;
 }
 
-declare global {
-	interface Window {
-		daylogDesktop?: DesktopBridge;
-	}
-}
-
-function detect(): DesktopBridge | null {
-	if (typeof window === 'undefined') return null;
-	if (window.daylogDesktop) return window.daylogDesktop;
-	return window.__TAURI_INTERNALS__ ? tauriBridge() : null;
-}
-
-export const desktop: DesktopBridge | null = detect();
+export const desktop: DesktopBridge | null =
+	typeof window !== 'undefined' && window.__TAURI_INTERNALS__ ? tauriBridge() : null;
 
 /** `Control+Alt+Space` → `Ctrl + Alt + Space`, for display. */
 export function prettyAccelerator(accel: string): string {
@@ -152,7 +141,7 @@ export function prettyAccelerator(accel: string): string {
 }
 
 /**
- * Turns a keydown into an Electron accelerator string, or null while only
+ * Turns a keydown into an accelerator string (`Control+Alt+Space`), or null while only
  * modifiers are held. Requires at least one modifier — a bare global hotkey
  * would swallow that key in every other app.
  */

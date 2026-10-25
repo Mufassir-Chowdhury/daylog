@@ -20,7 +20,7 @@ use tauri::{AppHandle, Wry};
 
 /// Where releases are published; `latest/download/` always points at the newest.
 const FEED: &str =
-    "https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/latest-tauri.yml";
+    "https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/latest.yml";
 
 /// The manifest URL; `DAYLOG_UPDATE_FEED` points it elsewhere for testing.
 fn feed() -> String {

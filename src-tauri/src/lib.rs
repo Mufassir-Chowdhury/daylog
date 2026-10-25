@@ -3,13 +3,14 @@
 //! window, open the quick bar from any app), fires reminders for timed lines,
 //! signs in with Google through the system browser, tracks which apps you use
 //! (opt-in, see activity/), keeps itself up to date (updater.rs), and
-//! remembers its window size. See docs/tauri-migration.md for how it maps onto
-//! the Electron shell.
+//! remembers its window size. docs/tauri-migration.md tells how it replaced the
+//! Electron app.
 
 mod activity;
 mod auth;
 mod commands;
 mod hotkeys;
+mod migrate;
 mod notify;
 mod prefs;
 mod reminders;
@@ -90,6 +91,7 @@ pub fn run() {
             tray::create(&handle)?;
             reminders::start(handle.clone());
             activity::start(handle.clone());
+            migrate::run(&handle);
             if !tauri::is_dev() && !prefs::store().get().launch_at_login_defaulted {
                 tray::set_launch_at_login(&handle, true);
                 prefs::store().update(|p| p.launch_at_login_defaulted = true);

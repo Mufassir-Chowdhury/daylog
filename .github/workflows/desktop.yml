@@ -1,14 +1,15 @@
-# Builds the Windows installer on every push to main and publishes it as the
-# repository's latest release, so it can be downloaded straight from GitHub:
+# Builds the Windows installer (Tauri, src-tauri/) on every push to main and
+# publishes it as the repository's latest release, so it can be downloaded
+# straight from GitHub:
 #   https://github.com/<owner>/<repo>/releases/latest/download/daylog-setup.exe
 # Each build is versioned 0.1.<run number> and gets its own release (tag
 # desktop-v0.1.<run number>), which carries latest.yml: installed apps poll the
-# latest release's copy to update themselves (desktop/updater.cjs).
+# latest release's copy to update themselves (src-tauri/src/updater.rs). The
+# last Electron versions read the same file and update into this installer.
+# latest-tauri.yml is the same manifest under the name the Tauri previews read.
 #
-# During the move to Tauri (docs/tauri-migration.md) each release also carries
-# the Tauri preview installer, daylog-tauri-setup.exe, and latest-tauri.yml,
-# which installed previews update from (src-tauri/src/updater.rs). Pull requests that touch
-# the desktop app build it too, without publishing anything.
+# Pull requests that touch the desktop app build the installer too, without
+# publishing anything.
 #
 # Once SignPath is set up (the SIGNPATH_ORGANIZATION_ID variable and the
 # SIGNPATH_API_TOKEN secret), the installer is code-signed by SignPath Foundation
@@ -47,8 +48,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tauri:
+  windows:
     runs-on: windows-latest
+    # Generous: release signing can wait up to an hour for approval on signpath.io.
+    timeout-minutes: 120
+    env:
+      VERSION: 0.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,45 +79,33 @@ jobs:
           export RUSTFLAGS="-C link-arg=/MANIFEST:EMBED -C link-arg=/MANIFESTINPUT:$(cygpath -w "$PWD/windows/test.manifest")"
           cargo test --locked --lib
 
-      - name: Build the Tauri installer
+      - name: Build the installer
         # bash, not the default PowerShell, which mangles the JSON argument.
         shell: bash
         run: |
-          npx tauri build --ci --config '{"version":"0.1.${{ github.run_number }}"}'
-          mkdir -p tauri-dist
-          cp src-tauri/target/release/bundle/nsis/daylog_0.1.${{ github.run_number }}_x64-setup.exe tauri-dist/daylog-tauri-setup.exe
-          node desktop/write-update-info.mjs tauri-dist/daylog-tauri-setup.exe 0.1.${{ github.run_number }} tauri-dist/latest-tauri.yml
+          npx tauri build --ci --config "{\"version\":\"$VERSION\"}"
+          mkdir -p desktop/dist
+          cp "src-tauri/target/release/bundle/nsis/daylog_${VERSION}_x64-setup.exe" desktop/dist/daylog-setup.exe
+          node desktop/write-update-info.mjs desktop/dist/daylog-setup.exe "$VERSION" desktop/dist/latest.yml
+          cp desktop/dist/latest.yml desktop/dist/latest-tauri.yml
 
-      - uses: actions/upload-artifact@v4
+      - name: Keep the pull request's installer
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
-          name: daylog-tauri-setup
-          path: tauri-dist/
+          name: daylog-setup
+          path: desktop/dist/
           if-no-files-found: error
 
-  windows:
-    needs: tauri
-    if: github.event_name != 'pull_request'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Build the app and the installer
-        # bash, not the default PowerShell, which mangles the --config.* argument.
-        shell: bash
-        run: |
-          npm run desktop:build
-          npx electron-builder --win --publish never --config.extraMetadata.version=0.1.${{ github.run_number }}
+      - name: Test updating from the Electron app
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 15
+        shell: pwsh
+        run: ./desktop/test-migration.ps1 desktop/dist/daylog-setup.exe
 
       - name: Upload the unsigned installer for signing
         id: unsigned
-        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != ''
         uses: actions/upload-artifact@v4
         with:
           name: daylog-setup-unsigned
@@ -120,7 +113,7 @@ jobs:
           if-no-files-found: error
 
       - name: Sign the installer with SignPath
-        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != ''
         uses: signpath/github-action-submit-signing-request@v1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -134,31 +127,24 @@ jobs:
           output-artifact-directory: desktop/dist/signed
 
       - name: Swap in the signed installer
-        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        if: github.event_name != 'pull_request' && vars.SIGNPATH_ORGANIZATION_ID != ''
         run: node desktop/refresh-update-info.mjs desktop/dist/signed/daylog-setup.exe desktop/dist
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: daylog-tauri-setup
-          path: desktop/dist
-
       - name: Publish the release
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: desktop-v0.1.${{ github.run_number }}
+          tag_name: desktop-v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          name: daylog for Windows 0.1.${{ github.run_number }}
+          name: daylog for Windows ${{ env.VERSION }}
           make_latest: true
           body: |
-            Latest Windows build of the daylog desktop app (0.1.${{ github.run_number }}), from ${{ github.sha }}.
+            Latest Windows build of the daylog desktop app (${{ env.VERSION }}), from ${{ github.sha }}.
 
             Download **daylog-setup.exe** and run it. ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && 'Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).' || 'The installer isn''t code-signed.' }}
             Windows SmartScreen may warn the first time — choose **More info → Run anyway**.
             Installed copies update themselves from this release.
-
-            **Preview:** daylog-tauri-setup.exe is the same app on Tauri — a much smaller download, updating itself from latest-tauri.yml. Quit the regular app before trying it.
           files: |
             desktop/dist/daylog-setup.exe
             desktop/dist/latest.yml
-            desktop/dist/daylog-tauri-setup.exe
             desktop/dist/latest-tauri.yml

@@ -6,7 +6,7 @@
 //! A web page can't see other apps, which is why this lives in the desktop shell.
 //! Windows reads the foreground window straight from Win32; macOS and Linux shell
 //! out once per sample (sampler.rs). Same files, settings and behaviour as the
-//! Electron tracker it replaces (desktop/activity.cjs).
+//! Electron tracker it replaced.
 //!
 //! No keyboard or mouse input normally means the user stepped away, but not
 //! while a video or call is playing: Windows and macOS report when some app is

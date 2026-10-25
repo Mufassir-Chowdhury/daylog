@@ -1,6 +1,6 @@
 /**
  * Uploads this computer's recorded activity (kept by the desktop shell, see
- * desktop/activity.cjs) to the user's account, one doc per day, so the
+ * src-tauri/src/activity) to the user's account, one doc per day, so the
  * Activity page shows it on every device. Runs in the main window, which
  * stays loaded while hidden in the tray.
  */

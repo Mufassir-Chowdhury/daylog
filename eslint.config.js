@@ -34,11 +34,6 @@ export default defineConfig(
 		}
 	},
 	{
-		// The Electron main process and preload are CommonJS (sandboxed preloads must be).
-		files: ['desktop/**/*.cjs'],
-		rules: { '@typescript-eslint/no-require-imports': 'off' }
-	},
-	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}

@@ -9,31 +9,30 @@ activity tracker — with the same features and no change to the web app.
 
 ## Status
 
-| Step | What                                                                                                                                                                                        | PR                                                        | State     |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------- |
-| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7) | merged    |
-| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8) | merged    |
-| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | [#9](https://github.com/Mufassir-Chowdhury/daylog/pull/9) | merged    |
-| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | (this PR)                                                 | in review |
-| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | —                                                         | todo      |
+| Step | What                                                                                                                                                                                        | PR                                                          | State     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- |
+| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7)   | merged    |
+| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8)   | merged    |
+| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | [#9](https://github.com/Mufassir-Chowdhury/daylog/pull/9)   | merged    |
+| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | [#10](https://github.com/Mufassir-Chowdhury/daylog/pull/10) | merged    |
+| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | (this PR)                                                   | in review |
 
 ## Next up
 
-Step 5, the switch-over:
+Once step 5 is merged and its release is out, the migration is done. What's
+left is watching it in the wild:
 
-- CI builds only the Tauri installer and publishes it as `daylog-setup.exe`
-  with `latest.yml` (and the same manifest as `latest-tauri.yml` for previews).
-  The Tauri updater switches its feed to `latest.yml`.
-- Installed Electron copies then download it through electron-updater, which
-  runs it as `--updated /S --force-run`. NSIS hooks
-  (`src-tauri/windows/hooks.nsh`) remove the Electron install
-  (`%LOCALAPPDATA%\Programs\daylog`, via its own uninstaller, keeping
-  `%APPDATA%\daylog`) and relaunch on `--force-run`.
-- On first run the app moves "Start with Windows" over from Electron's Run
-  entry and deletes Chromium caches (`migrate.rs`).
-- Remove `desktop/*.cjs`, the electron packages and the `build` config.
-- Test the whole path on a Windows runner: install the last Electron release,
-  run the new installer like electron-updater, check the result.
+- An Electron install picks the update up within ~4 hours of launch (or from
+  tray → Check for updates), installs it on quit or on "Restart to update",
+  and the Tauri app starts. Afterwards `%LOCALAPPDATA%\Programs\todo` is
+  gone, the app lives in `%LOCALAPPDATA%\daylog`, and the user signs in once.
+  CI's migration test (`desktop/test-migration.ps1`) runs exactly this path on a
+  Windows runner for every desktop PR.
+- If something goes wrong for someone: downloading `daylog-setup.exe` from the
+  latest release and running it does the same migration by hand.
+- `latest-tauri.yml` only exists for the few Tauri previews released in steps
+  1–4; it can be dropped from the workflow once those have updated (any time
+  after a release or two).
 
 ## Design decisions (and why)
 
@@ -47,9 +46,9 @@ Step 5, the switch-over:
   `/desktop-auth` in the system browser, and a fixed origin keeps IndexedDB and
   the login across launches. Tauri IPC is allowed for that origin through the
   capability's `remote.urls`.
-- **Same bridge API.** `window.daylogDesktop` (Electron preload) and the Tauri
-  implementation both satisfy `DesktopBridge` in `src/lib/desktop.ts`, so no
-  page or component changes. Tauri is detected by `window.__TAURI_INTERNALS__`.
+- **Same bridge API.** The Tauri bridge (`src/lib/desktop-tauri.ts`) kept the
+  `DesktopBridge` shape the Electron preload had, so no page or component
+  changed. Tauri is detected by `window.__TAURI_INTERNALS__`.
 - **Same data folder.** Prefs (`desktop-prefs.json`) and activity
   (`activity/YYYY-MM-DD.json`) live in the same folder Electron used
   (`%APPDATA%\daylog`, `~/.config/daylog`, `~/Library/Application Support/daylog`)
@@ -67,40 +66,57 @@ Step 5, the switch-over:
   signing-key secret.
 - **Versions** stay `0.1.<workflow run number>`, one GitHub release per build.
 
-## Release plan during the migration
+## Releases
 
-- Until step 5, every push to `main` still releases the **Electron** installer as
-  `daylog-setup.exe` + `latest.yml` (what installed apps update from), and also
-  attaches the **Tauri preview** installer as `daylog-tauri-setup.exe`.
-- PRs touching the desktop app build the Tauri installer as a workflow artifact,
-  without publishing, so a broken Windows build never reaches `main`.
-- Step 5 flips `daylog-setup.exe` and `latest.yml` to the Tauri build.
+- Steps 1–4: every push to `main` released the **Electron** installer as
+  `daylog-setup.exe` + `latest.yml`, plus the **Tauri preview** as
+  `daylog-tauri-setup.exe` + `latest-tauri.yml`.
+- From step 5: only the Tauri installer, as `daylog-setup.exe`, with
+  `latest.yml` (read by the Tauri app and by the last Electron versions) and
+  the same manifest as `latest-tauri.yml` (read by the previews).
+- PRs touching the desktop app build the installer, run the Rust tests and the
+  Electron → Tauri migration test, without publishing anything.
 
-Trying the preview: quit the Electron app first (tray → Quit daylog). Both use
-the same hotkeys and ports; the preview installs side by side
-(`%LOCALAPPDATA%\daylog` vs Electron's `%LOCALAPPDATA%\Programs\daylog`).
+## How an Electron install becomes a Tauri one
 
-## Electron → Tauri map
+1. electron-updater (already in the user's app) reads `latest.yml`, downloads
+   the Tauri `daylog-setup.exe`, checks its sha512, and runs it with
+   `--updated /S` (plus `--force-run` from "Restart to update").
+2. `src-tauri/windows/hooks.nsh`, before installing: closes `daylog.exe`, runs
+   Electron's own uninstaller silently in place (`/S /currentuser
+_?=<dir>`; it removes its files, shortcuts and uninstall entry but keeps
+   `%APPDATA%\daylog` and the Run entry), then deletes the folder.
+3. Tauri's NSIS installs per user into `%LOCALAPPDATA%\daylog`; after
+   installing, the hook starts the app if `--force-run` was passed.
+4. First run (`migrate.rs`, once, `prefs.electronMigrated`): Run entries
+   pointing at `\Programs\todo\daylog.exe` are deleted (with their
+   Task Manager flags) and, if there were any, "Start with Windows" is turned
+   on for the Tauri app; Chromium caches in `%APPDATA%\daylog` are deleted.
+   Prefs and activity files are already in the shared format and place.
 
-| Electron (`desktop/`)                        | Tauri (`src-tauri/src/`)                      |
-| -------------------------------------------- | --------------------------------------------- |
-| `main.cjs` static server + `/__desktop-auth` | `server.rs` (tiny_http, embedded assets)      |
-| `BrowserWindow` main / quick                 | `windows.rs`                                  |
-| `Tray`, `Menu`                               | `tray.rs`                                     |
-| `globalShortcut`                             | `tauri-plugin-global-shortcut` (`hotkeys.rs`) |
-| `Notification` + reminder timers             | `notify.rs`, `reminders.rs`                   |
-| `setLoginItemSettings`                       | `tauri-plugin-autostart`                      |
-| `requestSingleInstanceLock`                  | `tauri-plugin-single-instance`                |
-| prefs JSON                                   | `prefs.rs`                                    |
-| `ipcMain` handlers / `preload.cjs`           | `commands.rs` / `src/lib/desktop.ts`          |
-| `activity.cjs`                               | `activity/mod.rs`, `activity/sampler.rs`      |
-| `updater.cjs` (electron-updater)             | `updater.rs` (step 4)                         |
+## Electron → Tauri map (Electron files removed in step 5)
+
+| Electron (`desktop/`)                        | Tauri (`src-tauri/src/`)                       |
+| -------------------------------------------- | ---------------------------------------------- |
+| `main.cjs` static server + `/__desktop-auth` | `server.rs` (tiny_http, embedded assets)       |
+| `BrowserWindow` main / quick                 | `windows.rs`                                   |
+| `Tray`, `Menu`                               | `tray.rs`                                      |
+| `globalShortcut`                             | `tauri-plugin-global-shortcut` (`hotkeys.rs`)  |
+| `Notification` + reminder timers             | `notify.rs`, `reminders.rs`                    |
+| `setLoginItemSettings`                       | `tauri-plugin-autostart`                       |
+| `requestSingleInstanceLock`                  | `tauri-plugin-single-instance`                 |
+| prefs JSON                                   | `prefs.rs`                                     |
+| `ipcMain` handlers / `preload.cjs`           | `commands.rs` / `src/lib/desktop.ts`           |
+| `activity.cjs`                               | `activity/mod.rs`, `activity/sampler.rs`       |
+| `updater.cjs` (electron-updater)             | `updater.rs`                                   |
+| electron-builder NSIS installer              | Tauri NSIS + `windows/hooks.nsh`, `migrate.rs` |
 
 ## Working on it
 
 ```sh
-npm run tauri:dev        # Tauri against `npm run dev` (start that first)
-npm run tauri:build      # desktop:build + Tauri installer (src-tauri/target/release/bundle)
+npm run desktop:dev      # Tauri with hot reload (starts `npm run dev` itself)
+npm run desktop          # build without an installer (src-tauri/target/release/daylog)
+npm run desktop:dist     # build the installer (src-tauri/target/release/bundle/nsis)
 ```
 
 Checking a change end to end without Windows: build with
@@ -160,3 +176,22 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   both a good download and a tampered one; fetching the real `latest.yml`
   from GitHub was checked by hand. `DAYLOG_UPDATE_FEED` overrides the feed URL
   for testing.
+- Step 4 follow-up: Windows refused to start the Rust test binary
+  (`STATUS_ENTRYPOINT_NOT_FOUND`) once the updater tests linked more of Tauri;
+  CI now embeds a Common Controls v6 manifest (`src-tauri/windows/test.manifest`)
+  into test binaries, as tauri-build does for the app.
+- Step 5: switch-over. Electron code, packages and electron-builder config
+  removed; CI builds only Tauri; the updater reads `latest.yml`; installer
+  hooks and `migrate.rs` move Electron installs over (see "How an Electron
+  install becomes a Tauri one"). `desktop/test-migration.ps1` checks it on a
+  Windows runner against the real 0.1.7 Electron release: Electron removed,
+  Tauri installed and relaunched, prefs kept, autostart moved, app served on
+  :47615, and a Tauri self-update (`/S /UPDATE /R`) restarts the app.
+  `desktop/refresh-update-info.mjs` now rewrites every `latest*.yml` after
+  signing. The icons in `src-tauri/icons` come from `desktop/icons/icon.png`
+  via `npx tauri icon desktop/icons/icon.png -o src-tauri/icons` (delete the
+  android/ios/Square* extras it adds).
+- Step 5 CI caught that electron-builder installs per-user apps into
+  `Programs\<npm package name>` — `Programs\todo`, since package.json is still
+  named `todo` — not `Programs\daylog`; hooks, `migrate.rs` and the test use
+  that folder.

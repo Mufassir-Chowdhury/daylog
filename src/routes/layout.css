@@ -440,13 +440,10 @@
 	}
 
 	/* ——— Desktop shell ——— */
+	/* Dragging it moves the window (src/lib/desktop-tauri.ts). */
 	.desk-titlebar {
-		-webkit-app-region: drag;
 		background: var(--t-chrome);
 		color: var(--t-chrome-ink);
-	}
-	.desk-titlebar :where(button, a, input, kbd) {
-		-webkit-app-region: no-drag;
 	}
 	.desk-sidebar {
 		background: color-mix(in oklab, var(--t-chrome) 70%, transparent);

@@ -79,7 +79,8 @@ After that the app **updates itself**: it checks for a new release a few hours a
 it in the background and installs it when daylog quits — or right away from **Restart to update**
 in the tray, the notification, or **Settings → Desktop app**.
 
-The desktop build wraps the same app in Electron and adds what a web page can't do:
+The desktop build wraps the same app in [Tauri](https://tauri.app) — a ~3 MB installer that
+runs on the WebView2 built into Windows — and adds what a web page can't do:
 
 - **Always running.** Closing the window hides it to the tray. It starts with Windows, already
   hidden in the tray (turn that off in the tray menu or **Settings → Desktop app**).
@@ -90,7 +91,7 @@ The desktop build wraps the same app in Electron and adds what a web page can't 
 - **Reminders.** A notification when a timed line comes due (`21:00 gym`), and ten minutes
   before each class, lab, exam or meeting on your schedule.
 - **Jarvis theme.** Deep navy with soft blue light (or a light version), a sidebar instead of the
-  top bar, native Windows 11 caption buttons (snap layouts work), and a live clock and sync
+  top bar, Windows 11-style caption buttons, and a live clock and sync
   light. The desktop theme is per computer, so the web app keeps its own. Switch in Settings.
 - **Activity tracker** (opt-in, Activity page). It notices which app — and in a browser, which
   site — is in front, and shows where your time went: hour-by-hour focus / messages / distraction,
@@ -107,8 +108,8 @@ The desktop build wraps the same app in Electron and adds what a web page can't 
     when an app keeps the display awake; media players and call apps always count, up to 3 hours
     without input).
   - Pause it from the page or the tray, leave out apps, or stop recording window titles.
-    Works on Windows (via a small PowerShell loop), with best-effort macOS (`osascript`) and Linux
-    (`xdotool`, X11) support.
+    Works on Windows (read straight from the system, no helper process), with best-effort macOS
+    (`osascript`) and Linux (`xdotool`, X11) support.
 - `Ctrl+B` collapses the sidebar, `Ctrl+=`/`Ctrl+-` zoom, `F12` opens dev tools.
 
 Data, login and offline sync are the same as the web app. The built app is served from
@@ -116,12 +117,19 @@ Data, login and offline sync are the same as the web app. The built app is serve
 Google** opens your normal browser instead: sign in there and the app picks up the account
 (the browser keeps no session). Email/password sign-in works directly in the app.
 
+Coming from the older Electron version: it updates itself into this one, keeping your hotkeys,
+window size, activity settings and recorded activity; you just sign in once more.
+
 ```sh
-npm run desktop          # build the app and launch it
-npm run desktop:dist     # build a Windows installer into desktop/dist/
-npm run desktop:dev      # run against `npm run dev` (start that first) for hot reload
+npm run desktop:dev      # run the desktop app with hot reload (starts `npm run dev` itself)
+npm run desktop          # build the app without an installer (src-tauri/target/release/daylog)
+npm run desktop:dist     # build the Windows installer (src-tauri/target/release/bundle/nsis/)
 npm run desktop:icons    # regenerate desktop/icons/*.png after changing make-icons.mjs
 ```
+
+Building needs [Rust](https://rustup.rs) besides Node; on Linux also the WebKitGTK packages
+listed in [docs/tauri-migration.md](docs/tauri-migration.md), which explains how the desktop app
+is put together.
 
 ### Code signing policy
 

@@ -69,7 +69,7 @@
 <svelte:window {onkeydown} ononline={() => (online = true)} onoffline={() => (online = false)} />
 
 <div class="flex h-screen flex-col overflow-hidden">
-	<!-- Right padding leaves room for the caption buttons (native overlay, or CaptionButtons). -->
+	<!-- Right padding leaves room for the caption buttons (CaptionButtons.svelte). -->
 	<header
 		class="desk-titlebar flex h-10 shrink-0 items-center gap-3 border-b border-line pr-[150px] pl-3"
 	>

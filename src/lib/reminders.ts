@@ -1,8 +1,8 @@
 /**
  * Desktop reminders: a notification when a timed line comes due (`21:00 gym`)
  * and ten minutes before a class, lab, exam or meeting starts. The renderer
- * works out what's coming up for today and tomorrow; the Electron main process
- * owns the timers, since a hidden window's timers get throttled.
+ * works out what's coming up for today and tomorrow; the desktop shell owns
+ * the timers, since a hidden window's timers get throttled.
  */
 import { addDays, dateKey, fromKey } from './date';
 import { listEvents, listSlots, loadDay } from './db';
@@ -58,7 +58,7 @@ export function buildReminders(
 	return out.filter((r) => r.at > now).sort((a, b) => a.at - b.at);
 }
 
-/** Recomputes today's and tomorrow's reminders and hands them to the main process. */
+/** Recomputes today's and tomorrow's reminders and hands them to the desktop shell. */
 export async function syncReminders(uid: string): Promise<void> {
 	if (!desktop) return;
 	const today = dateKey();
