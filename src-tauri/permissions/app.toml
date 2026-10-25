@@ -1,0 +1,24 @@
+# Every command in build.rs, for the app's own pages.
+[[set]]
+identifier = "allow-app-commands"
+description = "All of the desktop bridge's commands."
+permissions = [
+  "allow-window-hide",
+  "allow-window-minimize",
+  "allow-window-toggle-maximize",
+  "allow-titlebar-colors",
+  "allow-quick-hide",
+  "allow-quick-navigate",
+  "allow-quick-capture",
+  "allow-reminders-set",
+  "allow-auth-google-start",
+  "allow-prefs-get",
+  "allow-prefs-set",
+  "allow-activity-status",
+  "allow-activity-set",
+  "allow-activity-days",
+  "allow-activity-clear",
+  "allow-update-status",
+  "allow-update-check",
+  "allow-update-install",
+]

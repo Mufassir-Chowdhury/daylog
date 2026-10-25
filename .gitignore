@@ -30,3 +30,7 @@ worker-configuration.d.ts
 # Desktop (Electron) build output
 /desktop/app
 /desktop/dist
+
+# Desktop (Tauri) build output
+/src-tauri/target
+/src-tauri/gen

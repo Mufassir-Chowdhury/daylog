@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-auth-google-start"
+description = "Enables the auth_google_start command without any pre-configured scope."
+commands.allow = ["auth_google_start"]
+
+[[permission]]
+identifier = "deny-auth-google-start"
+description = "Denies the auth_google_start command without any pre-configured scope."
+commands.deny = ["auth_google_start"]
