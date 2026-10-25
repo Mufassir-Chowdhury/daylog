@@ -9,6 +9,8 @@ import {
 	cumulativeSpending,
 	formatMoney,
 	groupByMonth,
+	groupSummaries,
+	groupSuggestions,
 	matchesSearch,
 	monthlySummaries,
 	monthlyTotals,
@@ -16,6 +18,7 @@ import {
 	personBalances,
 	personHistory,
 	personStats,
+	rangeLabel,
 	shortMoney,
 	signedAmount,
 	transactionsToCsv
@@ -40,6 +43,7 @@ const txn = (t: Partial<Transaction>): Transaction => ({
 	person: null,
 	note: '',
 	fixed: false,
+	group: null,
 	createdAt: 0,
 	...t
 });
@@ -280,6 +284,56 @@ describe('matchesSearch', () => {
 		}
 		expect(matchesSearch(t, 'lunch', accounts, people)).toBe(false);
 	});
+
+	it('matches the group label', () => {
+		const grouped = txn({ category: 'transport', group: 'Dhaka trip October 2026' });
+		expect(matchesSearch(grouped, 'dhaka', [], [])).toBe(true);
+	});
+});
+
+describe('groups', () => {
+	const trip = 'Dhaka trip October 2026';
+	const txns = [
+		txn({ id: '1', date: '2026-10-03', category: 'transport', amount: 800, group: trip }),
+		txn({ id: '2', date: '2026-10-05', category: 'payment', amount: 1200.1, group: trip }),
+		txn({
+			id: '3',
+			date: '2026-10-04',
+			kind: 'income',
+			category: 'refund',
+			amount: 300,
+			group: trip
+		}),
+		txn({ id: '4', date: '2026-10-06', kind: 'lend', amount: 500, person: 'rahim', group: trip }),
+		txn({ id: '5', date: '2026-09-01', category: 'payment', amount: 99, group: 'Eid 2026' }),
+		txn({ id: '6', date: '2026-10-10', category: 'lunch', amount: 150 })
+	];
+
+	it('totals each group by kind and spans its dates', () => {
+		const [dhaka, eid, ...rest] = groupSummaries(txns);
+		expect(rest).toEqual([]);
+		expect(dhaka).toEqual({
+			group: trip,
+			spent: 2000.1,
+			earned: 300,
+			lent: 500,
+			borrowed: 0,
+			count: 4,
+			first: '2026-10-03',
+			last: '2026-10-06'
+		});
+		expect(eid).toMatchObject({ group: 'Eid 2026', spent: 99, count: 1 });
+	});
+
+	it('suggests the most recently active groups first', () => {
+		expect(groupSuggestions(txns)).toEqual([trip, 'Eid 2026']);
+		expect(groupSuggestions([])).toEqual([]);
+	});
+
+	it('labels a date span compactly', () => {
+		expect(rangeLabel('2026-10-03', '2026-10-03')).toBe('Oct 3, 2026');
+		expect(rangeLabel('2026-10-03', '2026-10-06').replace(/\s/g, ' ')).toBe('Oct 3 – 6, 2026');
+	});
 });
 
 describe('transactionsToCsv', () => {
@@ -289,8 +343,8 @@ describe('transactionsToCsv', () => {
 			[{ ...acct('a1', 0), name: 'Cash' }]
 		);
 		expect(csv.split('\r\n')).toEqual([
-			'date,kind,category,amount,from,to,person,fixed,note',
-			'2026-07-01,expense,food,12.5,Cash,,,,"tea, ""chai"""'
+			'date,kind,category,amount,from,to,person,fixed,group,note',
+			'2026-07-01,expense,food,12.5,Cash,,,,,"tea, ""chai"""'
 		]);
 	});
 });

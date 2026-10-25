@@ -13,9 +13,11 @@
 		accounts,
 		people = [],
 		suggest,
+		groups,
 		onupdate,
 		ondelete,
 		onduplicate,
+		ongroup,
 		onfilter
 	}: {
 		category: string;
@@ -25,9 +27,11 @@
 		accounts: Account[];
 		people?: Person[];
 		suggest?: (kind: TransactionKind) => string[];
+		groups?: string[];
 		onupdate: (txn: Transaction) => void;
 		ondelete: (txn: Transaction) => void;
 		onduplicate?: (txn: Transaction) => void;
+		ongroup?: (group: string) => void;
 		/** Apply this category as the page's list filter. */
 		onfilter?: () => void;
 	} = $props();
@@ -136,8 +140,10 @@
 		{people}
 		{open}
 		{suggest}
+		{groups}
 		{onupdate}
 		{ondelete}
 		{onduplicate}
+		{ongroup}
 	/>
 {/if}

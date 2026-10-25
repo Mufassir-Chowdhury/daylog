@@ -9,25 +9,34 @@
 		accounts,
 		people = [],
 		showDay = false,
+		card = false,
 		suggest = (kind) => CATEGORIES[kind],
+		groups = [],
 		onupdate,
 		ondelete,
 		onduplicate,
-		oncategory
+		oncategory,
+		ongroup
 	}: {
 		txn: Transaction;
 		accounts: Account[];
 		/** Known people — offered when editing a lend/borrow. */
 		people?: Person[];
 		showDay?: boolean;
+		/** Roomier layout that wraps instead of truncating — for short lists like a day's. */
+		card?: boolean;
 		/** Category suggestions per kind (presets + previously used). */
 		suggest?: (kind: TransactionKind) => string[];
+		/** Group labels to suggest when editing. */
+		groups?: string[];
 		onupdate: (txn: Transaction) => void;
 		ondelete: (txn: Transaction) => void;
 		/** Copy this transaction to today. Omitted → no duplicate button. */
 		onduplicate?: (txn: Transaction) => void;
 		/** Clicking the category chip drills into that category. Omitted → plain chip. */
 		oncategory?: (category: string, kind: TransactionKind) => void;
+		/** Clicking the group chip opens that group. Omitted → plain chip. */
+		ongroup?: (group: string) => void;
 	} = $props();
 
 	const KIND_CHIP: Record<TransactionKind, string> = {
@@ -44,6 +53,14 @@
 		transfer: 'text-blue-600 dark:text-blue-400',
 		lend: 'text-amber-600 dark:text-amber-400',
 		borrow: 'text-violet-600 dark:text-violet-400'
+	};
+
+	const KIND_EDGE: Record<TransactionKind, string> = {
+		expense: 'border-l-red-500/70',
+		income: 'border-l-green-600/70',
+		transfer: 'border-l-blue-500/70',
+		lend: 'border-l-amber-500/70',
+		borrow: 'border-l-violet-500/70'
 	};
 
 	const DAY_LABEL = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
@@ -66,6 +83,7 @@
 	let person = $state('');
 	let note = $state('');
 	let fixed = $state(false);
+	let group = $state('');
 	let invalid = $state('');
 
 	function startEdit() {
@@ -77,6 +95,7 @@
 		person = txn.person ?? '';
 		note = txn.note;
 		fixed = txn.fixed;
+		group = txn.group ?? '';
 		invalid = '';
 		editing = true;
 	}
@@ -95,7 +114,8 @@
 			to: needsTo ? to || null : txn.to,
 			person: needsPerson ? person || txn.person : txn.person,
 			note: note.trim(),
-			fixed: txn.kind === 'expense' ? fixed : false
+			fixed: txn.kind === 'expense' ? fixed : false,
+			group: group.trim() || null
 		});
 		editing = false;
 	}
@@ -178,6 +198,22 @@
 				</select>
 			</label>
 		{/if}
+		<label class="flex flex-col gap-0.5 text-xs text-mute">
+			Group
+			<input
+				onkeydown={esc}
+				type="text"
+				bind:value={group}
+				list="txn-groups-{txn.id}"
+				placeholder="none"
+				class="w-36 {input}"
+			/>
+			<datalist id="txn-groups-{txn.id}">
+				{#each groups as g (g)}
+					<option value={g}></option>
+				{/each}
+			</datalist>
+		</label>
 		<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-mute">
 			Note
 			<input onkeydown={esc} type="text" bind:value={note} class={input} />
@@ -206,15 +242,7 @@
 		{/if}
 	</form>
 {:else}
-	<div class="group flex items-center gap-2 rounded-ctl py-0.5 text-sm leading-relaxed">
-		{#if showDay}
-			<a
-				href={resolve('/day/[date]', { date: txn.date })}
-				class="w-12 shrink-0 text-xs text-faint tabular-nums hover:text-accent hover:underline"
-			>
-				{DAY_LABEL.format(fromKey(txn.date))}
-			</a>
-		{/if}
+	{#snippet chips(wrap: boolean)}
 		{#if chipClickable}
 			<button
 				type="button"
@@ -234,56 +262,138 @@
 		{#if txn.fixed}
 			<span class="shrink-0 rounded-full bg-tint px-1.5 py-0.5 text-[10px] text-faint">fixed</span>
 		{/if}
-		<span class="min-w-0 truncate text-mute">
-			{#snippet personLink(handle: string | null)}
-				<a
-					href={resolve('/people/[handle]', { handle: handle ?? '' })}
-					class="text-accent hover:underline">@{handle}</a
-				>
-			{/snippet}
-			{#if txn.kind === 'transfer'}
-				{accountName(txn.from)} → {accountName(txn.to)}
-			{:else if txn.kind === 'lend'}
-				{accountName(txn.from)} → {@render personLink(txn.person)}
-			{:else if txn.kind === 'borrow'}
-				{@render personLink(txn.person)} → {accountName(txn.to)}
-			{:else}
-				{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
-			{/if}
-			{#if txn.note}
-				<span class="text-faint">· {txn.note}</span>
-			{/if}
-		</span>
-		<span class="ml-auto shrink-0 font-medium tabular-nums {AMOUNT_TEXT[txn.kind]}">
-			{signedAmount(txn.kind, txn.amount)}
-		</span>
-		<span
-			class="reveal flex shrink-0 gap-0.5 group-focus-within:opacity-100 group-hover:opacity-100"
-		>
-			<button
-				type="button"
-				onclick={startEdit}
-				aria-label="Edit transaction"
-				title="Edit"
-				class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">✎</button
-			>
-			{#if onduplicate}
+		{#if txn.group}
+			{@const chip = `rounded-full border border-dashed border-line px-1.5 py-0.5 text-[10px] text-mute ${
+				wrap ? 'min-w-0 break-words' : 'max-w-40 shrink-0 truncate'
+			}`}
+			{#if ongroup}
 				<button
 					type="button"
-					onclick={() => onduplicate(txn)}
-					aria-label="Duplicate transaction to today"
-					title="Copy to today"
-					class="rounded px-1 text-xs text-faint hover:bg-tint hover:text-mute">⧉</button
+					onclick={() => ongroup(txn.group!)}
+					title="Everything in “{txn.group}”"
+					class="{chip} text-left hover:border-accent hover:text-accent">{txn.group}</button
 				>
+			{:else}
+				<span class={chip} title="Group">{txn.group}</span>
 			{/if}
-			<button
-				type="button"
-				onclick={() => ondelete(txn)}
-				aria-label="Delete transaction"
-				title="Delete"
-				class="rounded px-1 text-xs text-faint hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
-				>×</button
+		{/if}
+	{/snippet}
+
+	{#snippet flow()}
+		{#snippet personLink(handle: string | null)}
+			<a
+				href={resolve('/people/[handle]', { handle: handle ?? '' })}
+				class="text-accent hover:underline">@{handle}</a
 			>
+		{/snippet}
+		{#if txn.kind === 'transfer'}
+			{accountName(txn.from)} → {accountName(txn.to)}
+		{:else if txn.kind === 'lend'}
+			{accountName(txn.from)} → {@render personLink(txn.person)}
+		{:else if txn.kind === 'borrow'}
+			{@render personLink(txn.person)} → {accountName(txn.to)}
+		{:else}
+			{accountName(txn.kind === 'expense' ? txn.from : txn.to)}
+		{/if}
+		{#if txn.note}
+			<span class="text-faint">· {txn.note}</span>
+		{/if}
+	{/snippet}
+
+	{#snippet amountText(size: string)}
+		<span class="shrink-0 font-medium tabular-nums {size} {AMOUNT_TEXT[txn.kind]}">
+			{signedAmount(txn.kind, txn.amount)}
 		</span>
-	</div>
+	{/snippet}
+
+	{#if card}
+		<div
+			class="rounded-ctl border border-l-4 border-line bg-canvas/60 px-3 py-2 {KIND_EDGE[txn.kind]}"
+		>
+			<div class="flex items-start gap-2">
+				<div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+					{@render chips(true)}
+				</div>
+				{@render amountText('text-base')}
+			</div>
+			<div class="mt-1 flex flex-wrap items-end gap-x-2 gap-y-1">
+				<p class="min-w-0 flex-1 text-sm break-words text-mute">{@render flow()}</p>
+				<!-- Always visible and well apart, so Delete is never hit by accident on the way to Edit. -->
+				<div class="ml-auto flex shrink-0 items-center gap-1">
+					<button
+						type="button"
+						onclick={startEdit}
+						aria-label="Edit transaction"
+						class="inline-flex h-8 items-center gap-1 rounded-ctl border border-line bg-card px-2.5 text-xs font-medium text-mute hover:bg-tint hover:text-ink"
+					>
+						<span aria-hidden="true">✎</span> Edit
+					</button>
+					{#if onduplicate}
+						<button
+							type="button"
+							onclick={() => onduplicate(txn)}
+							aria-label="Duplicate transaction to today"
+							title="Copy to today"
+							class="inline-flex h-8 items-center rounded-ctl border border-line bg-card px-2.5 text-xs text-mute hover:bg-tint hover:text-ink"
+							>⧉</button
+						>
+					{/if}
+					<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+					<button
+						type="button"
+						onclick={() => ondelete(txn)}
+						aria-label="Delete transaction"
+						title="Delete (can be undone)"
+						class="inline-flex h-8 items-center gap-1 rounded-ctl px-2.5 text-xs text-faint hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+					>
+						<span aria-hidden="true">×</span> Delete
+					</button>
+				</div>
+			</div>
+		</div>
+	{:else}
+		<div class="group flex items-center gap-2 rounded-ctl py-0.5 text-sm leading-relaxed">
+			{#if showDay}
+				<a
+					href={resolve('/day/[date]', { date: txn.date })}
+					class="w-12 shrink-0 text-xs text-faint tabular-nums hover:text-accent hover:underline"
+				>
+					{DAY_LABEL.format(fromKey(txn.date))}
+				</a>
+			{/if}
+			{@render chips(false)}
+			<span class="min-w-0 truncate text-mute">{@render flow()}</span>
+			<span class="ml-auto flex shrink-0">{@render amountText('')}</span>
+			<span
+				class="reveal flex shrink-0 gap-1 group-focus-within:opacity-100 group-hover:opacity-100"
+			>
+				<button
+					type="button"
+					onclick={startEdit}
+					aria-label="Edit transaction"
+					title="Edit"
+					class="grid h-7 w-7 place-items-center rounded-ctl text-sm text-faint hover:bg-tint hover:text-mute"
+					>✎</button
+				>
+				{#if onduplicate}
+					<button
+						type="button"
+						onclick={() => onduplicate(txn)}
+						aria-label="Duplicate transaction to today"
+						title="Copy to today"
+						class="grid h-7 w-7 place-items-center rounded-ctl text-sm text-faint hover:bg-tint hover:text-mute"
+						>⧉</button
+					>
+				{/if}
+				<button
+					type="button"
+					onclick={() => ondelete(txn)}
+					aria-label="Delete transaction"
+					title="Delete (can be undone)"
+					class="ml-2 grid h-7 w-7 place-items-center rounded-ctl text-sm text-faint hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
+					>×</button
+				>
+			</span>
+		</div>
+	{/if}
 {/if}

@@ -24,7 +24,7 @@
 						t.undo?.();
 						dismiss(t.id);
 					}}
-					class="font-semibold underline underline-offset-2 hover:opacity-80"
+					class="rounded-ctl bg-canvas/15 px-2.5 py-1 font-semibold ring-1 ring-canvas/30 hover:bg-canvas/25"
 				>
 					Undo
 				</button>

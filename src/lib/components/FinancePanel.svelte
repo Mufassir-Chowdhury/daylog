@@ -19,7 +19,7 @@
 		SUGGESTED_ACCOUNTS
 	} from '$lib/finance';
 	import { isValidHandle } from '$lib/parse';
-	import { loadTxnPrefs, rememberCategory, saveTxnPrefs } from '$lib/prefs';
+	import { loadTxnPrefs, rememberCategory, rememberGroup, saveTxnPrefs } from '$lib/prefs';
 	import { settings } from '$lib/settings.svelte';
 	import { saveFailed, toast } from '$lib/toast.svelte';
 	import TransactionRow from './TransactionRow.svelte';
@@ -33,7 +33,8 @@
 		txns = $bindable(),
 		pickDate = false,
 		embedded = false,
-		suggest
+		suggest,
+		groups
 	}: {
 		uid: string;
 		/** Day new transactions land on (the default when `pickDate` is on). */
@@ -48,6 +49,8 @@
 		embedded?: boolean;
 		/** Category suggestions per kind; defaults to presets + this device's recent picks. */
 		suggest?: (kind: TransactionKind) => string[];
+		/** Group labels to suggest; defaults to this device's recent groups. */
+		groups?: string[];
 	} = $props();
 
 	const KINDS: { kind: TransactionKind; label: string; active: string }[] = [
@@ -77,6 +80,8 @@
 	let person = $state('');
 	let note = $state('');
 	let fixed = $state(false);
+	// Kept between entries so a trip's expenses can be logged one after another.
+	let group = $state('');
 	let invalid = $state('');
 
 	// Inline account creation — remembers which select asked for it.
@@ -99,6 +104,8 @@
 		if (suggest) return suggest(k);
 		return [...new Set([...(prefs.recent[k] ?? []), ...CATEGORIES[k]])];
 	}
+
+	const groupOptions = $derived([...new Set([...(groups ?? []), ...prefs.groups])]);
 
 	const dayTotals = $derived.by(() => {
 		let out = 0;
@@ -184,6 +191,7 @@
 			person: needsPerson ? person : null,
 			note: note.trim(),
 			fixed: kind === 'expense' ? fixed : false,
+			group: group.trim() || null,
 			createdAt: Date.now()
 		};
 		txns = [...txns, txn];
@@ -195,6 +203,7 @@
 		if (needsFrom) prefs.from = from;
 		if (needsTo) prefs.to = to;
 		if (hasCategory) rememberCategory(prefs, kind, cat);
+		if (txn.group) rememberGroup(prefs, txn.group);
 		saveTxnPrefs(prefs);
 		saveTransaction(uid, txn).catch(saveFailed);
 		if (embedded) toast(`Added ${kind} of ${formatMoney(value)} on ${txn.date}.`);
@@ -205,7 +214,7 @@
 		deleteTransaction(uid, txn.id).catch(saveFailed);
 		toast(`Deleted ${txn.category} ${formatMoney(txn.amount)}.`, {
 			undo: () => {
-				txns = [...txns, txn];
+				txns = [...txns, txn].sort((a, b) => a.createdAt - b.createdAt);
 				saveTransaction(uid, txn).catch(saveFailed);
 			}
 		});
@@ -252,13 +261,15 @@
 
 {#snippet body()}
 	{#if !embedded && txns.length > 0}
-		<div class="mb-3 space-y-0.5">
+		<div class="mb-3 space-y-2">
 			{#each txns as txn (txn.id)}
 				<TransactionRow
+					card
 					{txn}
 					{accounts}
 					{people}
 					suggest={suggestions}
+					groups={groupOptions}
 					onupdate={updateTxn}
 					ondelete={removeTxn}
 				/>
@@ -442,6 +453,24 @@
 					fixed
 				</label>
 			{/if}
+			<label
+				class="flex flex-col gap-0.5 text-xs text-mute"
+				title="Tie related transactions together, e.g. a trip"
+			>
+				Group (optional)
+				<input
+					type="text"
+					bind:value={group}
+					list="finance-groups"
+					placeholder="e.g. Dhaka trip"
+					class="w-40 {field}"
+				/>
+				<datalist id="finance-groups">
+					{#each groupOptions as g (g)}
+						<option value={g}></option>
+					{/each}
+				</datalist>
+			</label>
 			<label class="flex min-w-32 flex-1 flex-col gap-0.5 text-xs text-mute">
 				Note (optional)
 				<input type="text" bind:value={note} class={field} />
@@ -454,6 +483,10 @@
 			</button>
 			{#if invalid}
 				<p class="w-full text-xs text-red-600 dark:text-red-400">{invalid}</p>
+			{:else if group.trim()}
+				<p class="w-full text-xs text-faint">
+					Entries go under “{group.trim()}” until you clear the group field.
+				</p>
 			{:else if KIND_HINT[kind]}
 				<p class="w-full text-xs text-faint">{KIND_HINT[kind]}</p>
 			{/if}

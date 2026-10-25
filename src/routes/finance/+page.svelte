@@ -9,6 +9,7 @@
 	import CategoryTrendChart from '$lib/components/CategoryTrendChart.svelte';
 	import Drawer from '$lib/components/Drawer.svelte';
 	import FinancePanel from '$lib/components/FinancePanel.svelte';
+	import GroupDetail from '$lib/components/GroupDetail.svelte';
 	import SpendingPace from '$lib/components/SpendingPace.svelte';
 	import TransactionMonthGroups from '$lib/components/TransactionMonthGroups.svelte';
 	import {
@@ -30,6 +31,7 @@
 		categorySuggestions,
 		fixedVsVariable,
 		formatMoney,
+		groupSummaries,
 		KIND_LABEL,
 		matchesSearch,
 		monthLabel,
@@ -37,6 +39,7 @@
 		PERCENT,
 		personBalances,
 		personHistory,
+		rangeLabel,
 		signedAmount,
 		SUGGESTED_ACCOUNTS,
 		transactionsToCsv
@@ -75,6 +78,7 @@
 	const expandedPeople = new SvelteSet<string>();
 
 	const suggest = (kind: TransactionKind) => categorySuggestions(txns, kind);
+	const groupNames = $derived(groupSummaries(txns).map((g) => g.group));
 
 	// ——— Filters: they scope every chart and the list, and live in the URL so a view can be bookmarked.
 	const params = page.url.searchParams;
@@ -82,13 +86,15 @@
 	let filterKind = $state(params.get('type') ?? 'all');
 	let filterAccount = $state(params.get('account') ?? 'all');
 	let filterCategory = $state(params.get('category') ?? 'all');
+	let filterGroup = $state(params.get('group') ?? 'all');
 
 	const allCategories = $derived([...new Set(txns.map((t) => t.category))].sort());
 	const filtersActive = $derived(
 		search.trim() !== '' ||
 			filterKind !== 'all' ||
 			filterAccount !== 'all' ||
-			filterCategory !== 'all'
+			filterCategory !== 'all' ||
+			filterGroup !== 'all'
 	);
 	const filtered = $derived(
 		sorted.filter((t) => {
@@ -96,6 +102,7 @@
 			if (filterAccount !== 'all' && t.from !== filterAccount && t.to !== filterAccount)
 				return false;
 			if (filterCategory !== 'all' && t.category !== filterCategory) return false;
+			if (filterGroup !== 'all' && t.group !== filterGroup) return false;
 			return matchesSearch(t, search, accounts, people);
 		})
 	);
@@ -117,8 +124,7 @@
 		clearTimeout(searchTimer);
 		const url = new URL(page.url);
 		if (closeDrill) {
-			url.searchParams.delete('cat');
-			url.searchParams.delete('kind');
+			for (const key of DRAWER_KEYS) url.searchParams.delete(key);
 			drillPushed = false;
 		}
 		const set = (key: string, value: string, empty: string) =>
@@ -129,6 +135,7 @@
 		set('type', filterKind, 'all');
 		set('account', filterAccount, 'all');
 		set('category', filterCategory, 'all');
+		set('group', filterGroup, 'all');
 		setQuery(url, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
@@ -137,6 +144,7 @@
 		filterKind = 'all';
 		filterAccount = 'all';
 		filterCategory = 'all';
+		filterGroup = 'all';
 		syncUrl();
 	}
 
@@ -155,32 +163,40 @@
 		document.getElementById(`month-${month}`)?.scrollIntoView({ behavior: 'smooth' });
 	}
 
-	// ——— Category drill-down, opened from charts or chips; `?cat=` makes it linkable and Back closes it.
+	// ——— Drill-downs, opened from charts or chips: `?cat=` for a category, `?g=` for a group.
+	// Keeping them in the URL makes them linkable, and Back closes them.
+	const DRAWER_KEYS = ['cat', 'kind', 'g'];
 	const drill = $derived.by(() => {
 		const cat = page.url.searchParams.get('cat');
 		const kind = page.url.searchParams.get('kind') as TransactionKind | null;
 		return cat !== null ? { category: cat, kind: kind ?? 'expense' } : null;
 	});
+	const groupDrill = $derived(page.url.searchParams.get('g'));
 	let drillPushed = false;
 
-	function openCategory(category: string, kind: TransactionKind) {
+	function openDrawer(set: Record<string, string>) {
+		const wasOpen = drill !== null || groupDrill !== null;
 		const url = new URL(page.url);
-		url.searchParams.set('cat', category);
-		url.searchParams.set('kind', kind);
-		setQuery(url, { replaceState: drill !== null, noScroll: true, keepFocus: true });
-		drillPushed = true;
+		for (const key of DRAWER_KEYS) url.searchParams.delete(key);
+		for (const [key, value] of Object.entries(set)) url.searchParams.set(key, value);
+		// Switching between drawers replaces the entry, so one Back still closes it.
+		setQuery(url, { replaceState: wasOpen, noScroll: true, keepFocus: true });
+		if (!wasOpen) drillPushed = true;
 	}
 
-	function closeCategory() {
-		if (!drill) return;
+	const openCategory = (category: string, kind: TransactionKind) =>
+		openDrawer({ cat: category, kind });
+	const openGroup = (group: string) => openDrawer({ g: group });
+
+	function closeDrawer() {
+		if (!drill && groupDrill === null) return;
 		if (drillPushed) {
 			drillPushed = false;
 			history.back();
 			return;
 		}
 		const url = new URL(page.url);
-		url.searchParams.delete('cat');
-		url.searchParams.delete('kind');
+		for (const key of DRAWER_KEYS) url.searchParams.delete(key);
 		setQuery(url, { replaceState: true, noScroll: true, keepFocus: true });
 	}
 
@@ -207,6 +223,44 @@
 	function updateTxn(updated: Transaction) {
 		txns = txns.map((t) => (t.id === updated.id ? updated : t));
 		saveTransaction(uid, updated).catch(saveFailed);
+	}
+
+	/**
+	 * Relabels every transaction in `from`; an empty `to` ungroups them. The drawer
+	 * stays open (empty after ungrouping) so the toast's undo has somewhere to land.
+	 */
+	function renameGroup(from: string, to: string) {
+		const before = txns.filter((t) => t.group === from);
+		const after = before.map((t) => ({ ...t, group: to || null }));
+		const write = (list: Transaction[]) => {
+			const byId = new Map(list.map((t) => [t.id, t]));
+			txns = txns.map((t) => byId.get(t.id) ?? t);
+			Promise.all(list.map((t) => saveTransaction(uid, t))).catch(saveFailed);
+		};
+		/** Points the group filter and the open drawer at the new label, in one navigation. */
+		const follow = (a: string, b: string) => {
+			const url = new URL(page.url);
+			if (filterGroup === a) {
+				filterGroup = b || 'all';
+				if (b) url.searchParams.set('group', b);
+				else url.searchParams.delete('group');
+			}
+			if (groupDrill === a && b) url.searchParams.set('g', b);
+			setQuery(url, { replaceState: true, noScroll: true, keepFocus: true });
+		};
+		write(after);
+		follow(from, to);
+		toast(
+			to
+				? `Renamed “${from}” to “${to}”.`
+				: `Ungrouped ${before.length} transaction${before.length === 1 ? '' : 's'}.`,
+			{
+				undo: () => {
+					write(before);
+					if (to) follow(to, from);
+				}
+			}
+		);
 	}
 
 	function duplicateTxn(txn: Transaction) {
@@ -307,6 +361,9 @@
 		)
 	);
 
+	const filteredGroups = $derived(groupSummaries(filtered));
+	let showAllGroups = $state(false);
+
 	const fixedSplit = $derived(fixedVsVariable(filtered, thisMonth));
 	const fixedTxns = $derived(
 		filtered.filter((t) => t.fixed && t.kind === 'expense' && monthOf(t.date) === thisMonth)
@@ -355,6 +412,7 @@
 			bind:accounts
 			bind:txns
 			{suggest}
+			groups={groupNames}
 			pickDate
 			embedded
 		/>
@@ -583,6 +641,19 @@
 					<option value={c}>{c}</option>
 				{/each}
 			</select>
+			{#if groupNames.length > 0}
+				<select
+					bind:value={filterGroup}
+					onchange={() => syncUrl()}
+					aria-label="Group"
+					class="max-w-48 {field}"
+				>
+					<option value="all">All groups</option>
+					{#each groupNames as g (g)}
+						<option value={g}>{g}</option>
+					{/each}
+				</select>
+			{/if}
 			{#if filtersActive}
 				<span class="text-xs text-mute">{filtered.length} of {txns.length}</span>
 				<button type="button" onclick={clearFilters} class="text-xs text-accent hover:underline">
@@ -653,6 +724,55 @@
 			<p class="text-sm text-faint">
 				Tick “fixed” when adding or editing an expense to track recurring bills here.
 			</p>
+		{/if}
+	</section>
+
+	<section class={card}>
+		<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">Groups</h2>
+		{#if filteredGroups.length === 0}
+			<p class="text-sm text-faint">
+				Group related transactions — a trip, an event, a project — by typing a group name when
+				adding or editing them. Each group shows what it cost in total.
+			</p>
+		{:else}
+			<ul class="divide-y divide-line">
+				{#each filteredGroups.slice(0, showAllGroups ? undefined : 6) as g (g.group)}
+					<li>
+						<button
+							type="button"
+							onclick={() => openGroup(g.group)}
+							class="flex w-full items-center gap-3 rounded-ctl px-1.5 py-1.5 text-left text-sm hover:bg-tint {groupDrill ===
+							g.group
+								? 'bg-tint ring-1 ring-accent/40'
+								: ''}"
+						>
+							<span class="min-w-0 flex-1">
+								<span class="block truncate font-medium text-ink">{g.group}</span>
+								<span class="block text-xs text-faint">
+									{rangeLabel(g.first, g.last)} · {g.count} transaction{g.count === 1 ? '' : 's'}
+								</span>
+							</span>
+							<span class="shrink-0 text-right">
+								<span class="block font-medium text-ink tabular-nums">{formatMoney(g.spent)}</span>
+								{#if g.earned > 0}
+									<span class="block text-[11px] text-faint tabular-nums">
+										+{formatMoney(g.earned)} in
+									</span>
+								{/if}
+							</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+			{#if filteredGroups.length > 6}
+				<button
+					type="button"
+					onclick={() => (showAllGroups = !showAllGroups)}
+					class="mt-2 text-xs text-accent hover:underline"
+				>
+					{showAllGroups ? 'show fewer' : `show all ${filteredGroups.length}`}
+				</button>
+			{/if}
 		{/if}
 	</section>
 
@@ -777,16 +897,18 @@
 			{people}
 			{open}
 			{suggest}
+			groups={groupNames}
 			onupdate={updateTxn}
 			ondelete={removeTxn}
 			onduplicate={duplicateTxn}
 			oncategory={openCategory}
+			ongroup={openGroup}
 		/>
 	{/if}
 </section>
 
 {#if drill}
-	<Drawer onclose={closeCategory}>
+	<Drawer onclose={closeDrawer}>
 		{@const d = drill}
 		{#snippet title()}
 			<p class="text-xs font-semibold tracking-wide text-faint uppercase">
@@ -801,14 +923,43 @@
 			{accounts}
 			{people}
 			{suggest}
+			groups={groupNames}
 			onupdate={updateTxn}
 			ondelete={removeTxn}
 			onduplicate={duplicateTxn}
+			ongroup={openGroup}
 			onfilter={() => {
 				filterCategory = d.category;
 				filterKind = d.kind;
 				syncUrl(true);
 			}}
 		/>
+	</Drawer>
+{:else if groupDrill !== null}
+	<Drawer onclose={closeDrawer}>
+		{@const g = groupDrill}
+		{#snippet title()}
+			<p class="text-xs font-semibold tracking-wide text-faint uppercase">Group</p>
+			<h2 class="truncate font-display text-xl font-bold text-ink">{groupDrill}</h2>
+		{/snippet}
+		{#key g}
+			<GroupDetail
+				group={g}
+				txns={sorted}
+				{accounts}
+				{people}
+				{suggest}
+				groups={groupNames}
+				onupdate={updateTxn}
+				ondelete={removeTxn}
+				onduplicate={duplicateTxn}
+				oncategory={openCategory}
+				onrename={(to) => renameGroup(g, to)}
+				onfilter={() => {
+					filterGroup = g;
+					syncUrl(true);
+				}}
+			/>
+		{/key}
 	</Drawer>
 {/if}

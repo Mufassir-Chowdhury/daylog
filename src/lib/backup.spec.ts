@@ -30,6 +30,7 @@ const data: UserData = {
 			person: null,
 			note: '',
 			fixed: false,
+			group: 'Dhaka trip',
 			createdAt: 5
 		}
 	],
@@ -139,6 +140,7 @@ describe('parseBackup', () => {
 				person: null,
 				note: '',
 				fixed: false,
+				group: null,
 				createdAt: 0
 			}
 		]);
