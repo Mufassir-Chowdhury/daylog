@@ -4,7 +4,8 @@
 		desktop,
 		prettyAccelerator,
 		type DesktopBridge,
-		type DesktopPrefs
+		type DesktopPrefs,
+		type UpdateStatus
 	} from '$lib/desktop';
 	import { device, setDeviceTheme } from '$lib/settings.svelte';
 
@@ -16,6 +17,10 @@
 	let error = $state('');
 
 	bridge.getPrefs().then((p) => (prefs = p));
+
+	let updates: UpdateStatus | null = $state(null);
+	bridge.updateStatus().then((s) => (updates = s));
+	$effect(() => bridge.onUpdateStatus((s) => (updates = s)));
 
 	async function update(patch: Parameters<DesktopBridge['setPrefs']>[0]) {
 		error = '';
@@ -113,5 +118,43 @@
 			Closing the window keeps daylog running in the tray, so reminders for timed lines and upcoming
 			classes still pop up. Quit from the tray icon.
 		</p>
+
+		{#if updates}
+			<div class="flex flex-wrap items-center gap-3 text-sm">
+				<span class="text-ink">Version {updates.current}</span>
+				<span class="text-faint">
+					{#if updates.state === 'unsupported'}
+						— updates only run in the installed app
+					{:else if updates.state === 'checking'}
+						— checking for updates…
+					{:else if updates.state === 'downloading'}
+						— downloading {updates.version} ({updates.percent}%)
+					{:else if updates.state === 'ready'}
+						— {updates.version} is ready; it installs the next time daylog quits
+					{:else if updates.state === 'error'}
+						— couldn't check for updates ({updates.error})
+					{:else if updates.checkedAt}
+						— up to date
+					{/if}
+				</span>
+				{#if updates.state === 'ready'}
+					<button
+						type="button"
+						onclick={() => bridge.installUpdate()}
+						class="rounded-ctl border border-accent px-3 py-1 text-accent hover:bg-accent/10"
+					>
+						Restart to update
+					</button>
+				{:else if updates.state === 'idle' || updates.state === 'error'}
+					<button
+						type="button"
+						onclick={async () => (updates = await bridge.checkForUpdates())}
+						class="rounded-ctl border border-line px-3 py-1 text-ink hover:border-accent/50"
+					>
+						Check for updates
+					</button>
+				{/if}
+			</div>
+		{/if}
 	</div>
 </section>

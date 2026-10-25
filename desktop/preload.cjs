@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('daylogDesktop', {
 	setActivity: (patch) => ipcRenderer.invoke('activity:set', patch),
 	activityDays: (from, to) => ipcRenderer.invoke('activity:days', from, to),
 	clearActivity: () => ipcRenderer.invoke('activity:clear'),
+	updateStatus: () => ipcRenderer.invoke('update:status'),
+	checkForUpdates: () => ipcRenderer.invoke('update:check'),
+	installUpdate: () => ipcRenderer.send('update:install'),
+	onUpdateStatus: (callback) => listen('update:status', callback),
 	onNavigate: (callback) => listen('navigate', callback),
 	onCapture: (callback) => listen('capture', callback),
 	onQuickOpen: (callback) => listen('quick:open', callback)

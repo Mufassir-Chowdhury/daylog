@@ -75,6 +75,20 @@ export interface ActivitySpan {
 	subject?: string;
 }
 
+/** Auto-update progress from the main process (desktop/updater.cjs). */
+export interface UpdateStatus {
+	/** `unsupported` in dev runs, which have no installer to replace. */
+	state: 'idle' | 'checking' | 'downloading' | 'ready' | 'error' | 'unsupported';
+	/** The running version. */
+	current: string;
+	/** The version being downloaded or ready to install. */
+	version: string;
+	percent: number;
+	error: string;
+	/** Epoch millis of the last finished check, or 0. */
+	checkedAt: number;
+}
+
 /** Google tokens from the system-browser sign-in (see src/routes/desktop-auth). */
 export interface GoogleTokens {
 	idToken: string | null;
@@ -102,6 +116,11 @@ export interface DesktopBridge {
 	/** Recorded spans per day key, for days between `from` and `to` inclusive. */
 	activityDays(from: string, to: string): Promise<Record<string, ActivitySpan[]>>;
 	clearActivity(): Promise<void>;
+	updateStatus(): Promise<UpdateStatus | null>;
+	checkForUpdates(): Promise<UpdateStatus | null>;
+	/** Quits, installs the downloaded update and relaunches. */
+	installUpdate(): void;
+	onUpdateStatus(callback: (status: UpdateStatus) => void): () => void;
 	onNavigate(callback: (route: string) => void): () => void;
 	onCapture(callback: (entry: CaptureEntry) => void): () => void;
 	onQuickOpen(callback: () => void): () => void;

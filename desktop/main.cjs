@@ -2,8 +2,8 @@
  * daylog desktop — an Electron shell around the same SvelteKit app the web
  * build serves. It stays running in the tray, answers two global hotkeys
  * (summon the window, open the quick bar from any app), fires reminders for
- * timed lines, tracks which apps you use (opt-in, see activity.cjs), and
- * remembers its window size.
+ * timed lines, tracks which apps you use (opt-in, see activity.cjs), keeps
+ * itself up to date (see updater.cjs), and remembers its window size.
  *
  * The built SPA (desktop/app, from `npm run desktop:build`) is served on a fixed
  * localhost port: Firebase already trusts `localhost` for Google sign-in, and a
@@ -26,6 +26,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { createActivityTracker } = require('./activity.cjs');
+const { createUpdater } = require('./updater.cjs');
 
 const DEV = process.argv.includes('--dev');
 const DEV_URL = process.env.DAYLOG_DEV_URL || 'http://localhost:5173';
@@ -434,6 +435,7 @@ function refreshTrayMenu() {
 			{ label: 'Activity', click: () => showMain('/activity') },
 			...activityMenu(),
 			{ type: 'separator' },
+			updateMenuItem(),
 			{
 				label: 'Start with Windows',
 				type: 'checkbox',
@@ -476,6 +478,21 @@ function activityMenu() {
 	];
 }
 
+function updateMenuItem() {
+	const status = updater?.status();
+	if (status?.state === 'ready') {
+		return { label: `Restart to update (v${status.version})`, click: () => updater.install() };
+	}
+	if (status?.state === 'downloading') {
+		return { label: `Downloading update… ${status.percent}%`, enabled: false };
+	}
+	return {
+		label: status?.state === 'checking' ? 'Checking for updates…' : 'Check for updates',
+		enabled: status?.state === 'idle' || status?.state === 'error',
+		click: () => updater?.check()
+	};
+}
+
 const pauseActivity = (ms) => activity.set({ pausedUntil: Date.now() + ms });
 
 const launchAtLogin = () => !DEV && app.getLoginItemSettings().openAtLogin;
@@ -505,6 +522,32 @@ function onActivityChange() {
 		resumeTimer = setTimeout(onActivityChange, wait);
 	}
 	refreshTrayMenu();
+}
+
+// ——— Updates ———
+
+/** @type {ReturnType<typeof createUpdater> | null} */
+let updater = null;
+let updateMenuKey = '';
+
+function onUpdateChange(status) {
+	main?.webContents.send('update:status', status);
+	// Download progress only redraws the tray menu every 10%.
+	const key = `${status.state}:${status.version}:${Math.floor(status.percent / 10)}`;
+	if (key === updateMenuKey) return;
+	updateMenuKey = key;
+	refreshTrayMenu();
+}
+
+function onUpdateReady(version) {
+	if (!Notification.isSupported()) return;
+	const n = new Notification({
+		title: `daylog ${version} is ready`,
+		body: 'Click to restart and update now, or it installs the next time daylog quits.',
+		icon
+	});
+	n.on('click', () => updater?.install());
+	n.show();
 }
 
 // ——— IPC ———
@@ -548,6 +591,9 @@ ipcMain.handle('activity:days', (_e, from, to) =>
 	typeof from === 'string' && typeof to === 'string' ? (activity?.days(from, to) ?? {}) : {}
 );
 ipcMain.handle('activity:clear', () => activity?.clear());
+ipcMain.handle('update:status', () => updater?.status() ?? null);
+ipcMain.handle('update:check', () => updater?.check() ?? null);
+ipcMain.on('update:install', () => updater?.install());
 ipcMain.handle('prefs:get', () => ({
 	summonKey: prefs.summonKey,
 	quickKey: prefs.quickKey,
@@ -582,6 +628,7 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
 	globalShortcut.unregisterAll();
 	activity?.shutdown();
+	updater?.shutdown();
 });
 // Keep running in the tray when every window is closed/hidden.
 app.on('window-all-closed', () => {});
@@ -603,6 +650,11 @@ app.whenReady().then(async () => {
 		prefs,
 		save: savePrefs,
 		onChange: onActivityChange
+	});
+	updater = createUpdater({
+		enabled: app.isPackaged && !DEV,
+		onChange: onUpdateChange,
+		onReady: onUpdateReady
 	});
 	createTray();
 	registeredFailures = registerHotkeys();
