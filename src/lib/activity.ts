@@ -1,6 +1,6 @@
 /**
  * Activity insights — turns the desktop app's raw foreground-window spans
- * (desktop/activity.cjs), plus time added by hand, into totals, focus
+ * (src-tauri/src/activity), plus time added by hand, into totals, focus
  * sessions, goal progress and plain-language observations. Pure functions
  * over plain data, so it's all unit-tested.
  */

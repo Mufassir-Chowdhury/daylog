@@ -6,8 +6,9 @@ import cloudflare from '@sveltejs/adapter-cloudflare';
 import staticAdapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
-// `vite build --mode desktop` emits a static SPA into desktop/app for the Electron
-// shell to serve locally; every other build targets Cloudflare as before.
+// `vite build --mode desktop` emits a static SPA into desktop/app, which the
+// desktop app (src-tauri) embeds and serves locally; every other build targets
+// Cloudflare as before.
 export default defineConfig(({ mode }) => ({
 	plugins: [
 		tailwindcss(),

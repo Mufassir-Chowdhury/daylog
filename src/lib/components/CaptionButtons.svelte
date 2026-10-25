@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { desktop } from '$lib/desktop';
 
-	// Minimize / maximize / close for shells without native caption buttons over
-	// the title bar (Tauri; Electron draws its own with titleBarOverlay). Sized and
-	// drawn like Windows 11's, in the title bar's colours.
+	// Minimize / maximize / close for the frameless desktop window, sized and drawn
+	// like Windows 11's, in the title bar's colours.
 	let maximized = $state(false);
 
 	function refresh() {
-		desktop?.isMaximized?.().then((m) => (maximized = m));
+		desktop?.isMaximized().then((m) => (maximized = m));
 	}
 
 	$effect(refresh);

@@ -4,7 +4,7 @@
 	import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
 	// Opened in the user's normal browser by the desktop app (Google blocks
-	// sign-in inside Electron). Signs in with Google here, then hands the Google
+	// sign-in inside embedded webviews). Signs in with Google here, then hands the Google
 	// tokens to the app's local server, which only accepts them with the
 	// one-time `state` it issued.
 	const nonce = page.url.searchParams.get('state') ?? '';

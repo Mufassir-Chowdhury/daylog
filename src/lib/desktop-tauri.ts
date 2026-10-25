@@ -1,8 +1,6 @@
 /**
- * The desktop bridge for the Tauri shell (src-tauri), with the same shape as the
- * Electron preload (desktop/preload.cjs) so the app can't tell them apart. Each
- * method is a command in src-tauri/src/commands.rs; events are emitted to this
- * window by the Rust side.
+ * The desktop bridge to the Tauri shell (src-tauri). Each method is a command in
+ * src-tauri/src/commands.rs; events are emitted to this window by the Rust side.
  */
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -40,9 +38,10 @@ function listen<T>(event: string, callback: (payload: T) => void): () => void {
 }
 
 /**
- * What Electron gave the windows for free: dragging by the title bar (its CSS
- * `-webkit-app-region: drag`, see layout.css), double-click to maximize, and the
- * dev-tools and reload keys. Zoom keys are the webview's own (`zoom_hotkeys_enabled`).
+ * Window behaviour the frameless main window needs from the page: dragging by
+ * the title bar (`.desk-titlebar`, except its controls), double-click to
+ * maximize, and the dev-tools and reload keys. Zoom keys are the webview's own
+ * (`zoom_hotkeys_enabled`).
  */
 function installWindowChrome(): void {
 	const inTitleBar = (target: EventTarget | null) =>

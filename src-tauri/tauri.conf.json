@@ -7,6 +7,7 @@
 	"build": {
 		"frontendDist": "../desktop/app",
 		"devUrl": "http://localhost:5173",
+		"beforeDevCommand": "npm run dev",
 		"beforeBuildCommand": "npm run desktop:build"
 	},
 	"app": {
@@ -33,7 +34,8 @@
 		"windows": {
 			"nsis": {
 				"installMode": "currentUser",
-				"installerIcon": "icons/icon.ico"
+				"installerIcon": "icons/icon.ico",
+				"installerHooks": "windows/hooks.nsh"
 			}
 		}
 	}

@@ -27,6 +27,8 @@ pub struct Prefs {
     pub tray_hint_shown: bool,
     /// Set once "Start with Windows" has been switched on by default, so turning it off sticks.
     pub launch_at_login_defaulted: bool,
+    /// The one-time clean-up after replacing the Electron app has run (migrate.rs).
+    pub electron_migrated: bool,
     /// The activity tracker's settings (activity/mod.rs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity: Option<crate::activity::Settings>,
@@ -46,6 +48,7 @@ impl Default for Prefs {
             maximized: false,
             tray_hint_shown: false,
             launch_at_login_defaulted: false,
+            electron_migrated: false,
             activity: None,
             device_id: None,
             extra: Map::new(),
