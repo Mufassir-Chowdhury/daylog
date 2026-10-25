@@ -1,6 +1,12 @@
 # Builds the Windows installer on every push to main and publishes it as the
 # repository's latest release, so it can be downloaded straight from GitHub:
 #   https://github.com/<owner>/<repo>/releases/latest/download/daylog-setup.exe
+# Each build is versioned 0.1.<run number>, and the release carries latest.yml,
+# which installed apps poll to update themselves (desktop/updater.cjs).
+#
+# Once SignPath is set up (the SIGNPATH_ORGANIZATION_ID variable and the
+# SIGNPATH_API_TOKEN secret), the installer is code-signed by SignPath Foundation
+# before it's published; until then the steps are skipped and it ships unsigned.
 name: Desktop app
 
 on:
@@ -39,7 +45,34 @@ jobs:
       - name: Build the app and the installer
         run: |
           npm run desktop:build
-          npx electron-builder --win --publish never
+          npx electron-builder --win --publish never -c.extraMetadata.version=0.1.${{ github.run_number }}
+
+      - name: Upload the unsigned installer for signing
+        id: unsigned
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: daylog-setup-unsigned
+          path: desktop/dist/daylog-setup.exe
+          if-no-files-found: error
+
+      - name: Sign the installer with SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: daylog
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Release signing waits for someone to approve it on signpath.io.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: desktop/dist/signed
+
+      - name: Swap in the signed installer
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: node desktop/refresh-update-info.mjs desktop/dist/signed/daylog-setup.exe desktop/dist
 
       - name: Point the desktop-latest tag at this commit
         shell: bash
@@ -51,11 +84,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop-latest
-          name: daylog for Windows (latest)
+          name: daylog for Windows 0.1.${{ github.run_number }}
           make_latest: true
           body: |
-            Latest Windows build of the daylog desktop app, from ${{ github.sha }}.
+            Latest Windows build of the daylog desktop app (0.1.${{ github.run_number }}), from ${{ github.sha }}.
 
-            Download **daylog-setup.exe** and run it. The installer isn't code-signed, so
+            Download **daylog-setup.exe** and run it. ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && 'Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).' || 'The installer isn''t code-signed.' }}
             Windows SmartScreen may warn the first time — choose **More info → Run anyway**.
-          files: desktop/dist/daylog-setup.exe
+            Installed copies update themselves from this release.
+          files: |
+            desktop/dist/daylog-setup.exe
+            desktop/dist/latest.yml
