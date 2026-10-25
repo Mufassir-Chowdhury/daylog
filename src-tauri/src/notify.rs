@@ -1,7 +1,18 @@
 //! Desktop notifications. Clicking one with a route opens the main window there.
 
-use crate::windows;
+use crate::{updater, windows};
 use tauri::AppHandle;
+
+/// A "route" that installs the downloaded update instead of opening a page.
+pub const INSTALL_UPDATE: &str = "app:install-update";
+
+fn on_click(app: &AppHandle, route: Option<&str>) {
+    if route == Some(INSTALL_UPDATE) {
+        updater::install(app);
+    } else {
+        windows::show_main(app, route);
+    }
+}
 
 #[cfg(windows)]
 pub fn show(app: &AppHandle, title: &str, body: &str, route: Option<String>) {
@@ -18,7 +29,7 @@ pub fn show(app: &AppHandle, title: &str, body: &str, route: Option<String>) {
         .title(title)
         .text1(body)
         .on_activated(move |_| {
-            windows::show_main(&handle, route.as_deref());
+            on_click(&handle, route.as_deref());
             Ok(())
         })
         .show();
@@ -36,7 +47,7 @@ pub fn show(app: &AppHandle, title: &str, body: &str, route: Option<String>) {
             std::thread::spawn(move || {
                 handle.wait_for_action(|action| {
                     if action == "default" {
-                        windows::show_main(&app, route.as_deref());
+                        on_click(&app, route.as_deref());
                     }
                 });
             });
