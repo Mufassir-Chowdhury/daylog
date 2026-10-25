@@ -74,6 +74,9 @@ npm run test:e2e    # playwright, builds and runs the real app
 **Download:** [daylog-setup.exe](https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/daylog-setup.exe)
 — built by GitHub Actions from every push to `main` ([all releases](https://github.com/Mufassir-Chowdhury/daylog/releases)).
 The installer isn't code-signed, so SmartScreen may warn the first time: **More info → Run anyway**.
+After that the app **updates itself**: it checks for a new release a few hours apart, downloads
+it in the background and installs it when daylog quits — or right away from **Restart to update**
+in the tray, the notification, or **Settings → Desktop app**.
 
 The desktop build wraps the same app in Electron and adds what a web page can't do:
 
