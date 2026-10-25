@@ -51,7 +51,9 @@ const DEFAULT_PREFS = {
 	quickKey: 'Control+Alt+Space',
 	bounds: null,
 	maximized: false,
-	trayHintShown: false
+	trayHintShown: false,
+	/** Set once "Start with Windows" has been switched on by default, so turning it off sticks. */
+	launchAtLoginDefaulted: false
 };
 
 function loadPrefs() {
@@ -657,5 +659,10 @@ app.whenReady().then(async () => {
 		onReady: onUpdateReady
 	});
 	createTray();
+	if (app.isPackaged && !DEV && !prefs.launchAtLoginDefaulted) {
+		setLaunchAtLogin(true);
+		prefs.launchAtLoginDefaulted = true;
+		savePrefs();
+	}
 	registeredFailures = registerHotkeys();
 });

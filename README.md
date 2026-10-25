@@ -81,8 +81,8 @@ in the tray, the notification, or **Settings → Desktop app**.
 
 The desktop build wraps the same app in Electron and adds what a web page can't do:
 
-- **Always running.** Closing the window hides it to the tray. It can start with Windows,
-  already hidden.
+- **Always running.** Closing the window hides it to the tray. It starts with Windows, already
+  hidden in the tray (turn that off in the tray menu or **Settings → Desktop app**).
 - **Global hotkeys**, from any app: `Ctrl+Alt+Space` opens the **quick bar** (the command
   palette, floating over whatever you're doing: type a thought, press Enter, and it's on
   today's page). `Ctrl+Alt+D` shows or hides the main window. You can change both in
