@@ -43,9 +43,11 @@ jobs:
       - run: npm ci
 
       - name: Build the app and the installer
+        # bash, not the default PowerShell, which mangles the --config.* argument.
+        shell: bash
         run: |
           npm run desktop:build
-          npx electron-builder --win --publish never -c.extraMetadata.version=0.1.${{ github.run_number }}
+          npx electron-builder --win --publish never --config.extraMetadata.version=0.1.${{ github.run_number }}
 
       - name: Upload the unsigned installer for signing
         id: unsigned
