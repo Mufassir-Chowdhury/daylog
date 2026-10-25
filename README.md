@@ -73,8 +73,9 @@ npm run test:e2e    # playwright, builds and runs the real app
 
 **Download:** [daylog-setup.exe](https://github.com/Mufassir-Chowdhury/daylog/releases/latest/download/daylog-setup.exe)
 — built by GitHub Actions from every push to `main` ([all releases](https://github.com/Mufassir-Chowdhury/daylog/releases)).
-The installer is code-signed (see [Code signing policy](#code-signing-policy)), but SmartScreen
-may still warn while the certificate builds up reputation: **More info → Run anyway**.
+The installer isn't code-signed yet (signing through SignPath is set up but not switched on —
+see [Code signing policy](#code-signing-policy)), so Windows SmartScreen warns the first time:
+**More info → Run anyway**.
 After that the app **updates itself**: it checks for a new release a few hours apart, downloads
 it in the background and installs it when daylog quits — or right away from **Restart to update**
 in the tray, the notification, or **Settings → Desktop app**.

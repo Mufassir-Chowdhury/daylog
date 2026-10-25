@@ -9,18 +9,18 @@ activity tracker — with the same features and no change to the web app.
 
 ## Status
 
-| Step | What                                                                                                                                                                                        | PR                                                          | State     |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- |
-| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7)   | merged    |
-| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8)   | merged    |
-| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | [#9](https://github.com/Mufassir-Chowdhury/daylog/pull/9)   | merged    |
-| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | [#10](https://github.com/Mufassir-Chowdhury/daylog/pull/10) | merged    |
-| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | (this PR)                                                   | in review |
+| Step | What                                                                                                                                                                                        | PR                                                          | State  |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------ |
+| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7)   | merged |
+| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | [#8](https://github.com/Mufassir-Chowdhury/daylog/pull/8)   | merged |
+| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | [#9](https://github.com/Mufassir-Chowdhury/daylog/pull/9)   | merged |
+| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | [#10](https://github.com/Mufassir-Chowdhury/daylog/pull/10) | merged |
+| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | [#11](https://github.com/Mufassir-Chowdhury/daylog/pull/11) | merged |
 
 ## Next up
 
-Once step 5 is merged and its release is out, the migration is done. What's
-left is watching it in the wild:
+**The migration is done** (step 5 merged on 2026-10-25). What's left is
+watching it in the wild:
 
 - An Electron install picks the update up within ~4 hours of launch (or from
   tray → Check for updates), installs it on quit or on "Restart to update",
@@ -195,3 +195,9 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   `Programs\<npm package name>` — `Programs\todo`, since package.json is still
   named `todo` — not `Programs\daylog`; hooks, `migrate.rs` and the test use
   that folder.
+- Step 5 CI hang: `Start-Process -Wait` waited for the app the installer had
+  relaunched, so the job sat for two hours; the test now waits on the
+  installer process alone with a 3-minute limit, and the step and job have
+  timeouts. Then the whole migration test passed on Windows (13/13) and step 5
+  was merged. Note: on the elevated CI runner the autostart entry lands in
+  HKLM; for normal (non-admin) users it goes to HKCU.
