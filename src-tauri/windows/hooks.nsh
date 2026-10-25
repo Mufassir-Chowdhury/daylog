@@ -1,12 +1,13 @@
 ; Installer hooks (tauri.conf.json → bundle.windows.nsis.installerHooks).
 ;
 ; daylog used to be an Electron app, installed per user in
-; %LOCALAPPDATA%\Programs\daylog. Its last versions update themselves by running
-; this installer (electron-updater: --updated /S, plus --force-run to relaunch),
-; so this installer also takes the Electron copy away. Its data in
+; %LOCALAPPDATA%\Programs\todo (electron-builder names that folder after the
+; npm package, which is still called "todo"). Its last versions update
+; themselves by running this installer (electron-updater: --updated /S, plus
+; --force-run to relaunch), so this installer also takes the Electron copy away. Its data in
 ; %APPDATA%\daylog is kept: the Tauri app uses the same prefs and activity files.
 
-!define ELECTRON_DIR "$LOCALAPPDATA\Programs\daylog"
+!define ELECTRON_DIR "$LOCALAPPDATA\Programs\todo"
 
 !macro NSIS_HOOK_PREINSTALL
   ${If} ${FileExists} "${ELECTRON_DIR}\Uninstall daylog.exe"

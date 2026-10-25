@@ -24,7 +24,7 @@ left is watching it in the wild:
 
 - An Electron install picks the update up within ~4 hours of launch (or from
   tray → Check for updates), installs it on quit or on "Restart to update",
-  and the Tauri app starts. Afterwards `%LOCALAPPDATA%\Programs\daylog` is
+  and the Tauri app starts. Afterwards `%LOCALAPPDATA%\Programs\todo` is
   gone, the app lives in `%LOCALAPPDATA%\daylog`, and the user signs in once.
   CI's migration test (`desktop/test-migration.ps1`) runs exactly this path on a
   Windows runner for every desktop PR.
@@ -89,7 +89,7 @@ _?=<dir>`; it removes its files, shortcuts and uninstall entry but keeps
 3. Tauri's NSIS installs per user into `%LOCALAPPDATA%\daylog`; after
    installing, the hook starts the app if `--force-run` was passed.
 4. First run (`migrate.rs`, once, `prefs.electronMigrated`): Run entries
-   pointing at `\Programs\daylog\daylog.exe` are deleted (with their
+   pointing at `\Programs\todo\daylog.exe` are deleted (with their
    Task Manager flags) and, if there were any, "Start with Windows" is turned
    on for the Tauri app; Chromium caches in `%APPDATA%\daylog` are deleted.
    Prefs and activity files are already in the shared format and place.
@@ -191,3 +191,7 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   signing. The icons in `src-tauri/icons` come from `desktop/icons/icon.png`
   via `npx tauri icon desktop/icons/icon.png -o src-tauri/icons` (delete the
   android/ios/Square* extras it adds).
+- Step 5 CI caught that electron-builder installs per-user apps into
+  `Programs\<npm package name>` — `Programs\todo`, since package.json is still
+  named `todo` — not `Programs\daylog`; hooks, `migrate.rs` and the test use
+  that folder.

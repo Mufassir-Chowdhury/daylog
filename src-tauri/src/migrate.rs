@@ -96,7 +96,7 @@ fn remove_electron_autostart() -> bool {
                 .map(|c| u16::from_le_bytes([c[0], c[1]]))
                 .collect();
             let command = String::from_utf16_lossy(&wide).to_lowercase();
-            if command.contains("\\programs\\daylog\\daylog.exe") {
+            if command.contains("\\programs\\todo\\daylog.exe") {
                 found.push(name[..name_len as usize].to_vec());
             }
         }

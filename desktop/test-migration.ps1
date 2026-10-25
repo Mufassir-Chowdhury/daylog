@@ -8,7 +8,7 @@
 param([Parameter(Mandatory)][string]$Installer)
 
 $ErrorActionPreference = 'Stop'
-$electronDir = Join-Path $env:LOCALAPPDATA 'Programs\daylog'
+$electronDir = Join-Path $env:LOCALAPPDATA 'Programs\todo'
 $tauriExe = Join-Path $env:LOCALAPPDATA 'daylog\daylog.exe'
 $prefs = Join-Path $env:APPDATA 'daylog\desktop-prefs.json'
 $runKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -56,7 +56,7 @@ Check ($prefsAfter.summonKey -eq $prefsBefore.summonKey) 'hotkeys kept'
 Check ($prefsAfter.electronMigrated -eq $true) 'one-time migration ran'
 $entries = RunEntries
 Write-Host "Run entries after: $($entries -join '; ')"
-Check (-not ($entries | Where-Object { $_ -like '*\Programs\daylog\*' })) 'Electron autostart entry removed'
+Check (-not ($entries | Where-Object { $_ -like '*\Programs\todo\*' })) 'Electron autostart entry removed'
 $tauriEntry = $entries | Where-Object { $_ -like '*\daylog\daylog.exe*--hidden*' -and $_ -notlike '*\Programs\*' }
 Check ($null -ne $tauriEntry) 'Tauri app starts with Windows'
 try {
