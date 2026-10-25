@@ -2,7 +2,7 @@
 //! in src/lib/desktop.ts. Every argument comes from a web page, so each is
 //! checked before use.
 
-use crate::{auth, hotkeys, prefs, reminders, tray, updater, windows, AppState};
+use crate::{activity, auth, hotkeys, prefs, reminders, tray, updater, windows, AppState};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
@@ -140,23 +140,24 @@ pub fn prefs_set(app: AppHandle, patch: PrefsPatch) -> Value {
 
 #[tauri::command]
 pub fn activity_status() -> Value {
-    Value::Null
+    activity::status()
 }
 
 #[tauri::command]
-pub fn activity_set(patch: Value) -> Value {
-    let _ = patch;
-    Value::Null
+pub fn activity_set(app: AppHandle, patch: Value) -> Value {
+    activity::set(&app, &patch);
+    activity::status()
 }
 
 #[tauri::command]
 pub fn activity_days(from: String, to: String) -> Value {
-    let _ = (from, to);
-    json!({})
+    activity::days(&from, &to)
 }
 
 #[tauri::command]
-pub fn activity_clear() {}
+pub fn activity_clear() {
+    activity::clear();
+}
 
 #[tauri::command]
 pub fn update_status(app: AppHandle) -> Value {

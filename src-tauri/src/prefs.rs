@@ -1,6 +1,6 @@
 //! Desktop-only preferences, in the same file and format the Electron app used
 //! (`desktop-prefs.json` in the user-data folder), so switching keeps them.
-//! Keys this module doesn't know (the activity tracker's) are kept as they are.
+//! Keys this module doesn't know are kept as they are.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -27,6 +27,12 @@ pub struct Prefs {
     pub tray_hint_shown: bool,
     /// Set once "Start with Windows" has been switched on by default, so turning it off sticks.
     pub launch_at_login_defaulted: bool,
+    /// The activity tracker's settings (activity/mod.rs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub activity: Option<crate::activity::Settings>,
+    /// Names this computer's synced activity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -40,6 +46,8 @@ impl Default for Prefs {
             maximized: false,
             tray_hint_shown: false,
             launch_at_login_defaulted: false,
+            activity: None,
+            device_id: None,
             extra: Map::new(),
         }
     }
