@@ -67,7 +67,12 @@ jobs:
 
       - name: Rust tests
         working-directory: src-tauri
-        run: cargo test --locked
+        shell: bash
+        # Test binaries need the Common Controls v6 manifest the app gets from
+        # tauri-build, or Windows can't load them (STATUS_ENTRYPOINT_NOT_FOUND).
+        run: |
+          export RUSTFLAGS="-C link-arg=/MANIFEST:EMBED -C link-arg=/MANIFESTINPUT:$(cygpath -w "$PWD/windows/test.manifest")"
+          cargo test --locked --lib
 
       - name: Build the Tauri installer
         # bash, not the default PowerShell, which mangles the JSON argument.
