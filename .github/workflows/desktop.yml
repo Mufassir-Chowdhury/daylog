@@ -6,7 +6,6 @@
 # desktop-v0.1.<run number>), which carries latest.yml: installed apps poll the
 # latest release's copy to update themselves (src-tauri/src/updater.rs). The
 # last Electron versions read the same file and update into this installer.
-# latest-tauri.yml is the same manifest under the name the Tauri previews read.
 #
 # Pull requests that touch the desktop app build the installer too, without
 # publishing anything.
@@ -87,7 +86,6 @@ jobs:
           mkdir -p desktop/dist
           cp "src-tauri/target/release/bundle/nsis/daylog_${VERSION}_x64-setup.exe" desktop/dist/daylog-setup.exe
           node desktop/write-update-info.mjs desktop/dist/daylog-setup.exe "$VERSION" desktop/dist/latest.yml
-          cp desktop/dist/latest.yml desktop/dist/latest-tauri.yml
 
       - name: Keep the pull request's installer
         if: github.event_name == 'pull_request'
@@ -147,4 +145,3 @@ jobs:
           files: |
             desktop/dist/daylog-setup.exe
             desktop/dist/latest.yml
-            desktop/dist/latest-tauri.yml

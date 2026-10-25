@@ -30,9 +30,8 @@ watching it in the wild:
   Windows runner for every desktop PR.
 - If something goes wrong for someone: downloading `daylog-setup.exe` from the
   latest release and running it does the same migration by hand.
-- `latest-tauri.yml` only exists for the few Tauri previews released in steps
-  1–4; it can be dropped from the workflow once those have updated (any time
-  after a release or two).
+- `latest-tauri.yml` (for the step 1–4 previews) was published with 0.1.18
+  only; releases since carry just `daylog-setup.exe` and `latest.yml`.
 
 ## Design decisions (and why)
 
@@ -72,8 +71,9 @@ watching it in the wild:
   `daylog-setup.exe` + `latest.yml`, plus the **Tauri preview** as
   `daylog-tauri-setup.exe` + `latest-tauri.yml`.
 - From step 5: only the Tauri installer, as `daylog-setup.exe`, with
-  `latest.yml` (read by the Tauri app and by the last Electron versions) and
-  the same manifest as `latest-tauri.yml` (read by the previews).
+  `latest.yml` (read by the Tauri app and by the last Electron versions).
+  0.1.18 also carried a copy as `latest-tauri.yml` so the previews could
+  update; it was dropped after that release.
 - PRs touching the desktop app build the installer, run the Rust tests and the
   Electron → Tauri migration test, without publishing anything.
 
