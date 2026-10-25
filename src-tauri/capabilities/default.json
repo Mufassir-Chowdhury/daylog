@@ -1,0 +1,10 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "What the app's pages may call. They're served from the local server (src/server.rs), so they count as a remote origin and every command must be listed.",
+	"windows": ["main", "quick"],
+	"remote": {
+		"urls": ["http://localhost:*"]
+	},
+	"permissions": ["core:event:default", "allow-app-commands"]
+}

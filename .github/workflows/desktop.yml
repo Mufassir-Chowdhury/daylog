@@ -5,6 +5,10 @@
 # desktop-v0.1.<run number>), which carries latest.yml: installed apps poll the
 # latest release's copy to update themselves (desktop/updater.cjs).
 #
+# During the move to Tauri (docs/tauri-migration.md) each release also carries
+# the Tauri preview installer, daylog-tauri-setup.exe. Pull requests that touch
+# the desktop app build it too, without publishing anything.
+#
 # Once SignPath is set up (the SIGNPATH_ORGANIZATION_ID variable and the
 # SIGNPATH_API_TOKEN secret), the installer is code-signed by SignPath Foundation
 # before it's published; until then the steps are skipped and it ships unsigned.
@@ -17,6 +21,17 @@ on:
       - 'src/**'
       - 'static/**'
       - 'desktop/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'static/**'
+      - 'desktop/**'
+      - 'src-tauri/**'
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.ts'
@@ -27,11 +42,49 @@ permissions:
   contents: write
 
 concurrency:
-  group: desktop-release
+  group: ${{ github.event_name == 'pull_request' && format('desktop-pr-{0}', github.ref) || 'desktop-release' }}
   cancel-in-progress: true
 
 jobs:
+  tauri:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Build the Tauri installer
+        # bash, not the default PowerShell, which mangles the JSON argument.
+        shell: bash
+        run: |
+          npx tauri build --ci --config '{"version":"0.1.${{ github.run_number }}"}'
+          cp src-tauri/target/release/bundle/nsis/daylog_0.1.${{ github.run_number }}_x64-setup.exe daylog-tauri-setup.exe
+          ls -l daylog-tauri-setup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daylog-tauri-setup
+          path: daylog-tauri-setup.exe
+          if-no-files-found: error
+
   windows:
+    needs: tauri
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +130,11 @@ jobs:
         if: vars.SIGNPATH_ORGANIZATION_ID != ''
         run: node desktop/refresh-update-info.mjs desktop/dist/signed/daylog-setup.exe desktop/dist
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: daylog-tauri-setup
+          path: desktop/dist
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -90,6 +148,9 @@ jobs:
             Download **daylog-setup.exe** and run it. ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && 'Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).' || 'The installer isn''t code-signed.' }}
             Windows SmartScreen may warn the first time — choose **More info → Run anyway**.
             Installed copies update themselves from this release.
+
+            **Preview:** daylog-tauri-setup.exe is the same app on Tauri — a much smaller download. It doesn't update itself yet; quit the regular app before trying it.
           files: |
             desktop/dist/daylog-setup.exe
             desktop/dist/latest.yml
+            desktop/dist/daylog-tauri-setup.exe

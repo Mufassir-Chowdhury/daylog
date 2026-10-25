@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-activity-days"
+description = "Enables the activity_days command without any pre-configured scope."
+commands.allow = ["activity_days"]
+
+[[permission]]
+identifier = "deny-activity-days"
+description = "Denies the activity_days command without any pre-configured scope."
+commands.deny = ["activity_days"]

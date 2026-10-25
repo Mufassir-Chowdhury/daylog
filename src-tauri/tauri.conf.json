@@ -1,0 +1,40 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "daylog",
+	"mainBinaryName": "daylog",
+	"version": "0.1.0",
+	"identifier": "app.daylog.desktop",
+	"build": {
+		"frontendDist": "../desktop/app",
+		"devUrl": "http://localhost:5173",
+		"beforeBuildCommand": "npm run desktop:build"
+	},
+	"app": {
+		"windows": [],
+		"withGlobalTauri": false,
+		"security": {
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["nsis"],
+		"publisher": "Mufassir Chowdhury",
+		"copyright": "MIT",
+		"category": "Productivity",
+		"shortDescription": "One text file per day — always-on desktop assistant.",
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.ico",
+			"icons/icon.png"
+		],
+		"windows": {
+			"nsis": {
+				"installMode": "currentUser",
+				"installerIcon": "icons/icon.ico"
+			}
+		}
+	}
+}

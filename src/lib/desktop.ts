@@ -1,7 +1,9 @@
 /**
- * Typed access to the Electron bridge (desktop/preload.cjs). In the web build
- * `desktop` is null, so every caller degrades to plain web behaviour.
+ * Typed access to the desktop shell: Electron (desktop/preload.cjs) or Tauri
+ * (src-tauri, bridged by ./desktop-tauri.ts). In the web build `desktop` is
+ * null, so every caller degrades to plain web behaviour.
  */
+import { tauriBridge } from './desktop-tauri';
 
 /** A line to append to a day, sent from the quick bar to the main window. */
 export interface CaptureEntry {
@@ -133,8 +135,13 @@ declare global {
 	}
 }
 
-export const desktop: DesktopBridge | null =
-	typeof window !== 'undefined' ? (window.daylogDesktop ?? null) : null;
+function detect(): DesktopBridge | null {
+	if (typeof window === 'undefined') return null;
+	if (window.daylogDesktop) return window.daylogDesktop;
+	return window.__TAURI_INTERNALS__ ? tauriBridge() : null;
+}
+
+export const desktop: DesktopBridge | null = detect();
 
 /** `Control+Alt+Space` → `Ctrl + Alt + Space`, for display. */
 export function prettyAccelerator(accel: string): string {

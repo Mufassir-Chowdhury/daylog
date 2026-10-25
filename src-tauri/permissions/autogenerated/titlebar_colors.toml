@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-titlebar-colors"
+description = "Enables the titlebar_colors command without any pre-configured scope."
+commands.allow = ["titlebar_colors"]
+
+[[permission]]
+identifier = "deny-titlebar-colors"
+description = "Denies the titlebar_colors command without any pre-configured scope."
+commands.deny = ["titlebar_colors"]

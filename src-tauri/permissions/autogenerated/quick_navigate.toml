@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-navigate"
+description = "Enables the quick_navigate command without any pre-configured scope."
+commands.allow = ["quick_navigate"]
+
+[[permission]]
+identifier = "deny-quick-navigate"
+description = "Denies the quick_navigate command without any pre-configured scope."
+commands.deny = ["quick_navigate"]
