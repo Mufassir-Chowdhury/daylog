@@ -9,24 +9,29 @@ activity tracker — with the same features and no change to the web app.
 
 ## Status
 
-| Step | What                                                                                                                                                                                        | PR        | State     |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------- |
-| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | (this PR) | in review |
-| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | —         | todo      |
-| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | —         | todo      |
-| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | —         | todo      |
-| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | —         | todo      |
+| Step | What                                                                                                                                                                                        | PR                                                        | State     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------- |
+| 1    | Tauri shell: local server, main + quick windows, tray, hotkeys, reminders, prefs, launch at login, single instance, Google sign-in, bridge in `src/lib/desktop.ts`, preview installer in CI | [#7](https://github.com/Mufassir-Chowdhury/daylog/pull/7) | merged    |
+| 2    | Activity tracker in Rust (Win32 on Windows, `osascript`/`xdotool` elsewhere) + tray pause menu                                                                                              | (this PR)                                                 | in review |
+| 3    | Custom title bar + caption buttons, zoom/devtools/reload keys, polish                                                                                                                       | —                                                         | todo      |
+| 4    | Auto-updater (same `latest.yml` feed as electron-updater) + Settings → Desktop app                                                                                                          | —                                                         | todo      |
+| 5    | Switch-over: CI ships the Tauri installer as `daylog-setup.exe`, existing Electron installs update into it, Electron removed                                                                | —                                                         | todo      |
 
 ## Next up
 
-Step 2: port `desktop/activity.cjs` to `src-tauri/src/activity.rs` (today a stub
-returning `null`, so the Activity page says tracking isn't available), wire the
-four `activity_*` commands in `commands.rs`, and add the pause items to the tray
-(`activity::tray_items` / `activity::on_menu` are already called by `tray.rs`).
+Step 3, the title bar. Electron hides the native frame and overlays native
+caption buttons (`titleBarOverlay`) on the app's own 40px title bar
+(`src/lib/components/DesktopShell.svelte`, which pads `pr-[150px]` for them).
+Tauri has no overlay, so: `decorations(false)` on the main window, draw
+minimize / maximize / close in `DesktopShell.svelte` when running on Tauri
+(the bridge already has `minimize`, `toggleMaximize`, `hide`), make the bar a
+drag region (`data-tauri-drag-region`; needs `core:window:allow-start-dragging`
+and friends in the capability), and keep `titlebar_colors` setting the window
+background. Also restore Electron's keys: F12 / Ctrl+Shift+I devtools, Ctrl+R
+reload, Ctrl+= / Ctrl+- / Ctrl+0 zoom (`webview.set_zoom`).
 
 Known gaps in the preview until later steps:
 
-- no activity tracking (step 2);
 - the native title bar sits above the app's own one, which still leaves room on
   the right for Electron's caption buttons (step 3);
 - no auto-update (step 4) — install new previews by hand.
@@ -89,7 +94,7 @@ the same hotkeys and ports; the preview installs side by side
 | `requestSingleInstanceLock`                  | `tauri-plugin-single-instance`                |
 | prefs JSON                                   | `prefs.rs`                                    |
 | `ipcMain` handlers / `preload.cjs`           | `commands.rs` / `src/lib/desktop.ts`          |
-| `activity.cjs`                               | `activity/` (step 2)                          |
+| `activity.cjs`                               | `activity/mod.rs`, `activity/sampler.rs`      |
 | `updater.cjs` (electron-updater)             | `updater.rs` (step 4)                         |
 
 ## Working on it
@@ -98,6 +103,14 @@ the same hotkeys and ports; the preview installs side by side
 npm run tauri:dev        # Tauri against `npm run dev` (start that first)
 npm run tauri:build      # desktop:build + Tauri installer (src-tauri/target/release/bundle)
 ```
+
+Checking a change end to end without Windows: build with
+`npx tauri build --debug --no-bundle` and run
+`xvfb-run -a dbus-run-session -- sh -c 'openbox & sleep 1; ./src-tauri/target/debug/daylog'`
+(install `xvfb openbox xdotool` too). A throwaway hook in `setup` that calls
+`window.eval(...)` on the main window, invoking commands via
+`window.__TAURI_INTERNALS__.invoke` and `fetch`-ing the result to a path the
+server prints, is how steps 1–2 were checked; don't commit it.
 
 Linux needs `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
 librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
@@ -113,3 +126,14 @@ librsvg2-dev libxdo-dev libssl-dev` to build. Windows builds happen in CI
   Electron's format, the server's 403/405/SPA fallback match Electron's.
   `cargo check --target x86_64-pc-windows-msvc` passes locally; the Windows
   installer is built by CI.
+- Step 2: activity tracker ported. Windows reads the foreground window, process
+  name, FileDescription, display-required state and idle time straight from
+  Win32 (no PowerShell process any more); macOS and Linux run the same
+  commands as before (`osascript`/`pmset`/`ioreg`, `xdotool`/`xprintidle`).
+  Same day files, settings (`prefs.activity`) and device id (`prefs.deviceId`);
+  unknown span fields are preserved. Differences from Electron: a window with
+  an empty title no longer splits into 5-second spans; lock/suspend aren't
+  separate events (the lock screen is a skipped window and a long gap between
+  samples closes the span, as before). Live-checked on Linux (Xvfb + openbox
+  - xdotool): enabling tracking records the window in front and the status
+    and days commands return the same shapes as Electron's.
