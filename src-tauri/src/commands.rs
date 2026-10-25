@@ -26,6 +26,15 @@ pub fn window_toggle_maximize(window: WebviewWindow) {
     }
 }
 
+#[tauri::command]
+pub fn devtools_toggle(window: WebviewWindow) {
+    if window.is_devtools_open() {
+        window.close_devtools();
+    } else {
+        window.open_devtools();
+    }
+}
+
 /// `#rrggbb` → a colour.
 fn parse_hex(color: &str) -> Option<tauri::window::Color> {
     let hex = color.trim().strip_prefix('#')?;

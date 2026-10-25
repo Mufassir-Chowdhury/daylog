@@ -2,6 +2,7 @@ const COMMANDS: &[&str] = &[
     "window_hide",
     "window_minimize",
     "window_toggle_maximize",
+    "devtools_toggle",
     "titlebar_colors",
     "quick_hide",
     "quick_navigate",

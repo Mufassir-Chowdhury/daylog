@@ -6,6 +6,7 @@ permissions = [
   "allow-window-hide",
   "allow-window-minimize",
   "allow-window-toggle-maximize",
+  "allow-devtools-toggle",
   "allow-titlebar-colors",
   "allow-quick-hide",
   "allow-quick-navigate",

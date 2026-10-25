@@ -44,6 +44,7 @@ fn builder<'a>(
             open_external(&popup_app, &url);
             NewWindowResponse::Deny
         })
+        .zoom_hotkeys_enabled(true)
         .initialization_script(format!("window.__daylogPlatform = {:?};", node_platform()))
 }
 
@@ -89,6 +90,7 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<()> {
         )
         .min_inner_size(760.0, 520.0)
         .visible(false)
+        .shadow(true)
         .background_color(tauri::window::Color(7, 11, 20, 255))
         .on_page_load(move |window, payload| {
             // Show once the first page has loaded, like Electron's ready-to-show.
@@ -104,6 +106,18 @@ pub fn create_main(app: &AppHandle) -> tauri::Result<()> {
                 let _ = window.set_focus();
             }
         });
+    // The app draws its own title bar (DesktopShell.svelte) and, except on macOS,
+    // its own caption buttons (CaptionButtons.svelte).
+    #[cfg(target_os = "macos")]
+    {
+        b = b
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        b = b.decorations(false);
+    }
     if let Some(b2) = bounds {
         b = b.position(b2.x, b2.y);
     } else {

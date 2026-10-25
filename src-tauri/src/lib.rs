@@ -50,6 +50,7 @@ pub fn run() {
             commands::window_hide,
             commands::window_minimize,
             commands::window_toggle_maximize,
+            commands::devtools_toggle,
             commands::titlebar_colors,
             commands::quick_hide,
             commands::quick_navigate,
