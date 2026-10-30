@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                |
-| ---- | ------------------------------- | --------------------- |
-| 0    | Ops layer                       | ✅ done 2026-10-30    |
-| 1    | Providers and settings          | ✅ done 2026-10-30    |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30    |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30    |
-| 5    | Proactive engine (5.1–5.7)      | ⏭ **next: 5.1**       |
-| 6    | Feature packs                   | not started           |
-| 7    | Evaluation and tuning           | not started           |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled |
+| Step | What                            | Status                   |
+| ---- | ------------------------------- | ------------------------ |
+| 0    | Ops layer                       | ✅ done 2026-10-30       |
+| 1    | Providers and settings          | ✅ done 2026-10-30       |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30       |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30       |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30       |
+| 5    | Proactive engine (5.1–5.7)      | 5.1 ✅ · ⏭ **next: 5.2** |
+| 6    | Feature packs                   | not started              |
+| 7    | Evaluation and tuning           | not started              |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled    |
 
 ---
 
@@ -405,15 +405,15 @@ Split on 2026-10-30 so each part can be built, tested and merged on its own. Do 
 The real check-in contents (warm-up, briefs) and most detectors stay in Step 6; Step 5 builds the
 engine and two detectors that prove it.
 
-| Part | What                              | Done when                                                                                           |
-| ---- | --------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 5.1  | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
-| 5.2  | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
-| 5.3  | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
-| 5.4  | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
-| 5.5  | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
-| 5.6  | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
-| 5.7  | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
+| Part   | What                              | Done when                                                                                           |
+| ------ | --------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 5.1 ✅ | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
+| 5.2    | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
+| 5.3    | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
+| 5.4    | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
+| 5.5    | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
+| 5.6    | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
+| 5.7    | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
 
 ### 5.1 — Background runs
 
@@ -424,6 +424,26 @@ engine and two detectors that prove it.
   decisions.md → "What each check-in covers".
 - Background token budget; `signalKey` `checkin:<id>:<date>` on the brief, for 5.2's dedupe.
 - Settings: "Run now" per check-in.
+
+**Done 2026-10-30.** Built:
+
+- `src/lib/ai/checkin.ts` — `runCheckin(uid, checkin, displayName, now?) → { brief, proposals }`.
+  Background model and token budget, empty history, `<context>` (view: "a scheduled check-in")
+  - `<memory>` + the check-in message. Tools: everything the areas allow except `ui` tools and
+    the memory tools (nobody to confirm a memory). `propose` saves each change as an Inbox
+    proposal (`source: 'checkin'`, same `signalKey`) and tells the model it's a card; nothing is
+    applied, small additions included. The answer becomes a brief card titled
+    "<label> · Fri 30 Oct", priority 1, shown for 18 hours; an empty or refused answer leaves none.
+- `prompt.ts` — `checkinMessage(checkin)`: what each kind covers (warm-up / brief / wrap-up, from
+  decisions.md), status-report style of at most ~10 lines, propose only clear help (carry-overs
+  with `move_line`), no questions.
+- Settings → Check-ins: "Run now" per row (toast: "Added a brief and 2 proposals to your
+  Inbox", or the error). The "don't run yet" note now points to Run now.
+- Tests: `checkin.spec.ts` (small additions become cards and nothing is committed; brief fields
+  and key; background model, fresh history, no `open_page`/`remember`; refusal leaves no brief)
+  and a Settings test for Run now. Totals: 30 files, 264 tests; lint, types, both builds OK.
+- Not run against a real provider. First real check: Settings → Check-ins → Run now on the
+  evening brief, then look at today's page.
 
 ### 5.2 — When to run
 
