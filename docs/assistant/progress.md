@@ -13,7 +13,7 @@ that differs from the plan, and say what comes next.
 | 2    | Tool registry and chat          | ✅ done 2026-10-30    |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30    |
-| 5    | Proactive engine                | ⏭ **next**            |
+| 5    | Proactive engine (5.1–5.7)      | ⏭ **next: 5.1**       |
 | 6    | Feature packs                   | not started           |
 | 7    | Evaluation and tuning           | not started           |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled |
@@ -399,18 +399,65 @@ updatedAt }` (JSON strings). Saved after every message and every Undo. The panel
 
 ---
 
-## Next: Step 5 — Proactive engine
+## Step 5 — Proactive engine, in seven parts
 
-See the plan, §4 (architecture) and §5 Step 5. Checklist:
+Split on 2026-10-30 so each part can be built, tested and merged on its own. Do them in order.
+The real check-in contents (warm-up, briefs) and most detectors stay in Step 6; Step 5 builds the
+engine and two detectors that prove it.
 
-- [ ] `src/lib/ai/detectors/*.ts` — pure `(data, now, config) → Signal[]` with a stable
-      `signalKey`; unit tests for each
-- [ ] `src/lib/ai/scheduler.ts` — check-in times from config, lease (`assistant/lease`), quiet
-      hours, daily caps (`maxCardsPerDay`), dedupe by `signalKey` against the Inbox, feedback
-- [ ] Background run: background model, **read tools only** (no `propose`), answers become Inbox
-      cards (`source: 'checkin'`, briefs and proposals); proposals need a way to plan changes
-      without applying (a `propose` that only collects)
-- [ ] `assistantCheckins/{id}` + `schedule_checkin` tool
-- [ ] `src-tauri/src/assistant.rs` — tick + wake at the next check-in
-- [ ] Web: run on open, on tab visible (≤ every 15 min), on lease takeover
-- [ ] Desktop notifications for high-priority cards; "Don't suggest this again" on cards
+| Part | What                              | Done when                                                                                           |
+| ---- | --------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 5.1  | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
+| 5.2  | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
+| 5.3  | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
+| 5.4  | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
+| 5.5  | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
+| 5.6  | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
+| 5.7  | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
+
+### 5.1 — Background runs
+
+- `runCheckin(uid, checkin)`: the **background model**, a fresh conversation, read tools plus write
+  tools whose changes are **collected, never applied** (each becomes an Inbox card,
+  `source: 'checkin'`); no `ui` tools. The final answer becomes a **brief** card.
+- Instructions per check-in kind in the message (the system prompt stays cacheable), from
+  decisions.md → "What each check-in covers".
+- Background token budget; `signalKey` `checkin:<id>:<date>` on the brief, for 5.2's dedupe.
+- Settings: "Run now" per check-in.
+
+### 5.2 — When to run
+
+- Pure `dueCheckins(config, now, done)`: enabled check-ins whose time has passed today and that
+  haven't run today (a missed one still runs the same day). Quiet hours hold notifications, not
+  runs.
+- `assistantCheckins/{date_id}` records each run (`{ at, device, status }`) so it never runs
+  twice; daily cap counts unprompted cards (`maxCardsPerDay`).
+
+### 5.3 — Lease
+
+- `assistant/lease { deviceId, kind: desktop | web, until }`, taken in a Firestore transaction,
+  renewed every minute while open, lasting 3 minutes. Desktop beats web; web takes over an
+  expired lease.
+
+### 5.4 — Web triggers
+
+- On open, on tab visible (at most every 15 minutes), and a 1-minute timer while open: if this
+  tab holds the lease, run what's due.
+
+### 5.5 — Desktop wake-ups
+
+- `src-tauri/src/assistant.rs`: wake at the next check-in time (like `reminders.rs`) and tell the
+  webview, so a hidden window still runs it.
+
+### 5.6 — Detectors and self-scheduled check-ins
+
+- `src/lib/ai/detectors/*.ts`: pure `(data, now, config) → Signal[]` with a stable `signalKey`.
+  First two: lines carried over from yesterday, a deadline ≤ 5 days away with no tasks.
+- New signals (not already in the Inbox) start a short background run between check-ins.
+- `schedule_checkin` tool + `assistantCheckins` entries it creates.
+
+### 5.7 — Notifications and feedback
+
+- Desktop notifications for high-priority cards, none in quiet hours.
+- "Don't suggest this again" on cards; `assistant/feedback` counts applied / dismissed / muted per
+  signal type, checked by detectors.

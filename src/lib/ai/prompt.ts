@@ -4,7 +4,7 @@
  * varies goes in `contextBlock`, at the top of each of your messages.
  * The persona follows docs/assistant/decisions.md → Persona.
  */
-import type { AssistantConfig, DataArea } from './config';
+import type { AssistantConfig, Checkin, CheckinKind, DataArea } from './config';
 import { DATA_AREAS } from './config';
 
 export const SYSTEM_PROMPT = `You are the assistant built into daylog, a personal planner. Its owner writes one page of plain text per day and keeps their teaching schedule, tasks, deadlines, people, notes, routines, money and computer time in it. Your name and how to address the owner are given in the <context> at the top of each message.
@@ -89,4 +89,41 @@ export function describeView(url: URL): string {
 						? `${first[0].toUpperCase()}${first.slice(1)} page`
 						: 'Home';
 	return `${where} (${url.pathname}${url.search})`;
+}
+
+/** What each kind of check-in covers (docs/assistant/decisions.md). */
+const CHECKIN_FOCUS: Record<CheckinKind, string> = {
+	warmup: [
+		"Today's classes and events with times and rooms, and anything cancelled or moved.",
+		"Today's tasks with their time blocks.",
+		'Deadlines within a week (two weeks for hard ones), nearest first.',
+		"Anything left unfinished on yesterday's page — propose moving it to today with move_line.",
+		'If activity data shows a best focus window, name it.'
+	].join('\n- '),
+	brief: [
+		"What's still open today, and what's on tonight.",
+		"Tomorrow's first classes or events and anything due tomorrow.",
+		"Spending pace, only if it's well ahead of last month."
+	].join('\n- '),
+	wrapup: [
+		'What got done today (lines crossed out, tasks and events done).',
+		"What's left — propose moving open lines to tomorrow (move_line) or open tasks to tomorrow or Later.",
+		'Routines not logged today and streaks at risk; money mentioned on the page but not recorded.',
+		'The first thing on tomorrow.'
+	].join('\n- ')
+};
+
+/** The message that starts a check-in. */
+export function checkinMessage(checkin: Checkin): string {
+	return `# Check-in: ${checkin.label}
+This is a scheduled check-in. Nobody is in the chat: your final answer becomes a brief card in the owner's Inbox, read later.
+
+Cover:
+- ${CHECKIN_FOCUS[checkin.kind]}
+
+How:
+- Look everything up with the tools first. Skip anything that turns out empty rather than saying "none".
+- Write the brief as a short status report: an opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.
+- Propose changes only when they clearly help (the cases above, or a clash or slip you notice). Each one becomes a card the owner applies or dismisses; nothing is applied now. Mention each in a few words in the brief.
+- Don't ask questions — nobody can answer.`;
 }

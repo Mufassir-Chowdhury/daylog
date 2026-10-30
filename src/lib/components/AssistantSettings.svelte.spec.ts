@@ -12,6 +12,8 @@ const db = vi.hoisted(() => ({
 	newMemoryId: () => 'new-memory'
 }));
 const listModels = vi.hoisted(() => vi.fn());
+const runCheckin = vi.hoisted(() => vi.fn());
+vi.mock('$lib/ai/checkin', () => ({ runCheckin }));
 
 vi.mock('$lib/auth.svelte', () => ({
 	session: { user: { uid: 'u1', displayName: 'Mufassir Chowdhury' } }
@@ -128,5 +130,22 @@ describe('AssistantSettings', () => {
 		await screen.getByRole('button', { name: 'Forget: DM is taught in room 304' }).click();
 		expect(db.deleteMemory).toHaveBeenCalledWith('u1', 'new-memory');
 		await expect.element(screen.getByText('DM is taught in room 304')).not.toBeInTheDocument();
+	});
+
+	it('runs a check-in by hand', async () => {
+		let finish: (v: unknown) => void = () => {};
+		runCheckin.mockReturnValue(new Promise((r) => (finish = r)));
+		const screen = render(AssistantSettings);
+		await screen.getByRole('button', { name: 'Run now' }).first().click();
+		await expect.element(screen.getByRole('button', { name: 'Running…' })).toBeInTheDocument();
+		expect(runCheckin).toHaveBeenCalledWith(
+			'u1',
+			expect.objectContaining({ id: 'warmup', kind: 'warmup' }),
+			'Mufassir Chowdhury'
+		);
+		finish({ brief: {}, proposals: [] });
+		await expect
+			.element(screen.getByRole('button', { name: 'Run now' }).first())
+			.toBeInTheDocument();
 	});
 });
