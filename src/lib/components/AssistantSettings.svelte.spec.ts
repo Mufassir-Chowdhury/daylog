@@ -5,7 +5,11 @@ import AssistantSettings from './AssistantSettings.svelte';
 
 const db = vi.hoisted(() => ({
 	loadAssistantConfig: vi.fn(),
-	saveAssistantConfig: vi.fn(async () => {})
+	saveAssistantConfig: vi.fn(async () => {}),
+	listMemory: vi.fn(),
+	saveMemory: vi.fn(async () => {}),
+	deleteMemory: vi.fn(async () => {}),
+	newMemoryId: () => 'new-memory'
 }));
 const listModels = vi.hoisted(() => vi.fn());
 
@@ -27,6 +31,11 @@ beforeEach(() => {
 	localStorage.clear();
 	db.loadAssistantConfig.mockResolvedValue(structuredClone(DEFAULT_CONFIG));
 	db.saveAssistantConfig.mockClear();
+	db.listMemory.mockResolvedValue([
+		{ id: 'm1', text: 'Prefers short answers', kind: 'preference', updatedAt: 1 }
+	]);
+	db.saveMemory.mockClear();
+	db.deleteMemory.mockClear();
 	listModels.mockReset();
 });
 
@@ -94,5 +103,30 @@ describe('AssistantSettings', () => {
 				expect.objectContaining({ permissions: { move_task: 'auto' } })
 			)
 		);
+	});
+
+	it('lists what it remembers, to add to, edit and forget', async () => {
+		const screen = render(AssistantSettings);
+		await expect.element(screen.getByText('Prefers short answers')).toBeInTheDocument();
+
+		await screen.getByLabelText('New memory').fill('DM is taught in room 304');
+		await screen.getByLabelText('Memory kind').selectOptions('fact');
+		await screen.getByRole('button', { name: 'Add', exact: true }).click();
+		expect(db.saveMemory).toHaveBeenCalledWith(
+			'u1',
+			expect.objectContaining({ id: 'new-memory', text: 'DM is taught in room 304', kind: 'fact' })
+		);
+
+		await screen.getByRole('button', { name: 'Edit' }).nth(1).click();
+		await screen.getByLabelText('Memory', { exact: true }).fill('Prefers very short answers');
+		await screen.getByRole('button', { name: 'Save', exact: true }).click();
+		expect(db.saveMemory).toHaveBeenLastCalledWith(
+			'u1',
+			expect.objectContaining({ id: 'm1', text: 'Prefers very short answers' })
+		);
+
+		await screen.getByRole('button', { name: 'Forget: DM is taught in room 304' }).click();
+		expect(db.deleteMemory).toHaveBeenCalledWith('u1', 'new-memory');
+		await expect.element(screen.getByText('DM is taught in room 304')).not.toBeInTheDocument();
 	});
 });

@@ -12,8 +12,8 @@ that differs from the plan, and say what comes next.
 | 1    | Providers and settings          | ✅ done 2026-10-30    |
 | 2    | Tool registry and chat          | ✅ done 2026-10-30    |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
-| 4    | Memory and Inbox                | ⏭ **next**            |
-| 5    | Proactive engine                | not started           |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30    |
+| 5    | Proactive engine                | ⏭ **next**            |
 | 6    | Feature packs                   | not started           |
 | 7    | Evaluation and tuning           | not started           |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled |
@@ -324,15 +324,93 @@ pending }`, `openAssistant(question?)`, `closeAssistant`, `newConversation`, `as
 
 ---
 
-## Next: Step 4 — Memory and Inbox
+## Step 4 — Memory and Inbox (done 2026-10-30)
 
-See the plan, §5 Step 4. Checklist:
+### What was built
 
-- [ ] `assistantMemory/{id}` collection + `remember`★ / `forget` write tools and a read tool
-      (`recall`), or memory put straight into the context block when short
-- [ ] Memory list in Settings (view, edit, delete)
-- [ ] `assistantInbox/{id}` collection: cards and briefs that outlive the chat (proposals from
-      chat can be saved there too, so they survive a reload)
-- [ ] `InboxList.svelte`; Inbox at the top of `PlanPanel.svelte` and in the panel; expiry
-- [ ] Save conversations (`assistantThreads`) so a reload doesn't lose them
-- [ ] Prompt: when to remember things (lasting preferences, facts about people and courses)
+- **Memory** (`src/lib/ai/memory.ts`): `MemoryItem { id, text, kind: preference | fact,
+updatedAt }` in `assistantMemory/{id}` (`listMemory`, `saveMemory`, `deleteMemory`,
+  `newMemoryId` in `db.ts`). `memoryBlock` builds the `<memory>` block (preferences first, newest
+  first, about 4,000 characters, then "N more — use recall"); `searchMemory`, `cleanMemoryText`
+  (one line, at most 300 characters).
+  - New change kind `memory` in the ops layer (`change.ts`, `commit.ts`, `fresh.ts`,
+    `describe.ts`), so memory goes through the same apply / Undo / freshness path.
+  - Tools (`tools/memory.ts`, area `assistant`, always available): `remember`★ (new, or a
+    correction with `replaces: id`; the same text twice is "nothing to change"), `forget` (a
+    card), `recall` (read).
+  - The `<memory>` block goes in front of a conversation's **first** message only (after the
+    context block). Later `remember` calls are in the history anyway.
+  - Settings → Assistant → "What it remembers": list (kind + text), Edit inline, Forget, and an
+    Add row with a kind picker. Settings writes straight to `db.ts`, not through ops.
+- **Inbox** (`src/lib/ai/inbox.ts` pure, `inbox.svelte.ts` state):
+  - `InboxItem { id, kind: proposal | brief, source: chat | checkin, title, body, tool, details,
+changes, status, signalKey, priority, createdAt, expiresAt }` in `assistantInbox/{id}`;
+    `changes` are stored as a JSON string (their documents can hold values Firestore won't store).
+  - `startInbox(uid)` (from the layout, not in the quick bar) keeps `inbox.items` live with
+    `watchInbox` and, on the first snapshot, deletes cards settled 30 days ago or expired 30
+    days ago. `pendingItems` = pending and unexpired, by priority then newest.
+  - `applyItem` / `dismissItem` / `undoItem` replaced the chat-only `applyCard` / `dismissCard` /
+    `undoCard`: same freshness check, "always do this", bubble with Undo; status saved to
+    Firestore so every device sees it. `applyChanges` and the "what you did" outcomes moved here
+    (`noteOutcome`, `outcomesSoFar`, `forgetOutcomes`).
+  - Chat proposals become Inbox cards (`source: 'chat'`, expire after 7 days); chat entries
+    keep only card ids.
+  - `InboxCard.svelte` (one card; briefs show their body and Dismiss only) and
+    `InboxList.svelte` (pending cards, which stay in view after you act on them until you leave
+    the page). Shown at the top of the assistant panel ("Waiting for you", minus cards already in
+    the conversation) and at the top of **today's** Plan panel ("From Jarvis").
+- **Saved conversations**: `assistantThreads/{id}` holds `{ provider, model, history, entries,
+updatedAt }` (JSON strings). Saved after every message and every Undo. The panel calls
+  `restoreConversation` once per account: the latest conversation is picked up if it was used in
+  the last 12 hours; only the newest 20 are kept. History past 600 KB isn't saved (the next
+  message starts the provider afresh, the messages still show); entries are trimmed from the
+  oldest past 250 KB. A provider/model switch keeps the conversation id and messages but starts
+  a fresh history (and sends memory again).
+- **Prompt**: a "Memory" section — follow preferences, remember lasting preferences and facts
+  the app doesn't hold without asking, don't store tasks/events/money/notes or one-off plans,
+  correct with `replaces` or `forget`. The changes section says cards also wait in the Inbox.
+- **Evals**: cases 16–20 (remember, use in a new conversation, correct, forget, don't remember
+  tasks).
+
+### Different from the plan
+
+- Memory kinds are `preference` and `fact`; no `summary` kind or `source` field yet (nothing
+  writes summaries until the weekly review in Step 6).
+- `forget` deletes the memory (the only delete the assistant has); it's a card by default and can
+  be undone.
+- The Inbox on the day page shows only on **today's** page.
+- Briefs (`kind: 'brief'`) are supported by the card but nothing creates them yet (Step 5/6).
+- No "Don't suggest this again" button yet: it belongs with `signalKey` dedupe and feedback in
+  Step 5.
+- Assistant memory, Inbox and conversations are not in the backup export (nor is the config).
+
+### Checks run
+
+- `svelte-check` 0/0, `eslint .`, `prettier --check .`: clean.
+- Vitest: 29 files, 260 tests passed. New: `memory.spec.ts`, `inbox.spec.ts`, memory tools in
+  `tools.spec.ts`, `commit` remembering/forgetting, panel tests (proposals saved to the Inbox and
+  dismissed there, conversation saved with card ids and history, memory only in the first
+  message, Inbox cards from elsewhere shown and applied), a reload test
+  (`AssistantPanel.restore.svelte.spec.ts`: latest conversation shown and continued with its
+  history), and the Settings memory list (add, edit, forget).
+- `npm run build`, `vite build --mode desktop`, e2e: OK.
+- Not tried against a real provider or clicked through signed in. Svelte MCP autofixer still
+  unreachable from the cloud session.
+
+---
+
+## Next: Step 5 — Proactive engine
+
+See the plan, §4 (architecture) and §5 Step 5. Checklist:
+
+- [ ] `src/lib/ai/detectors/*.ts` — pure `(data, now, config) → Signal[]` with a stable
+      `signalKey`; unit tests for each
+- [ ] `src/lib/ai/scheduler.ts` — check-in times from config, lease (`assistant/lease`), quiet
+      hours, daily caps (`maxCardsPerDay`), dedupe by `signalKey` against the Inbox, feedback
+- [ ] Background run: background model, **read tools only** (no `propose`), answers become Inbox
+      cards (`source: 'checkin'`, briefs and proposals); proposals need a way to plan changes
+      without applying (a `propose` that only collects)
+- [ ] `assistantCheckins/{id}` + `schedule_checkin` tool
+- [ ] `src-tauri/src/assistant.rs` — tick + wake at the next check-in
+- [ ] Web: run on open, on tab visible (≤ every 15 min), on lease takeover
+- [ ] Desktop notifications for high-priority cards; "Don't suggest this again" on cards

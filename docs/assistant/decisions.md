@@ -19,7 +19,7 @@ Part of the assistant docs: [plan](../../assistant.md) · [research](./research.
 | Scheduled check-ins   | **08:00 morning warm-up**, **17:00 brief**, **23:15 brief**. All times (and whether each is on) are **editable in Settings**, and more check-ins can be added there.                                                                                                                         |
 | Where background runs | **Desktop and web.** Whichever device is open holds the Firestore lease and runs the check-ins; the desktop app is preferred when it's running because it's always on. A web tab (including on a phone) runs them when no desktop app is.                                                    |
 | Voice mode (future)   | Plan for **ElevenLabs** (speech-to-text and text-to-speech) when voice mode is added. Not in the current build order; see the plan's "Future: voice mode" section.                                                                                                                           |
-| Build order           | Follow the plan's steps in order. Steps 0–1 done.                                                                                                                                                                                                                                            |
+| Build order           | Follow the plan's steps in order. Steps 0–4 done.                                                                                                                                                                                                                                            |
 
 ### Persona: JARVIS
 

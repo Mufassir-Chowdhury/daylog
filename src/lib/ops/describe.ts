@@ -14,11 +14,21 @@ const NOUN: Record<Kind, string> = {
 	longterm: 'Long-term task',
 	person: 'Profile',
 	routineValue: 'Routine',
-	dayLine: 'Line'
+	dayLine: 'Line',
+	memory: 'Memory'
 };
 
 /** Fields that only order or identify things. */
-const HIDDEN = new Set(['id', 'createdAt', 'order', 'slotId', 'handle', 'routineId', 'week']);
+const HIDDEN = new Set([
+	'id',
+	'createdAt',
+	'updatedAt',
+	'order',
+	'slotId',
+	'handle',
+	'routineId',
+	'week'
+]);
 
 const NAMES: Record<string, string> = {
 	completedOn: 'finished',

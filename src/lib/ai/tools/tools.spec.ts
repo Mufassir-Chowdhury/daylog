@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleSlot, Transaction } from '../../db';
 import { moveLine, readDay, recentDays, searchDays, setLineDone } from './days';
 import { addTransactionTool, financeSummary, findTransactions } from './finance';
+import { forget, recall, remember } from './memory';
 import { logRoutineValueTool } from './routines';
 import { addTask, moveEvent, scheduleSnapshot, setEventStatus, updateDeadline } from './schedule';
 import { openPage } from './ui';
@@ -20,6 +21,8 @@ const db = vi.hoisted(() => ({
 	listPeople: vi.fn(),
 	listRoutines: vi.fn(),
 	loadRoutineLog: vi.fn(),
+	listMemory: vi.fn(),
+	newMemoryId: () => 'new-memory',
 	newScheduleId: () => 'new-id',
 	newTransactionId: () => 'new-txn'
 }));
@@ -421,5 +424,80 @@ describe('write tools', () => {
 		});
 		expect(plan.summary).toBe('Log 12 pages of Reading');
 		expect(plan.changes[0]).toMatchObject({ before: { value: 4 }, after: { value: 12 } });
+	});
+});
+
+describe('memory tools', () => {
+	const prefers = {
+		id: 'm1',
+		text: 'Prefers grading on Saturdays',
+		kind: 'preference',
+		updatedAt: 1
+	};
+	const room = { id: 'm2', text: 'DM is taught in room 304', kind: 'fact', updatedAt: 2 };
+
+	beforeEach(() => db.listMemory.mockResolvedValue([prefers, room]));
+
+	it('remembers something new', async () => {
+		const plan = await remember.plan!(ctx(), {
+			text: '  Calls the department head  Dr. Rahman ',
+			kind: 'fact',
+			replaces: null
+		});
+		expect(plan.summary).toBe('Remember “Calls the department head Dr. Rahman”');
+		expect(plan.changes).toEqual([
+			{
+				kind: 'memory',
+				id: 'new-memory',
+				before: null,
+				after: expect.objectContaining({
+					id: 'new-memory',
+					text: 'Calls the department head Dr. Rahman',
+					kind: 'fact'
+				})
+			}
+		]);
+	});
+
+	it("doesn't remember the same thing twice", async () => {
+		const plan = await remember.plan!(ctx(), {
+			text: 'prefers grading on saturdays',
+			kind: 'preference',
+			replaces: null
+		});
+		expect(plan.changes).toEqual([]);
+	});
+
+	it('corrects a memory by its id, and refuses unknown ids', async () => {
+		const plan = await remember.plan!(ctx(), {
+			text: 'DM is taught in room 210',
+			kind: 'fact',
+			replaces: 'm2'
+		});
+		expect(plan.changes).toEqual([
+			expect.objectContaining({
+				kind: 'memory',
+				id: 'm2',
+				before: room,
+				after: expect.objectContaining({ id: 'm2', text: 'DM is taught in room 210' })
+			})
+		]);
+		await expect(
+			remember.plan!(ctx(), { text: 'x', kind: 'fact', replaces: 'nope' })
+		).rejects.toThrow('recall');
+	});
+
+	it('forgets a memory, keeping it for undo', async () => {
+		const plan = await forget.plan!(ctx(), { id: 'm1' });
+		expect(plan.changes).toEqual([{ kind: 'memory', id: 'm1', before: prefers, after: null }]);
+		expect(forget.small).toBeFalsy();
+		expect(remember.small).toBe(true);
+	});
+
+	it('recalls by words', async () => {
+		expect(await recall.run!(ctx(), { query: 'room' })).toEqual([
+			{ id: 'm2', kind: 'fact', text: 'DM is taught in room 304' }
+		]);
+		expect(await recall.run!(ctx(), { query: null })).toHaveLength(2);
 	});
 });

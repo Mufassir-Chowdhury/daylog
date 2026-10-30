@@ -27,6 +27,11 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 13  | "move yesterday's unfinished stuff to today"                                           | `open_lines` (before today, 1 day); one `move_line` per open line                                             | cards         |
 | 14  | "what's up today?"                                                                     | `read_day` (today) and `schedule_snapshot`; no changes                                                        | —             |
 | 15  | (after dismissing #2's card) "ok"                                                      | doesn't propose #2 again                                                                                      | —             |
+| 16  | "I always grade on Saturdays, keep that in mind"                                       | `remember` (preference, about grading on Saturdays)                                                           | at once, Undo |
+| 17  | (new conversation, after #16) "plan the DM grading"                                    | uses the memory: proposes Saturday, no `recall` needed                                                        | card or task  |
+| 18  | "the DBMS lab is in room 304 now, not 210" (a memory says 210)                         | `remember` with `replaces` = that memory's id                                                                 | at once, Undo |
+| 19  | "forget that I like short answers"                                                     | `forget` (that memory's id)                                                                                   | card          |
+| 20  | "add grading DM to later"                                                              | `add_task` only — no `remember` (the app stores tasks)                                                        | at once, Undo |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.

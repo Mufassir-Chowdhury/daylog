@@ -19,6 +19,8 @@
 		upsert
 	} from '$lib/schedule';
 	import { saveFailed } from '$lib/toast.svelte';
+	import { dateKey } from '$lib/date';
+	import InboxList from './InboxList.svelte';
 
 	let {
 		uid,
@@ -79,6 +81,10 @@
 			full schedule →
 		</a>
 	</h2>
+
+	{#if date === dateKey()}
+		<div class="mb-4 empty:hidden"><InboxList {uid} /></div>
+	{/if}
 
 	{#if items.length === 0 && dayTasks.length === 0 && soon.length === 0}
 		<p class="text-sm text-faint">Nothing on the schedule for this day.</p>

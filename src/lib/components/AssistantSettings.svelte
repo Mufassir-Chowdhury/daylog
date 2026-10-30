@@ -15,7 +15,21 @@
 	import { ALL_TOOLS } from '$lib/ai/tools';
 	import { keyStatus, saveKey } from '$lib/ai/transport';
 	import { PROVIDERS, type ModelInfo, type ModelSlot, type ProviderId } from '$lib/ai/types';
-	import { loadAssistantConfig, saveAssistantConfig } from '$lib/db';
+	import {
+		cleanMemoryText,
+		MEMORY_MAX_TEXT,
+		sortMemory,
+		type MemoryItem,
+		type MemoryKind
+	} from '$lib/ai/memory';
+	import {
+		deleteMemory,
+		listMemory,
+		loadAssistantConfig,
+		newMemoryId,
+		saveAssistantConfig,
+		saveMemory
+	} from '$lib/db';
 	import { desktop } from '$lib/desktop';
 	import { saveFailed, toast } from '$lib/toast.svelte';
 
@@ -137,6 +151,40 @@
 	function setPermission(tool: string, auto: boolean) {
 		config.permissions[tool] = auto ? 'auto' : 'ask';
 		persist();
+	}
+
+	// ——— What it remembers (synced).
+	let memory: MemoryItem[] = $state([]);
+	listMemory(uid)
+		.then((items) => (memory = sortMemory(items)))
+		.catch(() => {});
+	let newMemory = $state('');
+	let newKind: MemoryKind = $state('preference');
+	let editing: { id: string; text: string } | null = $state(null);
+
+	function addMemory() {
+		const text = cleanMemoryText(newMemory);
+		if (!text) return;
+		const item: MemoryItem = { id: newMemoryId(uid), text, kind: newKind, updatedAt: Date.now() };
+		memory = [item, ...memory];
+		newMemory = '';
+		saveMemory(uid, item).catch(saveFailed);
+	}
+
+	function saveEdit() {
+		if (!editing) return;
+		const { id } = editing;
+		const text = cleanMemoryText(editing.text);
+		editing = null;
+		if (!text) return forgetMemory(id);
+		memory = memory.map((m) => (m.id === id ? { ...m, text, updatedAt: Date.now() } : m));
+		const item = memory.find((m) => m.id === id);
+		if (item) saveMemory(uid, $state.snapshot(item)).catch(saveFailed);
+	}
+
+	function forgetMemory(id: string) {
+		memory = memory.filter((m) => m.id !== id);
+		deleteMemory(uid, id).catch(saveFailed);
 	}
 
 	const input = 'mt-1 block rounded-ctl border-line bg-card text-sm text-ink';
@@ -435,13 +483,98 @@
 			</p>
 		</div>
 
+		<!-- What it remembers (synced) -->
+		<div class="space-y-2">
+			<div>
+				<p class={subhead}>What it remembers</p>
+				<p class="text-xs text-faint">
+					Preferences and facts it keeps between conversations. It adds to this when you tell it
+					something lasting; edit or remove anything here.
+				</p>
+			</div>
+			{#if memory.length}
+				<ul class="divide-y divide-line rounded-ctl border border-line">
+					{#each memory as item (item.id)}
+						<li class="flex items-start gap-2 px-3 py-2 text-sm">
+							<span class="mt-0.5 shrink-0 text-xs text-faint"
+								>{item.kind === 'preference' ? 'Preference' : 'Fact'}</span
+							>
+							{#if editing?.id === item.id}
+								<form
+									class="flex min-w-0 flex-1 gap-2"
+									onsubmit={(e) => {
+										e.preventDefault();
+										saveEdit();
+									}}
+								>
+									<input
+										bind:value={editing.text}
+										maxlength={MEMORY_MAX_TEXT}
+										aria-label="Memory"
+										class="min-w-0 flex-1 rounded-ctl border-line bg-card py-1 text-sm text-ink"
+									/>
+									<button type="submit" class="text-xs font-medium text-accent hover:underline"
+										>Save</button
+									>
+								</form>
+							{:else}
+								<span class="min-w-0 flex-1 text-ink">{item.text}</span>
+								<button
+									type="button"
+									onclick={() => (editing = { id: item.id, text: item.text })}
+									class="text-xs text-mute hover:text-ink">Edit</button
+								>
+								<button
+									type="button"
+									onclick={() => forgetMemory(item.id)}
+									aria-label="Forget: {item.text}"
+									class="text-xs text-mute hover:text-red-600">Forget</button
+								>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="text-xs text-faint">Nothing yet.</p>
+			{/if}
+			<form
+				class="flex flex-wrap items-center gap-2"
+				onsubmit={(e) => {
+					e.preventDefault();
+					addMemory();
+				}}
+			>
+				<select
+					bind:value={newKind}
+					aria-label="Memory kind"
+					class="rounded-ctl border-line bg-card py-1 text-sm text-ink"
+				>
+					<option value="preference">Preference</option>
+					<option value="fact">Fact</option>
+				</select>
+				<input
+					bind:value={newMemory}
+					maxlength={MEMORY_MAX_TEXT}
+					placeholder="e.g. Prefers deadlines planned a week ahead"
+					aria-label="New memory"
+					class="min-w-0 flex-1 rounded-ctl border-line bg-card py-1 text-sm text-ink"
+				/>
+				<button
+					type="submit"
+					disabled={!newMemory.trim()}
+					class="rounded-ctl border border-line px-3 py-1 text-sm text-mute hover:text-ink disabled:opacity-50"
+					>Add</button
+				>
+			</form>
+		</div>
+
 		<!-- Changes it may make without asking (synced) -->
 		<div class="space-y-2">
 			<div>
 				<p class={subhead}>Changes it makes without asking</p>
 				<p class="text-xs text-faint">
 					Ticked kinds happen at once and show a bubble with Undo. The rest wait as a card in the
-					chat for you to apply. It never deletes anything.
+					chat and the Inbox for you to apply. It never deletes anything but its own memories.
 				</p>
 			</div>
 			<div class="grid gap-1.5 sm:grid-cols-2">

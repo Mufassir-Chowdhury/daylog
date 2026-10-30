@@ -3,6 +3,7 @@ import { ACTIVITY_TOOLS } from './activity';
 import { DAY_TOOLS } from './days';
 import { FINANCE_TOOLS } from './finance';
 import { LONGTERM_TOOLS } from './longterm';
+import { MEMORY_TOOLS } from './memory';
 import { NOTE_TOOLS } from './notes';
 import { PEOPLE_TOOLS } from './people';
 import type { Tool } from './registry';
@@ -19,5 +20,6 @@ export const ALL_TOOLS: Tool[] = [
 	...ROUTINE_TOOLS,
 	...FINANCE_TOOLS,
 	...ACTIVITY_TOOLS,
-	...UI_TOOLS
+	...UI_TOOLS,
+	...MEMORY_TOOLS
 ];

@@ -7,6 +7,7 @@ import { editDayLines, type LineEdit } from '../capture';
 import {
 	deleteDeadline,
 	deleteEvent,
+	deleteMemory,
 	deleteLongTermTask,
 	deleteNote,
 	deleteSlot,
@@ -15,6 +16,7 @@ import {
 	saveDeadline,
 	saveEvent,
 	saveLongTermTask,
+	saveMemory,
 	saveNote,
 	savePerson,
 	saveRoutineValue,
@@ -64,6 +66,8 @@ function write(uid: string, c: Change): Promise<void> {
 			const { date, routineId } = (c.after ?? c.before)!;
 			return saveRoutineValue(uid, date, routineId, c.after?.value ?? null);
 		}
+		case 'memory':
+			return c.after ? saveMemory(uid, c.after) : deleteMemory(uid, c.id);
 		case 'dayLine':
 			// Day lines are written per day in `commit`.
 			return Promise.resolve();

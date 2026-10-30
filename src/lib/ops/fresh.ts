@@ -7,6 +7,7 @@ import {
 	listDeadlines,
 	listEvents,
 	listLongTermTasks,
+	listMemory,
 	listSlots,
 	listTasks,
 	listTransactions,
@@ -35,6 +36,8 @@ async function current(uid: string, c: Change): Promise<unknown> {
 			return byId(listTransactions(uid));
 		case 'longterm':
 			return byId(listLongTermTasks(uid));
+		case 'memory':
+			return byId(listMemory(uid));
 		case 'weekNote':
 			return (await listWeekNotes(uid)).find((n) => n.week === c.id) ?? null;
 		case 'note': {

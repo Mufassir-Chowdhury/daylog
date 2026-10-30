@@ -7,6 +7,7 @@
 	import { logOut, session } from '$lib/auth.svelte';
 	import { startActivitySync } from '$lib/activity-sync';
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
+	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { appendToDay } from '$lib/capture';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
@@ -93,6 +94,13 @@
 			offNavigate();
 			offCapture();
 		};
+	});
+
+	// ——— Assistant: the Inbox stays live while signed in (not in the quick bar).
+	$effect(() => {
+		const uid = session.user?.uid;
+		if (!uid || isQuick) return;
+		return startInbox(uid);
 	});
 
 	// ——— Assistant: a question handed over in the URL (`?ask=`, from the quick bar) opens it.

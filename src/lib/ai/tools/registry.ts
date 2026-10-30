@@ -37,8 +37,11 @@ export interface Proposal extends Plan {
 
 export interface Tool {
 	def: ToolDef;
-	/** Tools of an area switched off in Settings are left out. `ui` tools are always there. */
-	area: DataArea | 'ui';
+	/**
+	 * Tools of an area switched off in Settings are left out. `ui` tools and the
+	 * assistant's own (memory) are always there.
+	 */
+	area: DataArea | 'ui' | 'assistant';
 	/** `ui` acts on the screen only (opening a page); background runs get `read` tools only. */
 	kind: 'read' | 'write' | 'ui';
 	/** What it's doing, in a few words, for the chat ("Checking your schedule"). */
@@ -61,7 +64,7 @@ export function cached<T>(ctx: ToolContext, key: string, load: () => Promise<T>)
 }
 
 export function toolsFor(config: AssistantConfig, all: Tool[]): Tool[] {
-	return all.filter((t) => t.area === 'ui' || config.areas[t.area]);
+	return all.filter((t) => t.area === 'ui' || t.area === 'assistant' || config.areas[t.area]);
 }
 
 /** Where a value breaks the schema, or null when it fits. */

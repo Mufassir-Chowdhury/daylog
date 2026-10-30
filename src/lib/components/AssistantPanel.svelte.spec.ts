@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 import { assistant, newConversation } from '$lib/ai/assistant.svelte';
 import { DEFAULT_CONFIG } from '$lib/ai/config';
+import { inbox } from '$lib/ai/inbox.svelte';
 import { AiError, type RunResult, type SendRequest } from '$lib/ai/types';
 import AssistantPanel from './AssistantPanel.svelte';
 
@@ -10,7 +11,16 @@ const db = vi.hoisted(() => ({
 	loadAssistantConfig: vi.fn(),
 	saveAssistantConfig: vi.fn(async () => {}),
 	loadDay: vi.fn(),
-	listTasks: vi.fn()
+	listTasks: vi.fn(),
+	listMemory: vi.fn(async () => [] as unknown[]),
+	listThreads: vi.fn(async () => []),
+	pruneThreads: vi.fn(async () => {}),
+	saveThread: vi.fn(async () => {}),
+	newThreadId: () => 'thread-1',
+	newInboxId: vi.fn(() => 'card-1'),
+	saveInboxItem: vi.fn(async () => {}),
+	watchInbox: vi.fn(() => () => {}),
+	deleteInboxItem: vi.fn(async () => {})
 }));
 const writes = vi.hoisted(() => ({
 	commit: vi.fn<(uid: string, changes: unknown[]) => Promise<void>>(async () => {}),
@@ -46,8 +56,14 @@ const reply = (over: Partial<RunResult>): RunResult => ({
 	...over
 });
 
+let cardIds = 0;
+
 beforeEach(() => {
 	newConversation();
+	inbox.items = [];
+	db.newInboxId.mockImplementation(() => `card-${++cardIds}`);
+	db.listMemory.mockResolvedValue([]);
+	db.saveInboxItem.mockClear();
 	assistant.open = true;
 	db.loadAssistantConfig.mockResolvedValue(structuredClone(DEFAULT_CONFIG));
 	db.loadDay.mockResolvedValue('21:00 gym');
@@ -228,5 +244,77 @@ describe('AssistantPanel', () => {
 			'u1',
 			expect.objectContaining({ permissions: { set_task_status: 'auto' } })
 		);
+	});
+
+	it('keeps proposals in the Inbox and the conversation in Firestore', async () => {
+		db.listTasks.mockResolvedValue([task]);
+		callsThen('set_task_status', { id: 't1', status: 'done', note: null }, 'Proposed.');
+		const screen = render(AssistantPanel);
+		await askAndWait(screen, 'grading done', 'Proposed.');
+		expect(db.saveInboxItem).toHaveBeenCalledWith(
+			'u1',
+			expect.objectContaining({
+				kind: 'proposal',
+				source: 'chat',
+				title: 'Mark “Grade DM” done',
+				tool: 'set_task_status',
+				status: 'pending',
+				changes: [expect.objectContaining({ kind: 'task', id: 't1' })]
+			})
+		);
+		await screen.getByRole('button', { name: 'Dismiss' }).click();
+		await expect.element(screen.getByText('Dismissed')).toBeInTheDocument();
+		expect(db.saveInboxItem).toHaveBeenLastCalledWith(
+			'u1',
+			expect.objectContaining({ status: 'dismissed' })
+		);
+		// The conversation was saved with the card's id and the provider history.
+		const saved = db.saveThread.mock.calls.at(-1) as unknown as [string, Record<string, string>];
+		expect(saved[1]).toMatchObject({ id: 'thread-1', history: '["u1","a1","u2","a2"]' });
+		expect(JSON.parse(saved[1].entries)[1].cards).toEqual([expect.stringMatching(/^card-/)]);
+	});
+
+	it('tells it what it remembers at the start of a conversation only', async () => {
+		db.listMemory.mockResolvedValue([
+			{ id: 'm1', text: 'Prefers short answers', kind: 'preference', updatedAt: 1 }
+		]);
+		send
+			.mockResolvedValueOnce(reply({ text: 'One.', messages: ['u1', 'a1'] }))
+			.mockResolvedValueOnce(reply({ text: 'Two.', messages: ['u2', 'a2'] }));
+		const screen = render(AssistantPanel);
+		await askAndWait(screen, 'first', 'One.');
+		await askAndWait(screen, 'second', 'Two.');
+		const text = (i: number) => {
+			const turn = send.mock.calls[i][0].turn;
+			return turn.kind === 'user' ? turn.text : '';
+		};
+		expect(text(0)).toContain('- [m1] (preference) Prefers short answers');
+		expect(text(1)).not.toContain('<memory>');
+	});
+
+	it('shows Inbox cards from elsewhere above the conversation', async () => {
+		inbox.items = [
+			{
+				id: 'other',
+				kind: 'proposal',
+				source: 'checkin',
+				title: 'Move “Grade DM” to tomorrow',
+				body: '',
+				tool: 'move_task',
+				details: ['Date: 2026-10-30 → 2026-10-31'],
+				changes: [],
+				status: 'pending',
+				signalKey: '',
+				priority: 0,
+				createdAt: Date.now(),
+				expiresAt: Date.now() + 60_000
+			}
+		];
+		const screen = render(AssistantPanel);
+		await expect.element(screen.getByText('Waiting for you')).toBeInTheDocument();
+		await expect.element(screen.getByText('Move “Grade DM” to tomorrow')).toBeInTheDocument();
+		await screen.getByRole('button', { name: 'Apply' }).click();
+		await expect.element(screen.getByText('Applied')).toBeInTheDocument();
+		expect(writes.commit).toHaveBeenCalledTimes(1);
 	});
 });

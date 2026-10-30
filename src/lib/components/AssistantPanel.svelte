@@ -2,26 +2,31 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import {
-		applyCard,
 		ask,
 		assistant,
 		closeAssistant,
-		dismissCard,
 		newConversation,
 		refreshIdentity,
+		restoreConversation,
 		undoAction,
-		undoCard,
 		type ChatEntry
 	} from '$lib/ai/assistant.svelte';
+	import { inboxItem } from '$lib/ai/inbox.svelte';
 	import { describeView } from '$lib/ai/prompt';
 	import { session } from '$lib/auth.svelte';
 	import { go } from '$lib/nav';
 	import { tick } from 'svelte';
 	import Icon from './Icon.svelte';
+	import InboxCard from './InboxCard.svelte';
+	import InboxList from './InboxList.svelte';
 
 	const uid = session.user!.uid;
 	const displayName = session.user!.displayName;
 	refreshIdentity(uid, displayName);
+	restoreConversation(uid);
+
+	/** Cards already in the conversation; the rest of the Inbox shows above it. */
+	const inChat = $derived(assistant.entries.flatMap((e) => e.cards ?? []));
 
 	let draft = $state('');
 	let input: HTMLTextAreaElement | undefined = $state();
@@ -97,64 +102,13 @@
 			{/if}
 		</p>
 	{/each}
-	{#each entry.cards ?? [] as card (card.id)}
-		<div
-			class="rounded-card border border-line bg-card p-3 shadow-card"
-			role="group"
-			aria-label="Proposed change"
-		>
-			<p class="text-sm font-medium text-ink">{card.summary}</p>
-			{#if card.details.length}
-				<ul class="mt-1 space-y-0.5 text-xs text-faint">
-					{#each card.details as line, i (i)}<li>{line}</li>{/each}
-				</ul>
-			{/if}
-			<div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
-				{#if card.status === 'pending' || card.status === 'working'}
-					<button
-						type="button"
-						onclick={() => applyCard(uid, card)}
-						disabled={card.status === 'working'}
-						class="rounded-ctl bg-accent-fill px-3 py-1 font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
-					>
-						{card.status === 'working' ? 'Applying…' : 'Apply'}
-					</button>
-					<button
-						type="button"
-						onclick={() => dismissCard(card)}
-						disabled={card.status === 'working'}
-						class="rounded-ctl px-3 py-1 text-mute hover:bg-tint hover:text-ink disabled:opacity-50"
-					>
-						Dismiss
-					</button>
-					<label class="ml-auto flex items-center gap-1.5 text-xs text-faint">
-						<input
-							type="checkbox"
-							bind:checked={card.always}
-							class="rounded border-line bg-card text-accent-fill"
-						/>
-						Always do this without asking
-					</label>
-				{:else if card.status === 'applied'}
-					<span class="flex items-center gap-1 text-accent"
-						><Icon name="check" size={14} /> Applied</span
-					>
-					<button
-						type="button"
-						onclick={() => undoCard(uid, card)}
-						class="text-xs font-medium text-accent hover:underline">Undo</button
-					>
-				{:else if card.status === 'undone'}
-					<span class="text-faint">Applied, then undone</span>
-				{:else if card.status === 'dismissed'}
-					<span class="text-faint">Dismissed</span>
-				{:else}
-					<span class="text-amber-600 dark:text-amber-400"
-						>Things changed since this was proposed — ask again.</span
-					>
-				{/if}
-			</div>
-		</div>
+	{#each entry.cards ?? [] as id (id)}
+		{@const item = inboxItem(id)}
+		{#if item}
+			<InboxCard {uid} {item} />
+		{:else}
+			<p class="text-xs text-faint">A proposal that's no longer in the Inbox.</p>
+		{/if}
 	{/each}
 {/snippet}
 
@@ -196,6 +150,7 @@
 		</header>
 
 		<div bind:this={list} class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+			<InboxList {uid} exclude={inChat} title="Waiting for you" />
 			{#each assistant.entries as entry (entry.id)}
 				{#if entry.role === 'user'}
 					<p

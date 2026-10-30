@@ -5,22 +5,32 @@
  * palette's `?`, the quick bar).
  *
  * Changes (docs/assistant/decisions.md): small additions are applied at once
- * and shown in a bubble with Undo; everything else becomes a card you apply or
- * dismiss. What you did with a card is told to the assistant with your next
- * message.
+ * and shown in a bubble with Undo; everything else becomes an Inbox card
+ * (`inbox.svelte.ts`) you apply or dismiss, shown in the chat too. What you did
+ * with a card is told to the assistant with your next message.
+ *
+ * The conversation is saved (`assistantThreads`), so a reload picks it up again.
  */
-import { invalidateAll } from '$app/navigation';
 import { dateKey } from '../date';
-import { loadAssistantConfig, saveAssistantConfig } from '../db';
+import {
+	listMemory,
+	listThreads,
+	loadAssistantConfig,
+	newInboxId,
+	newThreadId,
+	pruneThreads,
+	saveThread
+} from '../db';
 import { invert, type Change } from '../ops/change';
-import { commit } from '../ops/commit';
 import { describeChange } from '../ops/describe';
-import { staleChanges } from '../ops/fresh';
-import { saveFailed, toast } from '../toast.svelte';
+import { toast } from '../toast.svelte';
 import { runAgent } from './agent';
 import { addressName, DEFAULT_CONFIG, permissionFor, type AssistantConfig } from './config';
 import { loadDevicePrefs } from './device';
+import { PROPOSAL_LIFETIME } from './inbox';
+import { applyChanges, forgetOutcomes, noteOutcome, outcomesSoFar, putItem } from './inbox.svelte';
 import { loadAdapter } from './index';
+import { memoryBlock } from './memory';
 import { contextBlock } from './prompt';
 import { ALL_TOOLS } from './tools';
 import { toolsFor, type Proposal } from './tools/registry';
@@ -33,19 +43,6 @@ export interface DoneAction {
 	undone: boolean;
 }
 
-/** A change waiting for you. */
-export interface Card {
-	id: number;
-	tool: string;
-	summary: string;
-	/** The changes in plain words. */
-	details: string[];
-	changes: Change[];
-	status: 'pending' | 'working' | 'applied' | 'undone' | 'dismissed' | 'stale';
-	/** Tick to stop asking for this kind of change. */
-	always: boolean;
-}
-
 export interface ChatEntry {
 	id: number;
 	role: 'user' | 'assistant' | 'error';
@@ -53,7 +50,8 @@ export interface ChatEntry {
 	/** What it looked at on the way. */
 	steps?: string[];
 	done?: DoneAction[];
-	cards?: Card[];
+	/** Ids of the Inbox cards it proposed. */
+	cards?: string[];
 	errorKind?: AiErrorKind;
 }
 
@@ -70,10 +68,12 @@ export const assistant = $state({
 	pending: ''
 });
 
-/** The provider-format history behind the messages. A provider or model switch starts afresh. */
-let thread: { provider: ProviderId; model: string; history: unknown[] } | null = null;
-/** What you did with its changes since its last reply, told with your next message. */
-let outcomes: string[] = [];
+/**
+ * The conversation being continued: its saved id and the provider-format
+ * history behind the messages. A provider or model switch starts the history
+ * afresh (the messages stay).
+ */
+let thread: { id: string; provider: ProviderId; model: string; history: unknown[] } | null = null;
 let nextId = 1;
 
 export function openAssistant(question = ''): void {
@@ -87,8 +87,64 @@ export function closeAssistant(): void {
 
 export function newConversation(): void {
 	thread = null;
-	outcomes = [];
+	forgetOutcomes();
 	assistant.entries = [];
+}
+
+// ——— Saving the conversation.
+
+/** A conversation untouched for longer than this isn't picked up again. */
+const RESUME_WITHIN = 12 * 3_600_000;
+/** Conversations kept in Firestore. */
+const KEEP_THREADS = 20;
+/** Past this the provider history isn't saved (a Firestore doc holds 1 MiB). */
+const MAX_HISTORY = 600_000;
+const MAX_ENTRIES = 250_000;
+
+let restored: string | null = null;
+
+/** Picks up the latest conversation after a reload (once per account). */
+export async function restoreConversation(uid: string): Promise<void> {
+	if (restored === uid) return;
+	restored = uid;
+	try {
+		const [latest] = await listThreads(uid, 1);
+		pruneThreads(uid, KEEP_THREADS).catch(() => {});
+		if (!latest || Date.now() - latest.updatedAt > RESUME_WITHIN) return;
+		// Something was asked meanwhile — that conversation wins.
+		if (thread || assistant.entries.length) return;
+		const entries = JSON.parse(latest.entries) as ChatEntry[];
+		thread = {
+			id: latest.id,
+			provider: latest.provider as ProviderId,
+			model: latest.model,
+			history: latest.history ? JSON.parse(latest.history) : []
+		};
+		assistant.entries = entries;
+		nextId = Math.max(nextId, ...entries.map((e) => e.id + 1));
+	} catch {
+		// Offline or a damaged save: start afresh.
+	}
+}
+
+function persist(uid: string): void {
+	if (!thread) return;
+	let history = JSON.stringify(thread.history);
+	if (history.length > MAX_HISTORY) history = '';
+	let entries = $state.snapshot(assistant.entries);
+	let json = JSON.stringify(entries);
+	while (json.length > MAX_ENTRIES && entries.length > 1) {
+		entries = entries.slice(Math.ceil(entries.length / 4));
+		json = JSON.stringify(entries);
+	}
+	saveThread(uid, {
+		id: thread.id,
+		provider: thread.provider,
+		model: thread.model,
+		history,
+		entries: json,
+		updatedAt: Date.now()
+	}).catch(() => {});
 }
 
 /** Picks up the name and form of address from Settings. */
@@ -102,67 +158,14 @@ export async function refreshIdentity(uid: string, displayName: string | null): 
 	}
 }
 
-// ——— Applying changes.
-
-/**
- * Writes the changes, then reloads the page's data so it shows them. Firestore
- * keeps a write locally straight away; the short wait just lets it register
- * before the reload reads.
- */
-async function applyChanges(uid: string, changes: Change[]): Promise<void> {
-	const saving = commit(uid, changes);
-	saving.catch(saveFailed);
-	await Promise.race([saving.catch(() => {}), new Promise((r) => setTimeout(r, 600))]);
-	await invalidateAll();
-}
-
-/** A bubble saying what it did, with Undo. */
-function bubble(summary: string, undo: () => void): void {
-	toast(`${summary}.`, { from: assistant.name, undo });
-}
+// ——— Changes it made straight away.
 
 export function undoAction(uid: string, action: DoneAction): void {
 	if (action.undone) return;
 	action.undone = true;
-	applyChanges(uid, invert(action.changes));
-	outcomes.push(`The owner undid: ${action.summary}.`);
-}
-
-export async function applyCard(uid: string, card: Card): Promise<void> {
-	if (card.status !== 'pending') return;
-	card.status = 'working';
-	try {
-		if ((await staleChanges(uid, card.changes)).length) {
-			card.status = 'stale';
-			outcomes.push(`Not applied — things had changed since you proposed it: ${card.summary}.`);
-			return;
-		}
-		if (card.always) {
-			const config = await loadAssistantConfig(uid);
-			config.permissions[card.tool] = 'auto';
-			saveAssistantConfig(uid, config).catch(saveFailed);
-		}
-		await applyChanges(uid, card.changes);
-		card.status = 'applied';
-		outcomes.push(`The owner applied: ${card.summary}.`);
-		bubble(card.summary, () => undoCard(uid, card));
-	} catch {
-		card.status = 'pending';
-		toast("Couldn't apply that — check your connection and try again.", { tone: 'error' });
-	}
-}
-
-export function undoCard(uid: string, card: Card): void {
-	if (card.status !== 'applied') return;
-	card.status = 'undone';
-	applyChanges(uid, invert(card.changes));
-	outcomes.push(`The owner undid: ${card.summary}.`);
-}
-
-export function dismissCard(card: Card): void {
-	if (card.status !== 'pending') return;
-	card.status = 'dismissed';
-	outcomes.push(`The owner dismissed: ${card.summary}.`);
+	applyChanges(uid, invert($state.snapshot(action.changes) as Change[]));
+	noteOutcome(`The owner undid: ${action.summary}.`);
+	persist(uid);
 }
 
 // ——— Asking.
@@ -175,32 +178,43 @@ export interface AskEnv {
 	navigate: (path: string) => void;
 }
 
-/** Applies small changes at once and turns the rest into cards; tells the model which. */
-function proposer(env: AskEnv, config: AssistantConfig, done: DoneAction[], cards: Card[]) {
+/** Applies small changes at once and turns the rest into Inbox cards; tells the model which. */
+function proposer(env: AskEnv, config: AssistantConfig, done: DoneAction[], cards: string[]) {
 	return async ({ tool, summary, changes }: Proposal): Promise<string> => {
 		if (permissionFor(config, tool.def.name, !!tool.small) === 'auto') {
 			await applyChanges(env.uid, changes);
 			const action: DoneAction = { summary, changes, undone: false };
 			done.push(action);
 			// Once the reply is shown the action lives in the chat (as a reactive copy); undo that one.
-			bubble(summary, () =>
-				undoAction(
-					env.uid,
-					assistant.entries.flatMap((e) => e.done ?? []).find((a) => a.changes === changes) ??
-						action
-				)
-			);
+			toast(`${summary}.`, {
+				from: assistant.name,
+				undo: () =>
+					undoAction(
+						env.uid,
+						assistant.entries.flatMap((e) => e.done ?? []).find((a) => a.changes === changes) ??
+							action
+					)
+			});
 			return `Done: ${summary}. It's applied; the owner can undo it.`;
 		}
-		cards.push({
-			id: nextId++,
+		const now = Date.now();
+		const id = newInboxId(env.uid);
+		putItem(env.uid, {
+			id,
+			kind: 'proposal',
+			source: 'chat',
+			title: summary,
+			body: '',
 			tool: tool.def.name,
-			summary,
 			details: changes.flatMap(describeChange),
 			changes,
 			status: 'pending',
-			always: false
+			signalKey: '',
+			priority: 0,
+			createdAt: now,
+			expiresAt: now + PROPOSAL_LIFETIME
 		});
+		cards.push(id);
 		return (
 			`Not applied yet: “${summary}” is shown to the owner as a card to apply or dismiss. ` +
 			"Mention it in a few words; don't ask for a yes in words or try another way."
@@ -215,7 +229,7 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 	assistant.busy = true;
 	assistant.step = '';
 	const done: DoneAction[] = [];
-	const cards: Card[] = [];
+	const cards: string[] = [];
 	try {
 		const prefs = loadDevicePrefs();
 		const config = await loadAssistantConfig(env.uid);
@@ -226,10 +240,15 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 		const provider = prefs.provider;
 		const model = prefs.models[provider].chat;
 		if (!thread || thread.provider !== provider || thread.model !== model)
-			thread = { provider, model, history: [] };
+			thread = { id: thread?.id ?? newThreadId(env.uid), provider, model, history: [] };
+		// What it remembers goes in front of a conversation's first message.
+		const memory = thread.history.length
+			? ''
+			: `${memoryBlock(await listMemory(env.uid).catch(() => []))}\n\n`;
 		const adapter = await loadAdapter(provider);
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a timestamp, not state
 		const now = new Date();
+		const outcomes = outcomesSoFar();
 		const told = outcomes.length
 			? `Since your last reply:\n${outcomes.map((o) => `- ${o}`).join('\n')}\n\n`
 			: '';
@@ -248,10 +267,10 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 				propose: proposer(env, config, done, cards)
 			},
 			history: thread.history,
-			message: `${contextBlock({ now, config, address, view: env.view })}\n\n${told}${text}`,
+			message: `${contextBlock({ now, config, address, view: env.view })}\n\n${memory}${told}${text}`,
 			onStep: (step) => (assistant.step = step)
 		});
-		outcomes = [];
+		forgetOutcomes(outcomes.length);
 		thread.history = result.history;
 		assistant.entries.push({
 			id: nextId++,
@@ -274,11 +293,13 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 			role: 'error',
 			text: error.message,
 			errorKind: error.kind,
-			// Anything already applied still shows, with its Undo.
-			done
+			// Anything already applied or proposed still shows.
+			done,
+			cards
 		});
 	} finally {
 		assistant.busy = false;
 		assistant.step = '';
+		persist(env.uid);
 	}
 }

@@ -166,9 +166,9 @@ API details: [research.md §3](docs/assistant/research.md#3-llm-providers).
 | Doc / collection         | Contents                                                                                                                                     |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `assistant/config`       | name, how it addresses you, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
-| `assistantMemory/{id}`   | `{ text, kind: preference / fact / summary, source, updatedAt }`, editable in Settings                                                       |
-| `assistantInbox/{id}`    | `{ kind, title, body, changes[], signalKey, priority, status, expiresAt, createdAt }`                                                        |
-| `assistantThreads/{id}`  | provider, model, raw transcript (capped)                                                                                                     |
+| `assistantMemory/{id}`   | `{ text, kind: preference / fact, updatedAt }`, editable in Settings                                                                         |
+| `assistantInbox/{id}`    | `{ kind, source, title, body, tool, details[], changes (JSON), signalKey, priority, status, expiresAt, createdAt }`                          |
+| `assistantThreads/{id}`  | `{ provider, model, history (JSON, dropped past 600 KB), entries (JSON), updatedAt }`; newest 20 kept                                        |
 | `assistantCheckins/{id}` | `{ at, why, done }` from `schedule_checkin`                                                                                                  |
 | `assistant/lease`        | `{ deviceId, until }`                                                                                                                        |
 | `assistant/feedback`     | applied / dismissed / muted counts per signal type                                                                                           |
@@ -213,10 +213,13 @@ told to the assistant with your next message. Open day, note and person pages re
 through themselves (`capture.ts`, `live.ts`). Settings list which kinds happen without asking.
 Eval cases in [docs/assistant/evals.md](docs/assistant/evals.md).
 
-### Step 4 — Memory and Inbox
+### Step 4 — Memory and Inbox ✅ (see progress.md)
 
-- `remember` / `recall` / `forget`; memory list in Settings.
-- `assistant/inbox`, `InboxList.svelte`, Inbox at the top of `PlanPanel.svelte`, expiry.
+`remember`★ / `forget` / `recall`, with memory sent at the start of each conversation and a list
+in Settings to add, edit and forget. Cards are stored in `assistantInbox` (live on every device),
+shown in the chat, at the top of the panel ("Waiting for you") and at the top of today's Plan
+panel; they expire after a week. Conversations are saved in `assistantThreads` and picked up after
+a reload.
 
 ### Step 5 — Proactive engine
 

@@ -7,7 +7,9 @@ const db = vi.hoisted(() => ({
 	saveNote: vi.fn(async () => {}),
 	savePerson: vi.fn(async () => {}),
 	saveTask: vi.fn(async () => {}),
-	deleteTask: vi.fn(async () => {})
+	deleteTask: vi.fn(async () => {}),
+	saveMemory: vi.fn(async () => {}),
+	deleteMemory: vi.fn(async () => {})
 }));
 vi.mock('../db', () => db);
 vi.mock('../capture', () => ({ editDayLines: vi.fn(async () => {}) }));
@@ -50,5 +52,13 @@ describe('commit', () => {
 		await commit('u', [change('task', null, task), change('task', task, null)]);
 		expect(db.saveTask).toHaveBeenCalled();
 		expect(db.deleteTask).toHaveBeenCalledWith('u', 't');
+	});
+
+	it('remembers and forgets', async () => {
+		const memory = { id: 'm', text: 'Prefers mornings', kind: 'preference', updatedAt: 1 } as const;
+		await commit('u', [change('memory', null, memory)]);
+		expect(db.saveMemory).toHaveBeenCalledWith('u', memory);
+		await commit('u', [change('memory', memory, null)]);
+		expect(db.deleteMemory).toHaveBeenCalledWith('u', 'm');
 	});
 });
