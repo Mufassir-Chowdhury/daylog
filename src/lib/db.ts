@@ -9,6 +9,7 @@ import {
 	onSnapshot,
 	orderBy,
 	query,
+	runTransaction,
 	serverTimestamp,
 	setDoc,
 	where,
@@ -19,6 +20,8 @@ import type { ActivityCategory, ActivityGoal, ActivitySpan } from './activity';
 import { normalizeConfig, type AssistantConfig } from './ai/config';
 import type { InboxItem } from './ai/inbox';
 import type { MemoryItem } from './ai/memory';
+import { nextAttempt, recordId, type CheckinRecord } from './ai/scheduler';
+import type { Checkin } from './ai/config';
 import { cleanGoals } from './activity';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
@@ -227,6 +230,7 @@ const assistantConfigDoc = (uid: string) => doc(db, 'users', uid, 'assistant', '
 const memoryCol = (uid: string) => collection(db, 'users', uid, 'assistantMemory');
 const inboxCol = (uid: string) => collection(db, 'users', uid, 'assistantInbox');
 const threadsCol = (uid: string) => collection(db, 'users', uid, 'assistantThreads');
+const checkinsCol = (uid: string) => collection(db, 'users', uid, 'assistantCheckins');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -361,6 +365,52 @@ export async function listThreads(uid: string, count: number): Promise<SavedThre
 			updatedAt: Number(data.updatedAt ?? 0)
 		};
 	});
+}
+
+function toCheckinRecord(data: Record<string, unknown>): CheckinRecord {
+	return {
+		date: String(data.date ?? ''),
+		checkinId: String(data.checkinId ?? ''),
+		status: (data.status as CheckinRecord['status']) ?? 'failed',
+		at: Number(data.at ?? 0),
+		attempts: Number(data.attempts ?? 0),
+		device: String(data.device ?? '')
+	};
+}
+
+/** What ran (or was skipped) on `date`. */
+export async function listCheckinRecords(uid: string, date: string): Promise<CheckinRecord[]> {
+	const snap = await getDocs(query(checkinsCol(uid), where('date', '==', date)));
+	return snap.docs.map((d) => toCheckinRecord(d.data()));
+}
+
+/**
+ * Claims a run of `checkin` for this device, unless another run already holds
+ * it. A transaction, so two devices can't both claim it. Needs the network.
+ */
+export async function claimCheckin(
+	uid: string,
+	checkin: Checkin,
+	date: string,
+	device: string
+): Promise<CheckinRecord | null> {
+	const ref = doc(checkinsCol(uid), recordId(date, checkin.id));
+	return runTransaction(db, async (tx) => {
+		const snap = await tx.get(ref);
+		const next = nextAttempt(
+			snap.exists() ? toCheckinRecord(snap.data()) : null,
+			checkin,
+			date,
+			device,
+			Date.now()
+		);
+		if (next) tx.set(ref, next);
+		return next;
+	});
+}
+
+export async function saveCheckinRecord(uid: string, record: CheckinRecord): Promise<void> {
+	await setDoc(doc(checkinsCol(uid), recordId(record.date, record.checkinId)), record);
 }
 
 /** Deletes all but the newest `keep` conversations. */

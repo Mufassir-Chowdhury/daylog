@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                   |
-| ---- | ------------------------------- | ------------------------ |
-| 0    | Ops layer                       | ✅ done 2026-10-30       |
-| 1    | Providers and settings          | ✅ done 2026-10-30       |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30       |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30       |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30       |
-| 5    | Proactive engine (5.1–5.7)      | 5.1 ✅ · ⏭ **next: 5.2** |
-| 6    | Feature packs                   | not started              |
-| 7    | Evaluation and tuning           | not started              |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled    |
+| Step | What                            | Status                       |
+| ---- | ------------------------------- | ---------------------------- |
+| 0    | Ops layer                       | ✅ done 2026-10-30           |
+| 1    | Providers and settings          | ✅ done 2026-10-30           |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30           |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30           |
+| 5    | Proactive engine (5.1–5.7)      | 5.1–5.2 ✅ · ⏭ **next: 5.3** |
+| 6    | Feature packs                   | not started                  |
+| 7    | Evaluation and tuning           | not started                  |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled        |
 
 ---
 
@@ -408,7 +408,7 @@ engine and two detectors that prove it.
 | Part   | What                              | Done when                                                                                           |
 | ------ | --------------------------------- | --------------------------------------------------------------------------------------------------- |
 | 5.1 ✅ | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
-| 5.2    | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
+| 5.2 ✅ | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
 | 5.3    | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
 | 5.4    | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
 | 5.5    | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
@@ -452,6 +452,31 @@ engine and two detectors that prove it.
   runs.
 - `assistantCheckins/{date_id}` records each run (`{ at, device, status }`) so it never runs
   twice; daily cap counts unprompted cards (`maxCardsPerDay`).
+
+**Done 2026-10-30.** Built:
+
+- `src/lib/ai/scheduler.ts` (pure):
+  - `CheckinRecord { date, checkinId, status: running | done | failed | skipped, at, attempts,
+device }`, stored at `assistantCheckins/{date}_{checkinId}`.
+  - `dueCheckins(config, now, today, records) → { run, skip }`. **Only the latest passed
+    check-in can run**; earlier ones never started today are marked skipped (a warm-up is no use
+    at 6 PM). Nothing carries past midnight. Differs from the first sketch, which ran every
+    missed one.
+  - Failed runs retry after 15 minutes, at most 3 attempts; a run "running" for 10 minutes is
+    taken as dead and retried.
+  - `nextAttempt(existing, …)` — the record for a new attempt, or null when one still blocks.
+  - `cardsLeftToday(config, items, now)` — `maxCardsPerDay` minus today's unprompted cards
+    (source `checkin` without a `checkin:` key, i.e. from detectors). Used from 5.6.
+- `db.ts`: `listCheckinRecords`, `claimCheckin` (Firestore **transaction** around
+  `nextAttempt`, so two devices can't both claim; needs the network), `saveCheckinRecord`.
+- `device.ts`: `deviceId()` — a random id per browser profile / desktop app.
+- `checkin.ts`: `runDueCheckins(uid, displayName, now?)` — skips without a key or with the
+  background budget used up (no wasted attempts); marks skipped ones; claims; runs; records done
+  or failed. One run at a time per tab. **Nothing calls it yet** — 5.4 (web) and 5.5 (desktop)
+  will. Quiet hours don't stop runs (5.7 holds back notifications).
+- Tests: `scheduler.spec.ts` (8) and `runDueCheckins` in `checkin.spec.ts` (due + skipped
+  recorded, claimed elsewhere, failure recorded, no key). Totals: 31 files, 276 tests; lint,
+  types, both builds OK.
 
 ### 5.3 — Lease
 

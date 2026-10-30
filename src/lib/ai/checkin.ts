@@ -5,20 +5,31 @@
  * plus a proposal card for each change it suggests. Nothing is applied: in a
  * check-in even small additions wait for you.
  *
- * When check-ins run on their own is Step 5.2 onwards; for now Settings has
- * "Run now".
+ * `runDueCheckins` runs whatever the scheduler says is due (called by the web
+ * and desktop triggers, Steps 5.4–5.5); Settings' "Run now" calls `runCheckin`
+ * directly.
  */
 import { dateKey } from '../date';
-import { listMemory, loadAssistantConfig, newInboxId } from '../db';
+import {
+	claimCheckin,
+	listCheckinRecords,
+	listMemory,
+	loadAssistantConfig,
+	newInboxId,
+	saveCheckinRecord
+} from '../db';
 import { describeChange } from '../ops/describe';
 import { runAgent } from './agent';
 import { addressName, type Checkin } from './config';
-import { loadDevicePrefs } from './device';
+import { withinBudget } from './budget';
+import { deviceId, loadDevicePrefs } from './device';
 import { PROPOSAL_LIFETIME, type InboxItem } from './inbox';
 import { putItem } from './inbox.svelte';
 import { loadAdapter } from './index';
 import { memoryBlock } from './memory';
 import { checkinMessage, contextBlock } from './prompt';
+import { dueCheckins } from './scheduler';
+import { keyStatus } from './transport';
 import { ALL_TOOLS } from './tools';
 import { toolsFor, type Proposal } from './tools/registry';
 
@@ -124,4 +135,51 @@ export async function runCheckin(
 	};
 	putItem(uid, brief);
 	return { brief, proposals };
+}
+
+let running = false;
+
+/**
+ * Runs the check-in that's due now, if any, and records it so no device runs
+ * it again. Returns what it left in the Inbox, or null when nothing ran.
+ * Does nothing without a key or with the background budget used up, so no
+ * attempt is wasted.
+ */
+export async function runDueCheckins(
+	uid: string,
+	displayName: string | null,
+	now: Date = new Date()
+): Promise<CheckinResult | null> {
+	if (running) return null;
+	running = true;
+	try {
+		const prefs = loadDevicePrefs();
+		if (!withinBudget('background', prefs) || !(await keyStatus())[prefs.provider]) return null;
+		const config = await loadAssistantConfig(uid);
+		const today = dateKey(now);
+		const { run, skip } = dueCheckins(config, now, today, await listCheckinRecords(uid, today));
+		const device = deviceId();
+		for (const c of skip)
+			saveCheckinRecord(uid, {
+				date: today,
+				checkinId: c.id,
+				status: 'skipped',
+				at: now.getTime(),
+				attempts: 0,
+				device
+			}).catch(() => {});
+		if (!run) return null;
+		const claim = await claimCheckin(uid, run, today, device);
+		if (!claim) return null;
+		try {
+			const result = await runCheckin(uid, run, displayName, now);
+			await saveCheckinRecord(uid, { ...claim, status: 'done' });
+			return result;
+		} catch (e) {
+			await saveCheckinRecord(uid, { ...claim, status: 'failed' }).catch(() => {});
+			throw e;
+		}
+	} finally {
+		running = false;
+	}
 }

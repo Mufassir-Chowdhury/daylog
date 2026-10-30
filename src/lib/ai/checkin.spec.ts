@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { runCheckin } from './checkin';
+import { runCheckin, runDueCheckins } from './checkin';
 import { DEFAULT_CHECKINS, DEFAULT_CONFIG } from './config';
 import type { InboxItem } from './inbox';
 import type { RunResult, SendRequest } from './types';
@@ -10,8 +10,13 @@ const db = vi.hoisted(() => ({
 	listTasks: vi.fn(async () => []),
 	loadDay: vi.fn(async () => 'call mom'),
 	newScheduleId: () => 'task-new',
-	newInboxId: vi.fn()
+	newInboxId: vi.fn(),
+	listCheckinRecords: vi.fn(async () => [] as unknown[]),
+	claimCheckin: vi.fn(),
+	saveCheckinRecord: vi.fn(async () => {})
 }));
+const keys = vi.hoisted(() => ({ anthropic: true, gemini: false }));
+vi.mock('./transport', () => ({ keyStatus: async () => keys }));
 const putItem = vi.hoisted(() => vi.fn<(uid: string, item: InboxItem) => void>());
 const commit = vi.hoisted(() => vi.fn());
 const send = vi.hoisted(() => vi.fn<(req: SendRequest) => Promise<RunResult>>());
@@ -41,6 +46,10 @@ beforeEach(() => {
 	putItem.mockClear();
 	commit.mockClear();
 	send.mockReset();
+	keys.anthropic = true;
+	db.listCheckinRecords.mockResolvedValue([]);
+	db.claimCheckin.mockReset();
+	db.saveCheckinRecord.mockClear();
 });
 
 describe('runCheckin', () => {
@@ -117,5 +126,59 @@ describe('runCheckin', () => {
 		send.mockResolvedValueOnce(reply({ text: '', stop: 'refusal' }));
 		expect(await runCheckin('u1', evening, null, NOW)).toEqual({ brief: null, proposals: [] });
 		expect(putItem).not.toHaveBeenCalled();
+	});
+});
+
+describe('runDueCheckins', () => {
+	const claimed = (checkinId: string) => ({
+		date: '2026-10-30',
+		checkinId,
+		status: 'running',
+		at: NOW.getTime(),
+		attempts: 1,
+		device: 'd'
+	});
+
+	it('runs the due check-in, skips the missed one and records both', async () => {
+		db.claimCheckin.mockImplementation(async (_u, c) => claimed(c.id));
+		send.mockResolvedValueOnce(reply({ text: 'Evening.' }));
+		const result = await runDueCheckins('u1', null, NOW);
+		expect(result?.brief?.body).toBe('Evening.');
+		expect(db.claimCheckin).toHaveBeenCalledWith(
+			'u1',
+			expect.objectContaining({ id: 'evening' }),
+			'2026-10-30',
+			expect.any(String)
+		);
+		expect(db.saveCheckinRecord).toHaveBeenCalledWith(
+			'u1',
+			expect.objectContaining({ checkinId: 'warmup', status: 'skipped' })
+		);
+		expect(db.saveCheckinRecord).toHaveBeenLastCalledWith(
+			'u1',
+			expect.objectContaining({ checkinId: 'evening', status: 'done' })
+		);
+	});
+
+	it("doesn't run what another device claimed", async () => {
+		db.claimCheckin.mockResolvedValue(null);
+		expect(await runDueCheckins('u1', null, NOW)).toBeNull();
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it('records a failure so it can be retried', async () => {
+		db.claimCheckin.mockImplementation(async (_u, c) => claimed(c.id));
+		send.mockRejectedValueOnce(new Error('offline'));
+		await expect(runDueCheckins('u1', null, NOW)).rejects.toThrow('offline');
+		expect(db.saveCheckinRecord).toHaveBeenLastCalledWith(
+			'u1',
+			expect.objectContaining({ checkinId: 'evening', status: 'failed' })
+		);
+	});
+
+	it('does nothing without a key on this device', async () => {
+		keys.anthropic = false;
+		expect(await runDueCheckins('u1', null, NOW)).toBeNull();
+		expect(db.claimCheckin).not.toHaveBeenCalled();
 	});
 });
