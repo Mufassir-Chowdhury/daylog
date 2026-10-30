@@ -97,6 +97,21 @@ export interface GoogleTokens {
 	accessToken: string | null;
 }
 
+/** A provider request for the desktop shell to send with the key it keeps (src-tauri/src/ai.rs). */
+export interface AiHttpRequest {
+	provider: 'anthropic' | 'gemini';
+	url: string;
+	method: string;
+	headers: Record<string, string>;
+	body: string | null;
+}
+
+export interface AiHttpResponse {
+	status: number;
+	headers: Record<string, string>;
+	body: string;
+}
+
 export interface DesktopBridge {
 	platform: string;
 	/** The app draws its own minimize/maximize/close buttons (everywhere but macOS). */
@@ -130,6 +145,15 @@ export interface DesktopBridge {
 	onCapture(callback: (entry: CaptureEntry) => void): () => void;
 	onQuickOpen(callback: () => void): () => void;
 	onGoogleCredential(callback: (tokens: GoogleTokens) => void): () => void;
+	/** Sends an assistant request with the provider key from the OS credential store. */
+	aiFetch(request: AiHttpRequest): Promise<AiHttpResponse>;
+	/** Which providers have a key saved on this computer. */
+	aiKeys(): Promise<Partial<Record<AiHttpRequest['provider'], boolean>>>;
+	/** Saves a provider key in the OS credential store, or removes it with null. */
+	setAiKey(
+		provider: AiHttpRequest['provider'],
+		key: string | null
+	): Promise<{ ok: boolean; error?: string }>;
 }
 
 export const desktop: DesktopBridge | null =

@@ -18,6 +18,9 @@ const COMMANDS: &[&str] = &[
     "update_status",
     "update_check",
     "update_install",
+    "ai_fetch",
+    "ai_keys",
+    "ai_key_set",
 ];
 
 fn main() {

@@ -35,6 +35,8 @@
 		actions = [],
 		navigate,
 		capture,
+		ask,
+		assistantName = 'the assistant',
 		close
 	}: {
 		uid: string;
@@ -46,6 +48,9 @@
 		actions?: PaletteAction[];
 		navigate: (route: string) => void;
 		capture: (entry: CaptureEntry) => Promise<void> | void;
+		/** Hands a question to the assistant (`?` prefix); without it there's no `?`. */
+		ask?: (question: string) => void;
+		assistantName?: string;
 		close: () => void;
 	} = $props();
 
@@ -117,9 +122,23 @@
 		// Read the clock on every pass — the quick bar can stay open past midnight.
 		const today = dateKey();
 		const raw = query.trim();
-		const prefix = /^[>@#]/.test(raw) ? raw[0] : '';
+		const prefix = /^[>@#]/.test(raw) || (ask && raw.startsWith('?')) ? raw[0] : '';
 		const term = prefix ? raw.slice(1).trim() : raw;
 		const out: Entry[] = [];
+
+		if (prefix === '?') {
+			const question = term;
+			return [
+				{
+					id: 'ask',
+					label: question ? `Ask ${assistantName}: ${question}` : `Ask ${assistantName}…`,
+					hint: 'Ask',
+					icon: 'sparkle',
+					score: 0,
+					run: () => question && ask?.(question)
+				}
+			];
+		}
 
 		const add = (entry: Omit<Entry, 'score'>, haystack: string, boost = 0) => {
 			const score = fuzzyScore(term, haystack);
@@ -350,7 +369,8 @@
 			<span><kbd>⇧</kbd><kbd>↵</kbd> add to day</span>
 			<span><kbd>tmr:</kbd> <kbd>fri:</kbd> pick the day</span>
 			<span class="hidden sm:inline"
-				><kbd>@</kbd> people · <kbd>#</kbd> notes · <kbd>&gt;</kbd> actions</span
+				><kbd>@</kbd> people · <kbd>#</kbd> notes · <kbd>&gt;</kbd> actions{#if ask}
+					· <kbd>?</kbd> ask {assistantName}{/if}</span
 			>
 		{/if}
 	</div>

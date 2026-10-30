@@ -150,6 +150,9 @@ itself:
   (Google Firebase Authentication and Cloud Firestore) once you sign in;
 - Google sign-in opens your web browser at Google;
 - it checks this repository's GitHub releases for updates and downloads new versions from GitHub.
+- only if you add an API key for the assistant (Settings → Assistant): what the assistant works on
+  goes to the AI provider you chose (Anthropic or Google), using your own key, which stays in your
+  system's credential store.
 
 Activity tracking is off until you turn it on; what it records stays on your computer and in your
 own account. Nothing is sent to the developers.

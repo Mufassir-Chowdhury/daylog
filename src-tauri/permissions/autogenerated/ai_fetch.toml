@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-fetch"
+description = "Enables the ai_fetch command without any pre-configured scope."
+commands.allow = ["ai_fetch"]
+
+[[permission]]
+identifier = "deny-ai-fetch"
+description = "Denies the ai_fetch command without any pre-configured scope."
+commands.deny = ["ai_fetch"]

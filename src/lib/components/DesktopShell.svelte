@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { assistant } from '$lib/ai/assistant.svelte';
 	import { page } from '$app/state';
 	import { prettyAccelerator, type DesktopPrefs } from '$lib/desktop';
 	import { NAV } from '$lib/nav';
@@ -10,6 +11,7 @@
 		email,
 		prefs,
 		onpalette,
+		onassistant,
 		onhelp,
 		onsignout
 	}: {
@@ -17,6 +19,7 @@
 		email: string | null;
 		prefs: DesktopPrefs | null;
 		onpalette: () => void;
+		onassistant: () => void;
 		onhelp: () => void;
 		onsignout: () => void;
 	} = $props();
@@ -155,6 +158,16 @@
 						<div class="mt-1"><kbd>{prettyAccelerator(prefs.summonKey)}</kbd> show / hide</div>
 					</div>
 				{/if}
+				<button
+					type="button"
+					onclick={onassistant}
+					title="{assistant.name} (Ctrl+J)"
+					class="desk-nav flex h-9 items-center gap-3 rounded-ctl px-2.5 text-sm"
+				>
+					<Icon name="sparkle" size={17} />
+					{#if !collapsed}<span class="flex-1 truncate text-left">{assistant.name}</span>
+						<kbd>Ctrl J</kbd>{/if}
+				</button>
 				<button
 					type="button"
 					onclick={onhelp}

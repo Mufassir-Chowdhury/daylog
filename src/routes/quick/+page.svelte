@@ -3,7 +3,8 @@
 	import { appendToDay } from '$lib/capture';
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
 	import { desktop, type CaptureEntry } from '$lib/desktop';
-	import { go } from '$lib/nav';
+	import { dateKey } from '$lib/date';
+	import { dayHref, go } from '$lib/nav';
 
 	// The desktop quick bar: a frameless, always-on-top window that stays loaded
 	// while hidden, so the hotkey shows it instantly. Each open bumps `epoch`,
@@ -30,6 +31,11 @@
 		else go(route);
 	}
 
+	// Questions go to the assistant in the main window, which opens on today's page.
+	function ask(question: string) {
+		navigate(`${dayHref(dateKey())}?ask=${encodeURIComponent(question)}`);
+	}
+
 	// The main window does the write (it may have that day open), then the bar
 	// gets out of the way once the confirmation has registered.
 	async function capture(entry: CaptureEntry) {
@@ -51,7 +57,17 @@
 	onclick={(e) => e.target === e.currentTarget && close()}
 >
 	{#if session.user}
-		<CommandPalette uid={session.user.uid} quick {epoch} bind:query {navigate} {capture} {close} />
+		<CommandPalette
+			uid={session.user.uid}
+			quick
+			{epoch}
+			bind:query
+			{navigate}
+			{capture}
+			{ask}
+			assistantName="the assistant"
+			{close}
+		/>
 	{:else}
 		<div
 			class="palette-panel palette-quick flex flex-col items-center justify-center gap-3 rounded-card border border-line bg-card p-8 text-center"

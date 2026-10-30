@@ -7,6 +7,7 @@
 //! Electron app.
 
 mod activity;
+mod ai;
 mod auth;
 mod commands;
 mod hotkeys;
@@ -68,6 +69,9 @@ pub fn run() {
             commands::update_status,
             commands::update_check,
             commands::update_install,
+            commands::ai_fetch,
+            commands::ai_keys,
+            commands::ai_key_set,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -9,11 +9,12 @@
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import PlanPanel from '$lib/components/PlanPanel.svelte';
 	import RoutinePanel from '$lib/components/RoutinePanel.svelte';
-	import { registerDayAppender } from '$lib/capture';
+	import { registerDayEditor } from '$lib/capture';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
-	import { extractMentions, joinLine, parseDay, toggleDone } from '$lib/parse';
+	import { extractMentions, joinLine, parseDay, replaceLine, toggleDone } from '$lib/parse';
 	import { settings } from '$lib/settings.svelte';
+	import { untrack } from 'svelte';
 
 	let { data } = $props();
 
@@ -22,7 +23,12 @@
 
 	// Overridable deriveds: reset when navigating to another day, but locally
 	// reassignable in between (typing, adding a person from the editor).
-	let text = $derived(data.text);
+	// The text is the page's own while it's open: reloads of the same day (after the assistant
+	// changes something) refresh the panels but keep what you're typing.
+	let text = $derived.by(() => {
+		void date;
+		return untrack(() => data.text);
+	});
 	let people = $derived(data.people);
 	let longTerm = $derived(data.longTerm);
 	let accounts = $derived(data.accounts);
@@ -82,11 +88,20 @@
 	// Lines captured from the command palette or the desktop quick bar land in the
 	// live text, so they can't be overwritten by this page's next autosave.
 	$effect(() =>
-		registerDayAppender(date, (line) => {
-			text = joinLine(text, line);
-			for (const handle of extractMentions(line))
-				if (!people.some((p) => p.handle === handle)) addPerson(handle);
-			onInput();
+		registerDayEditor(date, {
+			append(line) {
+				text = joinLine(text, line);
+				for (const handle of extractMentions(line))
+					if (!people.some((p) => p.handle === handle)) addPerson(handle);
+				onInput();
+			},
+			replace(from, to) {
+				text = replaceLine(text, from, to);
+				if (to)
+					for (const handle of extractMentions(to))
+						if (!people.some((p) => p.handle === handle)) addPerson(handle);
+				onInput();
+			}
 		})
 	);
 

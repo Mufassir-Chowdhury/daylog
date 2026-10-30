@@ -29,3 +29,13 @@ You MUST use this tool whenever writing Svelte code before sending it to the use
 
 Generates a Svelte Playground link with the provided code.
 After completing the code, ask the user if they want a playground link. Only call this tool after user confirmation and NEVER if code was written to files in their project.
+
+---
+
+## The assistant
+
+"The assistant" means the AI assistant being built into daylog (modelled on Grok Bot and OpenAI's dots).
+Before working on it, read [`assistant.md`](./assistant.md) (plan and index), then
+[`docs/assistant/decisions.md`](./docs/assistant/decisions.md) (owner's choices, which override the plan) and
+[`docs/assistant/progress.md`](./docs/assistant/progress.md) (what's done, what's next). Update `progress.md`
+at the end of each step.

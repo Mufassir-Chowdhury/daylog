@@ -5,6 +5,7 @@ import {
 	doc,
 	getDoc,
 	getDocs,
+	limit,
 	onSnapshot,
 	orderBy,
 	query,
@@ -15,6 +16,9 @@ import {
 	type WriteBatch
 } from 'firebase/firestore';
 import type { ActivityCategory, ActivityGoal, ActivitySpan } from './activity';
+import { normalizeConfig, type AssistantConfig } from './ai/config';
+import type { InboxItem } from './ai/inbox';
+import type { MemoryItem } from './ai/memory';
 import { cleanGoals } from './activity';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
@@ -218,6 +222,11 @@ const weekNotesCol = (uid: string) => collection(db, 'users', uid, 'weekNotes');
 const activityCol = (uid: string) => collection(db, 'users', uid, 'activity');
 const activityGoalsCol = (uid: string) => collection(db, 'users', uid, 'activityGoals');
 const activityConfigDoc = (uid: string) => doc(db, 'users', uid, 'activityConfig', 'main');
+/** The assistant's account-wide settings. Its other data gets collections of its own (`assistant…`). */
+const assistantConfigDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'config');
+const memoryCol = (uid: string) => collection(db, 'users', uid, 'assistantMemory');
+const inboxCol = (uid: string) => collection(db, 'users', uid, 'assistantInbox');
+const threadsCol = (uid: string) => collection(db, 'users', uid, 'assistantThreads');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -229,6 +238,135 @@ export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 
 export async function saveSettings(uid: string, settings: AppSettings): Promise<void> {
 	await setDoc(settingsDoc(uid), { ...settings, updatedAt: serverTimestamp() });
+}
+
+export async function loadAssistantConfig(uid: string): Promise<AssistantConfig> {
+	const snap = await getDoc(assistantConfigDoc(uid));
+	return normalizeConfig(snap.exists() ? snap.data() : null);
+}
+
+export async function saveAssistantConfig(uid: string, config: AssistantConfig): Promise<void> {
+	await setDoc(assistantConfigDoc(uid), { ...config, updatedAt: serverTimestamp() });
+}
+
+// ——— Assistant memory, Inbox and saved conversations.
+
+export function newMemoryId(uid: string): string {
+	return doc(memoryCol(uid)).id;
+}
+
+export async function listMemory(uid: string): Promise<MemoryItem[]> {
+	const snap = await getDocs(memoryCol(uid));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			text: String(data.text ?? ''),
+			kind: data.kind === 'preference' ? 'preference' : 'fact',
+			updatedAt: Number(data.updatedAt ?? 0)
+		};
+	});
+}
+
+export async function saveMemory(uid: string, item: MemoryItem): Promise<void> {
+	const { id, ...rest } = item;
+	await setDoc(doc(memoryCol(uid), id), rest);
+}
+
+export async function deleteMemory(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(memoryCol(uid), id));
+}
+
+export function newInboxId(uid: string): string {
+	return doc(inboxCol(uid)).id;
+}
+
+/** Changes go in as JSON: their documents can hold values Firestore won't store as-is. */
+function toInboxItem(id: string, data: Record<string, unknown>): InboxItem {
+	let changes: InboxItem['changes'] = [];
+	try {
+		changes = JSON.parse(String(data.changes ?? '[]'));
+	} catch {
+		// A damaged card just can't be applied.
+	}
+	return {
+		id,
+		kind: data.kind === 'brief' ? 'brief' : 'proposal',
+		source: data.source === 'checkin' ? 'checkin' : 'chat',
+		title: String(data.title ?? ''),
+		body: String(data.body ?? ''),
+		tool: String(data.tool ?? ''),
+		details: Array.isArray(data.details) ? data.details.map(String) : [],
+		changes,
+		status: (data.status as InboxItem['status']) ?? 'pending',
+		signalKey: String(data.signalKey ?? ''),
+		priority: Number(data.priority ?? 0),
+		createdAt: Number(data.createdAt ?? 0),
+		expiresAt: Number(data.expiresAt ?? 0)
+	};
+}
+
+/** Live view of the whole Inbox; returns an unsubscribe function. */
+export function watchInbox(uid: string, callback: (items: InboxItem[]) => void): () => void {
+	return onSnapshot(
+		inboxCol(uid),
+		(snap) => callback(snap.docs.map((d) => toInboxItem(d.id, d.data()))),
+		() => {}
+	);
+}
+
+export async function saveInboxItem(uid: string, item: InboxItem): Promise<void> {
+	const { id, changes, ...rest } = item;
+	await setDoc(doc(inboxCol(uid), id), { ...rest, changes: JSON.stringify(changes) });
+}
+
+export async function deleteInboxItem(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(inboxCol(uid), id));
+}
+
+/**
+ * A saved conversation. `history` (the provider's own messages) and `entries`
+ * (what the chat shows) are JSON strings; `history` is empty when it grew too
+ * big to keep, and the next message then starts the provider afresh.
+ */
+export interface SavedThread {
+	id: string;
+	provider: string;
+	model: string;
+	history: string;
+	entries: string;
+	updatedAt: number;
+}
+
+export function newThreadId(uid: string): string {
+	return doc(threadsCol(uid)).id;
+}
+
+export async function saveThread(uid: string, thread: SavedThread): Promise<void> {
+	const { id, ...rest } = thread;
+	await setDoc(doc(threadsCol(uid), id), rest);
+}
+
+/** The newest saved conversations, newest first. */
+export async function listThreads(uid: string, count: number): Promise<SavedThread[]> {
+	const snap = await getDocs(query(threadsCol(uid), orderBy('updatedAt', 'desc'), limit(count)));
+	return snap.docs.map((d) => {
+		const data = d.data();
+		return {
+			id: d.id,
+			provider: String(data.provider ?? ''),
+			model: String(data.model ?? ''),
+			history: String(data.history ?? ''),
+			entries: String(data.entries ?? '[]'),
+			updatedAt: Number(data.updatedAt ?? 0)
+		};
+	});
+}
+
+/** Deletes all but the newest `keep` conversations. */
+export async function pruneThreads(uid: string, keep: number): Promise<void> {
+	const snap = await getDocs(query(threadsCol(uid), orderBy('updatedAt', 'desc')));
+	await Promise.all(snap.docs.slice(keep).map((d) => deleteDoc(d.ref)));
 }
 
 export async function loadDay(uid: string, key: string): Promise<string> {
@@ -869,6 +1007,32 @@ export function watchActivity(
 		(snap) => callback(snap.docs.map((d) => toActivityDayDoc(d.data()))),
 		() => callback([])
 	);
+}
+
+/** Every device's docs for days `from`–`to`, read once (the Activity page watches instead). */
+export async function listActivityDocs(
+	uid: string,
+	from: string,
+	to: string
+): Promise<ActivityDayDoc[]> {
+	const q = query(activityCol(uid), where('date', '>=', from), where('date', '<=', to));
+	const snap = await getDocs(q);
+	return snap.docs.map((d) => toActivityDayDoc(d.data()));
+}
+
+export async function loadActivityConfig(uid: string): Promise<ActivityConfig> {
+	const data = (await getDoc(activityConfigDoc(uid))).data() ?? {};
+	return {
+		categories: (data.categories as Record<string, ActivityCategory>) ?? {},
+		defaultGoals: cleanGoals(data.defaultGoals)
+	};
+}
+
+/** A day's goals: its own if set, else the default goals. */
+export async function loadActivityGoals(uid: string, date: string): Promise<ActivityGoal[]> {
+	const snap = await getDoc(doc(activityGoalsCol(uid), date));
+	if (snap.exists()) return cleanGoals(snap.data().goals);
+	return (await loadActivityConfig(uid)).defaultGoals;
 }
 
 /** Deletes every device's activity, manual entries included (goals and settings stay). */
