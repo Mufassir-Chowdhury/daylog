@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	doneContent,
 	joinLine,
+	removeLine,
 	parseCapture,
 	extractMentions,
 	highlightLine,
@@ -215,5 +216,11 @@ describe('quick capture', () => {
 	it('appends without blank lines', () => {
 		expect(joinLine('', 'a')).toBe('a');
 		expect(joinLine('a\n\n', 'b')).toBe('a\nb');
+	});
+
+	it('removes the last matching line, undoing an append', () => {
+		expect(removeLine(joinLine('a\nb', 'c'), 'c')).toBe('a\nb');
+		expect(removeLine('x\ny\nx', 'x')).toBe('x\ny');
+		expect(removeLine('a\nb', 'zz')).toBe('a\nb');
 	});
 });

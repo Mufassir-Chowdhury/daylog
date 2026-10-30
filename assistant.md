@@ -1,337 +1,274 @@
-# daylog assistant — ideas and implementation plan
+# daylog assistant — implementation plan
 
-A plan for an AI assistant that can read and change every part of daylog and that brings things up
-on its own, so you don't have to keep telling it what to do. Nothing here is built yet. This plan
-replaces the server-side route in [`schedule-chat.md`](./schedule-chat.md): that route becomes one
-tool pack inside the assistant (see "Where the model is called" for why).
+**Start here.** This is the main file for "the assistant": an AI assistant inside daylog, modelled
+on Grok Bot and OpenAI's dots. It can read and change every part of the app (days, people, notes,
+long-term tasks, routines, schedule, finance, activity), and it brings things up on its own at set
+times and when something needs attention, so you don't have to keep asking it.
 
-Research done on 2026-10-30. Model ids and API details change often; check them again before building.
+| File                                                       | What's in it                                                                                                                     |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **assistant.md** (this file)                               | What we're building, the architecture and the step-by-step plan                                                                  |
+| [docs/assistant/decisions.md](docs/assistant/decisions.md) | The owner's choices (name, provider, check-in times, auto-apply rules…). **These win over this plan.**                           |
+| [docs/assistant/progress.md](docs/assistant/progress.md)   | Which step is done, what was built, and exactly where to pick up next                                                            |
+| [docs/assistant/research.md](docs/assistant/research.md)   | How Grok Bot and dots work, facts about daylog's code, provider and ElevenLabs API notes, sources                                |
+| [schedule-chat.md](schedule-chat.md)                       | Older plan for a Schedule-page chat. Its tool list (§5) and test messages (§9) are reused; its server route is replaced (see §3) |
 
----
-
-## 1. What Grok Bot and dots do, and what to borrow
-
-Both are "always-on" personal agents released in Sept–Oct 2026. Neither publishes its internals, so
-this is pieced together from their help pages and press coverage.
-
-**Grok Bot** (SpaceXAI + Cursor) — named, persistent "teammates":
-
-- **Routines**: scheduled runs that keep going in the cloud while your laptop is closed. A bot can
-  set up a routine itself when you ask it in chat.
-- **Memory**: stable preferences, important facts and summaries. The docs say memory is not a
-  source of truth: before anything consequential, the bot rereads the current data.
-- **Approvals**: consequential actions (sending, buying, deleting) show as cards with _Allow once_,
-  _Always allow_ and _Deny_. A request raised by a routine expires (reportedly after about 10 min)
-  if nobody answers.
-
-**dots** (OpenAI) — an assistant that keeps working between conversations:
-
-- **Proactive research**: on a cadence, the dot reviews what it knows about you, the conversation
-  history and the apps it can reach, then works out how it could help. This step is **read-only**:
-  it never sends, edits or clicks. Its ideas appear as proposals in an activity feed.
-- **Scheduled check-ins and reminders** that you set up by asking. A dot can also decide when to
-  wake up next.
-- **Main criticism**: timing and usefulness. Early users found the proactive suggestions noisy or
-  badly timed.
-
-**What daylog borrows:**
-
-| Idea                                 | In daylog                                                                                                                                                         |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Background work is read-only         | Proactive runs only **propose** changes. Every write goes through a card you approve, or one you've set to "always allow" with undo.                              |
-| Approval cards with "always allow"   | A permission level per action type, set from the card itself                                                                                                      |
-| Memory isn't the source of truth     | Memory stores preferences and facts. Every run reads fresh data from Firestore.                                                                                   |
-| Routines and self-scheduled wake-ups | Built-in check-ins (morning, evening, weekly) plus `schedule_checkin` for custom ones                                                                             |
-| Activity feed                        | An **Inbox** of proposals and briefs, synced across devices                                                                                                       |
-| Avoid dots' noise problem            | Free local signal detectors decide _whether_ there's anything to say. The LLM only runs when one fires. Daily caps, quiet hours, dedupe, and 👍/dismiss feedback. |
-
-daylog has an advantage over both: its data is already structured (schedule, tasks, deadlines,
-finance, routines, activity), so the assistant doesn't have to scrape apps or drive a browser.
+**To continue in a new chat:** read this file, then `decisions.md`, then `progress.md`, and start
+the first step `progress.md` marks as not done. Update `progress.md` at the end of every step.
 
 ---
 
-## 2. What can be built
+## 1. The idea in one page
 
-### 2.1 The assistant can talk to every part of the app
+- **One assistant, many parts.** Each area of the app registers _tools_ (read and write). The
+  assistant only acts through them, and every write goes through the shared ops layer (Step 0),
+  so it can be undone exactly like a button press.
+- **Proactive, not reactive.** Borrowed from dots and Grok Bot (details in
+  [research.md](docs/assistant/research.md)):
+  - **Scheduled check-ins**: 08:00 daily wrap-up, 17:00 brief, 23:15 brief (editable in Settings).
+  - **Detectors**: free, local checks over your data (deadline close and nothing planned, money
+    written in a day but not recorded, a routine streak about to break…). The model only runs when
+    one fires. This avoids dots' main problem, noisy and badly timed suggestions.
+  - **Self-scheduled check-ins**: "remind me Thursday to check if the lab marks are in".
+- **Safe by default.** Background runs are read-only and produce cards. **Small additions** (adding
+  a line, task, note, subtask or routine value) are **applied straight away** and shown in a
+  bubble with Undo. Changing, moving or cancelling existing things, and money, are **proposal
+  cards**. Nothing is ever deleted by the assistant.
+- **Your own key, your choice of model.** Claude or Gemini, switchable, key stored per device.
+- **Everywhere.** Desktop app and web (including phone). Whichever device is open runs the
+  check-ins; the Inbox syncs through Firestore.
+- **A name you choose**, shown everywhere it speaks.
 
-One **tool registry** where each area of the app registers read tools and write tools. The
-assistant only sees tools, never Firestore directly.
+---
 
-| Area      | Read tools                                                         | Write tools (propose → apply)                                    |
-| --------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| Days      | `read_day`, `search_days` (text/mention/date range), `open_lines`  | `append_line(date, text)`, `set_line_done`, `move_line(to date)` |
-| People    | `get_person` (bio, mentions, debt balance), `list_people`          | `append_person_note`, `set_person_name`                          |
-| Notes     | `search_notes`, `read_note`                                        | `create_note`, `append_to_note`                                  |
-| Long-term | `list_longterm`                                                    | `add_longterm`, `add_subtask`, `complete_subtask`                |
-| Routines  | `routine_stats` (today, streaks, month)                            | `log_routine_value`                                              |
-| Schedule  | `schedule_snapshot` (the snapshot from schedule-chat.md)           | the 13 tools from schedule-chat.md §5                            |
-| Finance   | `finance_summary` (month, categories, pace), `find_transactions`   | `add_transaction`, `update_transaction`, `settle_up(person)`     |
-| Activity  | `activity_day` (summary, insights, goals progress), `focus_window` | `set_day_goal`                                                   |
-| UI        | `current_view` (page, date or filter you're looking at)            | `navigate(route)`, `show_toast`                                  |
-| Assistant | `recall` (memory)                                                  | `remember`, `forget`, `schedule_checkin(when, why)`              |
+## 2. What it can do
 
-There is no delete tool apart from undoing the assistant's own changes. Deleting stays manual.
+### 2.1 Tools per area
 
-### 2.2 Proactive features (the point of the assistant)
+| Area      | Read tools                                                        | Write tools                                            |
+| --------- | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| Days      | `read_day`, `search_days` (text/mention/date range), `open_lines` | `append_line`★, `set_line_done`, `move_line`           |
+| People    | `get_person` (bio, mentions, debt balance), `list_people`         | `append_person_note`, `set_person_name`                |
+| Notes     | `search_notes`, `read_note`                                       | `create_note`★, `append_to_note`★                      |
+| Long-term | `list_longterm`                                                   | `add_longterm`, `add_subtask`★, `complete_subtask`     |
+| Routines  | `routine_stats` (today, streaks, month)                           | `log_routine_value`★                                   |
+| Schedule  | `schedule_snapshot` (as in schedule-chat.md §7)                   | `add_task`★ and the other tools in schedule-chat.md §5 |
+| Finance   | `finance_summary` (month, categories, pace), `find_transactions`  | `add_transaction`, `update_transaction`, `settle_up`   |
+| Activity  | `activity_day` (summary, insights, goals), `focus_window`         | `set_day_goal`                                         |
+| UI        | `current_view` (page, date, filters)                              | `navigate`, `show_bubble`                              |
+| Assistant | `recall`                                                          | `remember`★, `forget`, `schedule_checkin`              |
 
-Each feature is a **signal detector**: a pure, unit-tested function over local data that decides
-whether there's something worth saying. The LLM only runs when a detector fires.
+★ = small addition: auto-applied with an Undo bubble (see decisions.md). Everything else is a
+proposal card unless you've switched that kind to "always allow". No delete tools.
 
-1. **Morning brief** (first time the app opens after 05:00, or at a time you pick): today's
-   classes and rooms, tasks with time blocks, deadlines within 7 days, open lines carried over from
-   yesterday, a routine streak at risk, and the focus window your Activity data says works best.
-   It ends with 1–3 suggested changes, such as "move yesterday's 3 unfinished lines here?".
-2. **Evening wrap-up** (configurable, default 21:30): unfinished lines and tasks → "move to
-   tomorrow / Later / drop?". Routines not logged yet → "log today's pages?". Money mentioned in
-   day text but never recorded (`lunch 250`, `gave @rahim 500`) → a pre-filled transaction to
-   approve.
-3. **Capture → structure** (runs a few seconds after you stop typing on a day page or in the quick
-   bar). A cheap regex pre-filter decides whether a line looks like money, a date, a cancellation
-   or a deadline, and only those lines go to the LLM, which proposes the matching record:
-   `exam on nov 12` → deadline; `@rahim paid me back 500` → borrow/settle; `no class tomorrow` →
-   cancel that occurrence. The line stays as you wrote it, and a small chip next to it offers
-   "→ add as deadline ✓".
-4. **Deadline planner**: a deadline ≤ 5 days away with no tasks pointing at it → proposes 2–4
-   tasks placed in free blocks around the timetable and your best focus hours.
-5. **Pre-event prep** (30 min before a class, meeting or exam): open tasks or notes related to it,
-   and for a meeting that mentions `@person`, a short **person brief** (last mentions, what they
-   owe, notes).
-6. **Weekly review** (end of the Sun–Thu week): what got done, what slipped, money in and out,
-   routine streaks, focus hours. Saved as a Note, with a proposed plan for next week.
-7. **Money watch**: spending pace X% ahead of last month, an unusual transaction for its
-   category, debts open longer than 30 days → "remind @rahim?" (this only drafts a line; the
-   assistant never sends messages).
-8. **Focus coach** (desktop, opt-in): a distraction limit is about to run out, or it's your best
-   focus hour and nothing is planned → one gentle nudge, never more than one an hour.
-9. **Ask your log**: "when did I last discuss the thesis with @rahim?", "how much did I spend on
-   transport in Sept?". These are plain chat questions, answered with the read tools.
-10. **Self-scheduled check-ins**: "remind me Thursday to see if the lab marks are in" →
-    `schedule_checkin`, which shows up in the Inbox on that day (and as a desktop notification).
+### 2.2 Proactive features
+
+1. **08:00 daily wrap-up** — yesterday's unfinished lines and tasks (carry over?), routines and
+   money mentioned but not logged, then today's classes, tasks and near deadlines.
+2. **17:00 brief** — what's still open today, tonight's and tomorrow morning's schedule, anything
+   due tomorrow, spending pace if it's off.
+3. **23:15 brief** — what got done, what's left (move to tomorrow / Later / drop?), streaks at risk,
+   first thing tomorrow.
+4. **Capture → structure** — a few seconds after you stop typing (day page or quick bar), lines that
+   look like money, dates, cancellations or deadlines get a chip: `exam on nov 12` → "add as
+   deadline ✓"; `gave @rahim 500` → a lend to approve. The line itself stays as written.
+5. **Deadline planner** — a deadline ≤ 5 days away with no tasks for it → 2–4 proposed tasks in
+   free blocks around the timetable and your best focus hours.
+6. **Pre-event prep** — 30 min before a class/meeting/exam: related open tasks and notes; for
+   meetings with `@person`, a person brief (last mentions, money between you, notes).
+7. **Weekly review** (end of the Sun–Thu week) — saved as a Note, with a proposed plan for next week.
+8. **Money watch** — spending pace well ahead of last month, unusual transactions, debts open > 30
+   days.
+9. **Focus coach** (desktop, opt-in) — a distraction limit about to run out, or a best-focus hour
+   with nothing planned. At most one nudge an hour.
+10. **Ask your log** — "when did I last talk to @rahim about the thesis?", "transport spend in Sept?"
+11. **Self-scheduled check-ins** via `schedule_checkin`.
 
 ### 2.3 Where you see it
 
-- **Assistant drawer** on every page (reusing `Drawer.svelte`, shortcut `Ctrl+J`). It knows the
-  page you're on and what's selected.
-- **Inbox**: proposal and brief cards (Apply / Edit / Dismiss / "Don't suggest this again"). It's
-  a section at the top of the day page's Plan panel and a full list in the drawer. It syncs
-  through Firestore, so a proposal made on the desktop shows up on your phone.
-- **Command palette / quick bar**: start with `?` to ask the assistant instead of capturing a
-  line. On desktop, `Ctrl+Alt+Space` then `?` works from any app.
-- **Desktop notifications** (existing `notify.rs`), only for cards marked high priority (time
-  bound: about-to-start events, deadlines today). Clicking one opens the card.
+- **Assistant drawer** on every page (`Ctrl+J`), aware of the page you're on.
+- **Bubbles** — toasts with the assistant's name, saying what it just did, with **Undo**. (Built on
+  `toast.svelte.ts`, which already supports Undo.)
+- **Inbox** — proposal and brief cards (Apply / Edit / Dismiss / "Don't suggest this again"), at
+  the top of the day page's Plan panel and in the drawer. Synced across devices.
+- **Command palette / quick bar** — start with `?` to ask the assistant.
+- **Desktop notifications** for time-critical cards only.
 
 ---
 
-## 3. Provider decision: switchable, bring-your-own key
+## 3. Provider: switchable, bring-your-own key
 
-### Options
+Options compared (fixed Claude on the Worker, fixed one provider on the device, switchable, routing
+across providers): **switchable with your key on the device** wins.
 
-| Option                                                  | Pros                                                                                                                       | Cons                                                                                                                                                          |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fixed: Claude, key on the Worker** (schedule-chat.md) | Simplest. Can use every Claude-specific feature. Key never on a device.                                                    | **The desktop app has no Worker** (it's a static build served from localhost), so it would have to call the deployed site. You pay for every call. No Gemini. |
-| **Fixed: one provider, your key on the device**         | Simple, works in the desktop app and on the web.                                                                           | Locked to one vendor's prices and outages. Gemini's free tier and Claude's quality can't be combined.                                                         |
-| **Switchable, your key on the device** ✅               | Use Claude or Gemini, change any time, pick a cheap model for background runs and a strong one for chat. Works everywhere. | A small adapter layer, and prompts tested on two providers. Can only use features both providers support.                                                     |
-| Multi-provider routing (both at once)                   | —                                                                                                                          | Complex, and it doesn't solve anything you have.                                                                                                              |
+- **Why not the server route from schedule-chat.md:** the desktop app is a static build with no
+  Worker, and every call would be paid from a key on the server.
+- **Why switching is cheap:** both Claude and Gemini support the one thing needed, chat with
+  function calling. A narrow adapter converts messages, tool definitions and tool calls/results:
+  about 150 lines per provider with plain `fetch`, no SDKs.
+- **One active provider, two model slots:** a _chat model_ (strong) and a _background model_
+  (cheap; Gemini Flash has a free quota). Model lists come from each provider's models endpoint,
+  so nothing is hard-coded.
+- **Threads belong to one provider**, because both require their reasoning data (Claude thinking
+  blocks, Gemini thought signatures) to be sent back unchanged. Switching starts a new thread;
+  memory and the Inbox carry over.
+- **Schemas** stay within what both accept (no `oneOf` / `$ref`); every id and argument is
+  validated, since Gemini doesn't guarantee strict schemas.
+- **Where the call happens:** web → browser `fetch` straight to the provider (Claude needs the
+  `anthropic-dangerous-direct-browser-access` header); desktop → a Tauri command in Rust (`ureq`),
+  with the key in the OS keychain (`keyring` crate).
+- **Key storage:** per device, never in Firestore. A daily token budget per device stops runaway
+  cost.
+- Later, an OpenAI-compatible adapter would add OpenRouter / OpenAI / local Ollama cheaply.
 
-### Recommendation: switchable, with a narrow adapter
-
-- Both providers do the one thing the assistant needs: **chat with function calling and JSON-schema
-  tools**. The adapter only has to convert three things: messages, tool definitions and tool
-  calls/results. That's about 150 lines per provider using plain `fetch`, with no SDKs (they add
-  bundle size, and the Anthropic SDK has Node quirks in a static build).
-- **One active provider, two model slots**:
-  - _Chat model_ — strong, used when you're talking to it (e.g. `claude-sonnet-5-5`, or Gemini's
-    Pro tier).
-  - _Background model_ — cheap, used by proactive runs (e.g. `claude-haiku-5-5`, or Gemini's Flash
-    tier, which also has a free quota).
-  - Model ids aren't hard-coded. Settings fetches each provider's **models list** endpoint with
-    your key and suggests defaults. That way new models show up without a release.
-- **Threads are tied to one provider.** Both providers require their own reasoning data to be sent
-  back unchanged in multi-turn tool use (Claude's thinking blocks, Gemini's thought signatures), so
-  each thread stores the provider's raw transcript. Switching provider starts a new thread. Memory
-  and the Inbox don't depend on the provider and carry over.
-- **Schemas stay within what both support**: object/string/number/boolean/array/enum,
-  `nullable` for optional values, no `oneOf`/`$ref`. Ids the model returns are always checked
-  against the data, because Gemini doesn't guarantee strict schemas the way Claude's
-  `strict: true` does.
-- **A third adapter later**: an "OpenAI-compatible" adapter would add OpenRouter, OpenAI and local
-  Ollama at almost no cost. Not in scope now.
-
-### Where the model is called and where the key lives
-
-- **Web**: the browser calls the provider directly with your key. Anthropic allows this with the
-  `anthropic-dangerous-direct-browser-access: true` header. Gemini's API accepts browser calls.
-  The key is kept in `localStorage` **on that device only**, with a clear note in Settings. It's
-  your own key, in your own browser, sent only to the provider.
-- **Desktop**: the webview passes the request to a Tauri command that makes the HTTP call in Rust
-  (`ureq` is already a dependency). The key stays in the OS credential store (`keyring` crate),
-  where web content can't read it, and there are no CORS issues.
-- **Never in Firestore by default.** Your days sync to every device, but a key should be entered
-  once per device. Phones can still use the Inbox produced by the desktop without a key.
-- **Spending guard**: a daily token budget per model slot (stored per device, shown in Settings).
-  When it runs out, proactive runs stop for the day and chat asks before going on.
+API details: [research.md §3](docs/assistant/research.md#3-llm-providers).
 
 ---
 
 ## 4. Architecture
 
 ```
-               ┌──────────── triggers ────────────┐
- desktop tick (Rust, 5 min) · app open · visibility · after typing · schedule_checkin due
-               │
-               ▼
-     detectors (pure, local, free)  ──none fired──▶ stop
-               │ signals[]
-               ▼
-     gate: lease · quiet hours · daily caps · dedupe · feedback weights
-               │
-               ▼
-     agent run (background model, read tools only)
-               │ cards[]  (brief / proposal{ops[]} / question)
-               ▼
-  Firestore users/{uid}/assistant/inbox  ──sync──▶ every device
-               │
-               ▼
-     Inbox UI → Apply → ops layer → db.ts saves → one Undo toast
+          ┌───────────────────── triggers ─────────────────────┐
+ check-in times (08:00 / 17:00 / 23:15) · desktop tick (Rust) · app open ·
+ tab visible · after typing · schedule_checkin due
+          │
+          ▼
+  detectors (pure, local, free) ── nothing to say ──▶ stop
+          │ signals[]
+          ▼
+  gate: lease · quiet hours · daily caps · dedupe · feedback
+          │
+          ▼
+  background run (background model, read tools only)
+          │ cards[] (brief / proposal{changes[]} / question)
+          ▼
+  Firestore users/{uid}/assistant/inbox ──sync──▶ every device
+          │
+          ▼
+  Inbox → Apply → ops layer (run → commit → Undo toast)
 
-  chat (drawer / palette '?') → agent run (chat model, read + write tools)
-     writes: "always allow" kinds apply now with undo; everything else becomes a card in the chat
+  chat (drawer / palette "?") → run (chat model, read + write tools)
+     small additions → applied now + bubble with Undo
+     everything else → proposal card in the chat
 ```
 
-- **Who runs background jobs**: whichever device holds the **lease**
-  (`assistant/lease { deviceId, until }`, renewed each tick). Normally that's the desktop app, since
-  it's always running. When no desktop app is running, a web tab takes over while it's open. This
-  stops two devices from writing the same morning brief twice.
-- **Why the tick comes from Rust**: hidden webviews throttle timers (that's also why reminders live
-  in `reminders.rs`). The shell sends an `assistant-tick` event, and the webview runs the
-  detectors.
-- **No server**: still client-only, matching how the rest of the app works. Firestore rules already
-  cover `users/{uid}/**`, so they don't change.
+- **Lease** (`assistant/lease { deviceId, until }`): only one device runs check-ins at a time. The
+  desktop app takes it when running; otherwise any open web tab (phone included) does. A missed
+  check-in runs when the next device opens, if it's still the same day.
+- **Desktop tick from Rust**, because hidden webviews throttle timers (same reason reminders live in
+  `reminders.rs`).
+- **No server.** Firestore rules already cover `users/{uid}/**`.
 
-### Data (all under `users/{uid}/assistant/…`)
+### Data (`users/{uid}/assistant/…`)
 
-| Doc / collection | Contents                                                                                                                                                  |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config`         | name/persona, enabled detectors and their times, quiet hours, max cards per day, permission per action type, which data areas may be sent to the provider |
-| `memory/{id}`    | `{ text, kind: 'preference' \| 'fact' \| 'summary', source, updatedAt }`, which you can see and edit in Settings                                          |
-| `inbox/{id}`     | `{ kind, title, body, ops[], signalKey, priority, status: 'new' \| 'applied' \| 'dismissed' \| 'expired', expiresAt, createdAt }`                         |
-| `threads/{id}`   | provider, model, raw transcript (capped; once too long, start a new thread with a summary)                                                                |
-| `checkins/{id}`  | `{ at, why, done }`, from `schedule_checkin`                                                                                                              |
-| `lease`          | `{ deviceId, until }`                                                                                                                                     |
-| `feedback`       | counts per `signalKey` type (applied / dismissed / muted) used to tune what it brings up                                                                  |
-| _(per device)_   | API key, provider, model slots, today's token usage                                                                                                       |
-
-### Privacy controls
-
-Settings → Assistant → **What it can see**: Days, People, Notes, Schedule, Finance, Activity
-(window titles off by default). Turning an area off removes that area's tools and its detectors.
-The provider only sees what the tools return.
+| Doc / collection | Contents                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `config`         | name, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
+| `memory/{id}`    | `{ text, kind: preference / fact / summary, source, updatedAt }`, editable in Settings                                 |
+| `inbox/{id}`     | `{ kind, title, body, changes[], signalKey, priority, status, expiresAt, createdAt }`                                  |
+| `threads/{id}`   | provider, model, raw transcript (capped)                                                                               |
+| `checkins/{id}`  | `{ at, why, done }` from `schedule_checkin`                                                                            |
+| `lease`          | `{ deviceId, until }`                                                                                                  |
+| `feedback`       | applied / dismissed / muted counts per signal type                                                                     |
+| _(per device)_   | API key, provider, model slots, today's token usage                                                                    |
 
 ---
 
-## 5. Implementation plan
+## 5. Steps
 
-Each phase is usable on its own and ends with `svelte-check`, lint, unit tests and the Svelte
-autofixer on touched components.
+Each step ends with `npm run check`, `npm run lint`, unit tests, and the Svelte autofixer on
+touched components (when the Svelte MCP server is reachable). Record the result in `progress.md`.
 
-### Phase 0 — Ops layer (groundwork, useful without AI)
+### Step 0 — Ops layer ✅ (see progress.md)
 
-- `src/lib/ops/` — `{schedule,tasks,deadlines,days,finance,people,notes,routines,longterm}.ts`.
-  Each exports pure `apply(state, op) → { writes, undo }` with the same op shape the tools use.
-- Move the mutation code out of `src/routes/schedule/+page.svelte` (as planned in
-  schedule-chat.md §8) and the finance/day pages onto these ops, so buttons and the assistant share
-  one code path.
-- `applyBatch(ops)` → saves through existing `db.ts` functions and shows one Undo toast.
-- Tests next to the existing `*.spec.ts`.
+`src/lib/ops/`: every change is a `Change { kind, id, before, after }`; pure planners per area
+return them; `run()` applies them to page state, saves through `db.ts` and shows an Undo toast;
+`invert()` is the undo. The Schedule page runs on it. Other pages can move over when they're
+touched (listed in progress.md).
 
-### Phase 1 — Providers and settings
+### Step 1 — Providers and settings
 
-- `src/lib/ai/types.ts` — the shared format: `Message`, `ToolDef`, `ToolCall`, `ToolResult`,
-  `RunResult { text, calls, usage, raw }`.
-- `src/lib/ai/providers/anthropic.ts`, `gemini.ts` — `send(req): Promise<RunResult>`,
-  `listModels(key)`, error mapping (rate limit, bad key, refusal / safety block).
-- `src/lib/ai/transport.ts` — direct `fetch` on the web, Tauri command on desktop.
-- `src-tauri/src/ai.rs` — `ai_request(provider, body)` and `ai_key_{get,set,clear}` through
-  `keyring`. Register in `commands.rs` and add to the `DesktopBridge` in `desktop.ts` /
-  `desktop-tauri.ts`.
+- `src/lib/ai/types.ts` — `Message`, `ToolDef`, `ToolCall`, `ToolResult`, `RunResult`.
+- `src/lib/ai/providers/anthropic.ts`, `gemini.ts` — `send`, `listModels`, error mapping.
+- `src/lib/ai/transport.ts` — browser `fetch` on web, Tauri command on desktop.
+- `src-tauri/src/ai.rs` — `ai_request`, `ai_key_get/set/clear` (`keyring`); wire into
+  `commands.rs`, `desktop.ts`, `desktop-tauri.ts`.
 - `src/lib/ai/budget.ts` — per-device token counter and cap.
-- Settings → **Assistant** section: provider, key (Test button), chat/background model (from
-  list), budget.
-- Tests: adapter round-trips with recorded fixture responses for both providers (no network in CI).
+- `src/lib/ai/config.ts` — `assistant/config` load/save with defaults from decisions.md (name
+  `Assistant`, check-ins 08:00 / 17:00 / 23:15, all data areas on).
+- Settings → **Assistant**: name, provider, key + Test, chat/background model, budget, check-in
+  times, quiet hours, data areas.
+- Tests with recorded provider responses (no network in CI).
 
-### Phase 2 — Tool registry and chat (it can answer questions)
+### Step 2 — Tool registry and chat
 
-- `src/lib/ai/tools/registry.ts` — `defineTool({ name, area, kind: 'read' | 'write', schema,
-describe(input) → plain text for cards, run(ctx, input) })`. Converted per provider.
-- Read tools for every area (§2.1). They return trimmed JSON (ids, short fields) to save tokens.
-- `src/lib/ai/agent.ts` — the loop: send → run read tools → send results → … (max ~8 steps) →
-  final text plus any write calls.
-- `src/lib/ai/prompt.ts` — fixed system prompt (keeps provider prompt caching working). Today's
-  date, current view, memory and persona go in the first user message.
-- `AssistantDrawer.svelte` + `Ctrl+J` in the shortcuts list; `?` prefix in `CommandPalette.svelte`.
+- `src/lib/ai/tools/registry.ts` — `defineTool({ name, area, kind, small, schema, describe, run })`,
+  converted per provider. `small: true` marks auto-apply tools.
+- Read tools for every area; trimmed JSON output.
+- `src/lib/ai/agent.ts` — tool loop (max ~8 steps).
+- `src/lib/ai/prompt.ts` — fixed system prompt; date, view, memory and name go in the user turn.
+- `AssistantDrawer.svelte` (`Ctrl+J`), `?` prefix in `CommandPalette.svelte`.
 
-### Phase 3 — Write tools, approvals, undo
+### Step 3 — Write tools, bubbles, approvals
 
-- Write tools turn into ops (Phase 0). Every id is checked against fresh data, and unknown ids
-  become "couldn't find …".
-- `ProposalCard.svelte` — plain-language list of ops with a checkbox each, plus Apply / Edit /
-  Dismiss, with _Always allow this kind_ in a menu.
-- Permission levels per op kind in `assistant/config`: `ask` (default) · `auto+undo` (defaults to
-  `append_line`, `add_task`, `create_note`, `log_routine_value`) · `off`.
-- The schedule-chat test set (schedule-chat.md §9) becomes the first eval set.
+- Write tools return `Change[]` from `src/lib/ops/`; ids validated against fresh data.
+- Small additions: `run()` immediately + `AssistantBubble` (toast with the assistant's name and
+  Undo).
+- `ProposalCard.svelte` for everything else; "Always allow this kind" saved in config.
+- `describeChange(change)` → plain words for cards and bubbles.
+- schedule-chat.md §9 messages become the first eval set.
 
-### Phase 4 — Memory and Inbox
+### Step 4 — Memory and Inbox
 
-- `remember` / `recall` / `forget` tools. The system prompt tells the model to save lasting
-  preferences ("courses are called by their short names", "I don't log cash under 20").
-- Memory list in Settings, with edit and delete.
-- Inbox collection, `InboxList.svelte`, Inbox section at the top of `PlanPanel.svelte`, expiry
-  sweep.
+- `remember` / `recall` / `forget`; memory list in Settings.
+- `assistant/inbox`, `InboxList.svelte`, Inbox at the top of `PlanPanel.svelte`, expiry.
 
-### Phase 5 — Proactive engine
+### Step 5 — Proactive engine
 
-- `src/lib/ai/detectors/*.ts` — pure functions `(data, now, config) → Signal[]`, each with a
-  stable `signalKey` (e.g. `wrap:2026-10-30`, `deadline-plan:<id>`) for dedupe. Fully
-  unit-tested, with no LLM involved.
-- `src/lib/ai/scheduler.ts` — trigger sources, lease, quiet hours, daily caps, feedback weighting,
-  then one background run per batch of signals. That run sees **read tools only** and must reply
-  with cards (dots' read-only rule).
-- `src-tauri/src/assistant.rs` — 5-minute tick event, plus a wake-up at the next `checkin.at`.
-- Web: run on app open, on tab becoming visible (at most every 15 min), and on lease takeover.
-- Desktop notification for `priority: high` cards.
+- `src/lib/ai/detectors/*.ts` — pure `(data, now, config) → Signal[]`, stable `signalKey` for
+  dedupe, fully unit-tested.
+- `src/lib/ai/scheduler.ts` — check-in times, lease, quiet hours, caps, feedback; one background
+  run per batch of signals, read tools only, answers with cards.
+- `src-tauri/src/assistant.rs` — tick + wake at the next check-in.
+- Web: run on open, on tab visible (≤ every 15 min), on lease takeover.
+- Desktop notifications for high-priority cards.
 
-### Phase 6 — Feature packs (one detector + prompt + card layout each)
+### Step 6 — Feature packs
 
-In order of value: evening wrap-up → morning brief → capture → structure → deadline planner →
+In order: 08:00 wrap-up → 17:00 / 23:15 briefs → capture → structure → deadline planner →
 weekly review → pre-event prep and person briefs → money watch → focus coach.
 
-### Phase 7 — Evaluation and tuning
+### Step 7 — Evaluation and tuning
 
-- `src/lib/ai/evals/` — about 30 cases (messages + data fixture → expected ops), run by hand
-  against both providers (`npm run eval:ai`, never in CI because it costs money).
-- Log usage per run in a device-local ring buffer, shown in Settings ("this week: 212k tokens,
-  ≈ $0.40").
-- After two weeks, look at applied/dismissed rates per detector and drop or retune the noisy ones.
+- `src/lib/ai/evals/` (~30 cases) run by hand on both providers (`npm run eval:ai`, never in CI).
+- Usage log per device, shown in Settings.
+- After two weeks, retune or drop detectors with low apply rates.
+
+### Future — Voice mode (ElevenLabs)
+
+Not scheduled yet. When added:
+
+- **Ears**: ElevenLabs realtime speech-to-text (Scribe) over WebSocket, from a mic button in the
+  drawer and the quick bar (and a hotkey on desktop).
+- **Voice**: ElevenLabs text-to-speech, streamed, for replies and optionally for the briefs ("read
+  my 08:00 wrap-up").
+- **Same brain**: the transcript goes into the normal agent loop, so tools, memory, bubbles and
+  approvals work the same; ElevenLabs is only input and output.
+- **Key**: a third BYOK key in Settings. Desktop: key in the keychain, Rust mints the short-lived
+  tokens ElevenLabs expects for browser connections. Web: either the key in local storage or a tiny
+  Worker route that mints tokens — decide then.
+- Replaces the README's "🎤 Voice input — coming soon".
+
+Notes: [research.md §4](docs/assistant/research.md#4-elevenlabs-future-voice-mode).
 
 ---
 
 ## 6. Risks
 
-- **Noise** (dots' main problem) → detectors gate every run, at most 5 unread cards a day,
-  quiet hours, a mute button on every card, a feedback loop.
-- **Wrong edits** → nothing is written without a card or undo. Ids are checked. No deletes.
-- **Cost runaway** → background model + local detectors + daily token cap per device.
-- **Two devices both running** → Firestore lease.
-- **Key leakage** → per device, OS keychain on desktop, never synced, never sent anywhere except
-  the provider.
-- **Provider differences** → the narrow adapter, the shared schema subset, the eval set run on both.
-
-## 7. Open questions for you
-
-1. Should it have a name or persona (Grok Bot style), or just be "Assistant"?
-2. Which areas may it send to the provider by default? Finance and Activity are the sensitive ones.
-3. Default permission for small additive writes (adding a line or task): ask every time, or apply
-   at once with undo?
-4. Times for the morning brief and evening wrap-up, and quiet hours.
-5. Should the desktop app be the only device that runs background jobs, or may the web/phone take
-   over when the desktop is off?
+- **Noise** → detectors gate every run, caps, quiet hours, mute, feedback.
+- **Wrong edits** → small additions only auto-apply (with Undo); everything else needs Apply; ids
+  validated; no deletes.
+- **Cost** → cheap background model, local detectors, daily cap per device.
+- **Two devices running check-ins** → Firestore lease.
+- **Key leaks** → per device, keychain on desktop, never synced.
+- **Provider differences** → narrow adapter, shared schema subset, evals on both.

@@ -185,6 +185,15 @@ export function joinLine(text: string, line: string): string {
 	return body ? `${body}\n${line}` : line;
 }
 
+/** `text` without the last line that reads exactly `line` — undoes `joinLine`. */
+export function removeLine(text: string, line: string): string {
+	const lines = text.split('\n');
+	const i = lines.lastIndexOf(line);
+	if (i === -1) return text;
+	lines.splice(i, 1);
+	return lines.join('\n');
+}
+
 /**
  * Reads quick-capture input. A leading date and colon picks the day
  * (`tmr: call @mom`, `fri: 21:00 gym`, `oct 12: exam`); anything else goes to
