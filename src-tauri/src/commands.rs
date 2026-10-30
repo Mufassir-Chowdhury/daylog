@@ -2,7 +2,7 @@
 //! in src/lib/desktop.ts. Every argument comes from a web page, so each is
 //! checked before use.
 
-use crate::{activity, auth, hotkeys, prefs, reminders, tray, updater, windows, AppState};
+use crate::{activity, ai, auth, hotkeys, prefs, reminders, tray, updater, windows, AppState};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
@@ -181,4 +181,37 @@ pub fn update_check() -> updater::Status {
 #[tauri::command]
 pub fn update_install(app: AppHandle) {
     updater::install(&app);
+}
+
+#[tauri::command]
+pub async fn ai_fetch(request: ai::HttpRequest) -> Result<ai::HttpResponse, String> {
+    tauri::async_runtime::spawn_blocking(move || ai::fetch(request))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Which providers have a key on this computer — never the keys themselves.
+#[tauri::command]
+pub async fn ai_keys() -> Value {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut out = serde_json::Map::new();
+        for provider in ai::Provider::ALL {
+            out.insert(provider.id().into(), ai::has_key(provider).into());
+        }
+        Value::Object(out)
+    })
+    .await
+    .unwrap_or_else(|_| json!({}))
+}
+
+/// Saves a provider's key, or forgets it with `null`.
+#[tauri::command]
+pub async fn ai_key_set(provider: ai::Provider, key: Option<String>) -> Value {
+    let result =
+        tauri::async_runtime::spawn_blocking(move || ai::set_key(provider, key.as_deref())).await;
+    match result {
+        Ok(Ok(())) => json!({ "ok": true }),
+        Ok(Err(error)) => json!({ "ok": false, "error": error }),
+        Err(error) => json!({ "ok": false, "error": error.to_string() }),
+    }
 }

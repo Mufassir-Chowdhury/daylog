@@ -22,4 +22,7 @@ permissions = [
   "allow-update-status",
   "allow-update-check",
   "allow-update-install",
+  "allow-ai-fetch",
+  "allow-ai-keys",
+  "allow-ai-key-set",
 ]

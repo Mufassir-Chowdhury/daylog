@@ -6,36 +6,49 @@ file when a decision changes, and say so in [`progress.md`](./progress.md).
 Part of the assistant docs: [plan](../../assistant.md) · [research](./research.md) ·
 [progress](./progress.md).
 
-## Decided 2026-10-30
+## Decisions
 
 | Topic                 | Decision                                                                                                                                                                                                                                                                                     |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Name                  | The assistant has a **name you can change** in Settings. Use it everywhere (drawer title, bubbles, cards, notifications). Default name: `Assistant` until the owner picks one.                                                                                                               |
+| Persona               | It should **feel like JARVIS from Iron Man** (see "Persona" below). Decided 2026-10-30.                                                                                                                                                                                                      |
+| Name                  | A **name you can change** in Settings, used everywhere it speaks (drawer title, bubbles, cards, notifications). **Default: `Jarvis`.** How it addresses you is also a setting (default: your first name).                                                                                    |
 | Provider              | **Switchable** between Claude and Gemini, **bring your own key** per device. One provider active at a time, with a _chat model_ and a _background model_. Key never synced to Firestore.                                                                                                     |
 | Data sent to provider | Everything, **including Finance and Activity**. The per-area switches still exist in Settings, but all start **on**. (Window titles in Activity are included too, since the owner allowed Activity.)                                                                                         |
 | Small additions       | **Applied automatically**, then shown in a **toast/bubble** that says what the assistant did, with **Undo**. "Small additions" = adding things, never changing or removing them: `append_line`, `add_task`, `create_note`, `append_to_note`, `add_subtask`, `log_routine_value`, `remember`. |
 | Bigger changes        | Moving, cancelling, editing existing items and all money records stay as **proposal cards** (Apply / Edit / Dismiss, plus "Always allow this kind"). No deletes at all.                                                                                                                      |
-| Scheduled check-ins   | **08:00 daily wrap-up**, **17:00 brief**, **23:15 brief**. All three times (and whether each is on) are **editable in Settings**, and more check-ins can be added there.                                                                                                                     |
+| Scheduled check-ins   | **08:00 morning warm-up**, **17:00 brief**, **23:15 brief**. All times (and whether each is on) are **editable in Settings**, and more check-ins can be added there.                                                                                                                         |
 | Where background runs | **Desktop and web.** Whichever device is open holds the Firestore lease and runs the check-ins; the desktop app is preferred when it's running because it's always on. A web tab (including on a phone) runs them when no desktop app is.                                                    |
 | Voice mode (future)   | Plan for **ElevenLabs** (speech-to-text and text-to-speech) when voice mode is added. Not in the current build order; see the plan's "Future: voice mode" section.                                                                                                                           |
-| Build order           | Start with **Step 0 (ops layer)**, then follow the plan's phases in order.                                                                                                                                                                                                                   |
+| Build order           | Follow the plan's steps in order. Steps 0–1 done.                                                                                                                                                                                                                                            |
+
+### Persona: JARVIS
+
+The owner wants it to feel like JARVIS. For prompts (Step 2) and every line it writes:
+
+- **Composed and capable.** Calm, precise, quietly confident. Never gushing, never "Great question!".
+- **Anticipates.** Leads with what matters now and what it has already handled; suggests the next
+  move before being asked.
+- **Brief.** A sentence or two unless asked for more. Briefs read like a status report, not an essay.
+- **Dry wit, used sparingly.** A light touch, never at the expense of clarity, never in bad news.
+- **Addresses you** by the "Calls you" setting (your first name by default) — at most once per
+  message, usually at the start ("Good morning, Mufassir.").
+- **Reports what it did** in past tense ("Added _Grade DM_ to Later."), and asks only when it
+  genuinely can't decide.
+- It's an original assistant in that spirit — no quotes or catchphrases from the films.
 
 ### What each check-in covers
 
-The owner gave the times; the content below is the working interpretation. Adjust here if it's
-wrong.
-
-- **08:00 daily wrap-up** — closes out _yesterday_ and sets up _today_: unfinished lines and tasks
-  from yesterday (offer to carry them over), routines and money mentioned but not logged,
-  then today's classes, tasks and deadlines due within a week.
+- **08:00 morning warm-up** — _what's up for the day_: today's classes and rooms, tasks with
+  time blocks, deadlines within a week, anything carried over from yesterday (offer to move it
+  here), and the best focus window.
 - **17:00 brief** — the rest of today (what's still open, what's coming tonight), tomorrow's first
   classes and anything due tomorrow, and spending pace if it's off.
 - **23:15 brief** — end of day: what got done, what's left (offer to move it to tomorrow / Later /
-  drop), routine streaks at risk, and the first thing on tomorrow.
+  drop), routines and money mentioned but not logged, streaks at risk, and the first thing on
+  tomorrow.
 
 ## Still open
 
-- The assistant's actual name (the default stays `Assistant`).
-- Quiet hours (default proposal: 00:00–07:30, no notifications; the Inbox still fills).
-- Daily caps (default proposal: at most 5 unprompted cards a day outside the scheduled check-ins,
-  at most 1 focus nudge an hour).
+- Quiet hours (default set: 00:00–07:30, no notifications; the Inbox still fills). Editable.
+- Daily caps (default set: at most 5 unprompted cards a day outside the scheduled check-ins, at most
+  1 focus nudge an hour). Editable.

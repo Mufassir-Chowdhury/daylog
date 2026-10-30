@@ -9,8 +9,8 @@ that differs from the plan, and say what comes next.
 | Step | What                            | Status                |
 | ---- | ------------------------------- | --------------------- |
 | 0    | Ops layer                       | ✅ done 2026-10-30    |
-| 1    | Providers and settings          | ⏭ **next**            |
-| 2    | Tool registry and chat          | not started           |
+| 1    | Providers and settings          | ✅ done 2026-10-30    |
+| 2    | Tool registry and chat          | ⏭ **next**            |
 | 3    | Write tools, bubbles, approvals | not started           |
 | 4    | Memory and Inbox                | not started           |
 | 5    | Proactive engine                | not started           |
@@ -98,15 +98,99 @@ that differs from the plan, and say what comes next.
 
 ---
 
-## Next: Step 1 — Providers and settings
+## Step 1 — Providers and settings (done 2026-10-30)
 
-See the plan, §5 Step 1. Checklist:
+### What was built
 
-- [ ] `src/lib/ai/types.ts`
-- [ ] `src/lib/ai/providers/anthropic.ts` + `gemini.ts` (+ fixture tests)
-- [ ] `src/lib/ai/transport.ts` (web fetch / desktop Tauri command)
-- [ ] `src-tauri/src/ai.rs` with `keyring`; bridge in `desktop.ts` / `desktop-tauri.ts`
-- [ ] `src/lib/ai/budget.ts`
-- [ ] `src/lib/ai/config.ts` with defaults from decisions.md
-- [ ] Settings → Assistant section
-- [ ] Re-check model ids and API details (research.md §3) before writing the adapters
+- **`src/lib/ai/types.ts`** — the provider-neutral shapes: `ToolDef` (with a `Schema` subset both
+  providers accept: optional values are `type: [x, 'null']` and still listed in `required`),
+  `ToolCall`, `ToolResult`, `Turn` (`user` text or `tool_results`), `SendRequest`, `RunResult`
+  (`text`, `calls`, `stop: done | tool_use | max_tokens | refusal`, `usage`, `model`, `messages`),
+  `Adapter`, and `AiError` with kinds `no_key | auth | rate_limit | bad_request | server | network`.
+  - **History is provider-native and append-only**: `RunResult.messages` holds the user turn and
+    the reply in the provider's own format; append both to the thread's `history` and never edit
+    them (Claude thinking/fallback blocks and Gemini thought signatures must go back unchanged).
+- **`providers/anthropic.ts`** — the official `@anthropic-ai/sdk` (1.3.0) with
+  `dangerouslyAllowBrowser` and the transport's `fetch`. `client.beta.messages.create` with
+  strict tools (`toClaudeSchema` closes objects, requires every property), top-level
+  `cache_control`, and refusal fallback (`server-side-fallback-2026-07-01`, `fallbacks: 'default'`).
+  No `thinking` param (Opus 5.5 thinks always; effort left at the default). Tool results go back
+  in one user message. `listModels` via `client.models.list`.
+- **`providers/gemini.ts`** — REST `generateContent` with `systemInstruction` and
+  `functionDeclarations` (`toGeminiSchema`: one type + `nullable`). Calls without an id get a
+  `local:` id that's never sent back. Safety finishes and blocked prompts → `refusal`.
+  `listModels` pages through `/v1beta/models`, keeping `gemini*` models with `generateContent`.
+- **`index.ts`** — `loadAdapter(provider)`, a dynamic import, so the SDK (~340 KB) only downloads
+  once the assistant is used.
+- **`transport.ts`** — `keyStatus()`, `saveKey(provider, key | null)`, `providerFetch(provider)`.
+  - Web: key in `localStorage` (`daylog.ai.key.<provider>`), added as `x-api-key` /
+    `x-goog-api-key` on the way out.
+  - Desktop: `desktop.aiFetch` → Rust command `ai_fetch`, which adds the key from the OS
+    credential store. A missing key surfaces as `AiError('no_key')` on both.
+- **`src-tauri/src/ai.rs`** + commands `ai_fetch`, `ai_keys`, `ai_key_set` (in `commands.rs`,
+  `lib.rs`, `build.rs`, `permissions/app.toml`). Keys via the `keyring` crate (Windows Credential
+  Manager / macOS Keychain / Secret Service). `ai_fetch` only reaches `https://api.anthropic.com/`
+  or `https://generativelanguage.googleapis.com/` for the matching provider, and strips any key
+  or auth header the page tries to set. Rust unit tests cover both rules.
+- **`config.ts`** — synced `AssistantConfig`: `name` (default **Jarvis**), `addressAs` (empty =
+  first name), `checkins` (08:00 warm-up, 17:00 brief, 23:15 wrap-up kind; each `{ id, label,
+time, kind, enabled }`), `quietHours` (00:00–07:30), `maxCardsPerDay` (5), `areas` (all on).
+  `normalizeConfig` repairs anything stored badly. Helpers `addressName`, `inQuietHours`.
+  Stored at `users/{uid}/assistant/config` via `loadAssistantConfig` / `saveAssistantConfig` in
+  `db.ts`.
+- **`device.ts`** — per-device `DevicePrefs`: `provider`, `models[provider][chat|background]`
+  (defaults `claude-opus-5-5` / `claude-haiku-5-5`; `gemini-3.1-pro-preview` /
+  `gemini-3.5-flash`, replaced by the live list on "Test connection"), `dailyTokens` (chat 1M,
+  background 300k).
+- **`budget.ts`** — `spentToday`, `recordUsage(slot, usage)`, `withinBudget(slot, prefs)`; cache
+  reads count a tenth.
+- **`storage.ts`** — guarded `localStorage` with an in-memory fallback.
+- **`AssistantSettings.svelte`** in Settings: name + "Calls you" with a live greeting preview,
+  provider switch, key save/remove, Test connection (lists models, fills both model pickers,
+  keeps your picks if offered), daily limits with today's use, check-ins (on/off, time, name,
+  kind, add/remove), quiet hours, suggestions per day, and "What it can see".
+
+### Different from the plan
+
+- The Claude adapter uses the **official SDK** rather than plain `fetch` (the SDK accepts a custom
+  `fetch`, so the desktop key handling still works).
+- Firestore layout: `assistant/config` is a doc in an `assistant` collection, so the assistant's
+  other collections will be top-level siblings (`assistantInbox`, `assistantMemory`,
+  `assistantThreads`, `assistantCheckins`); the plan's data table is updated.
+- Check-ins are saved but **don't run yet** (Step 5). The Settings text says so.
+- Assistant config is not part of the backup export yet.
+
+### Checks run
+
+- `svelte-check`: 0 errors, 0 warnings. `eslint .` and `prettier --check .`: clean.
+- Vitest: 20 files, 187 tests passed (server + browser), including adapter tests against recorded
+  responses, config/budget/key-storage tests, and a browser test of the Settings section (greeting,
+  default check-ins, saving a key, test connection success and failure, removing the key).
+- Rust: `cargo check` and `cargo clippy` clean (one older warning in `updater.rs`), `cargo test ai::`
+  2 passed.
+- `npm run build` and `vite build --mode desktop`: OK; the SDK is a lazily loaded chunk.
+- **Not tested against the real APIs** (no keys in the build environment) and not clicked through
+  in the desktop app. First real use: Settings → Assistant → paste a key → Test connection.
+- Svelte MCP autofixer: still unreachable from the cloud session; not run.
+
+### Environment notes (cloud sessions)
+
+- Rust builds need the Linux packages from `docs/tauri-migration.md`
+  (`apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+libxdo-dev libssl-dev libdbus-1-dev`); after that `cargo check` works in `src-tauri/`.
+
+---
+
+## Next: Step 2 — Tool registry and chat
+
+See the plan, §5 Step 2, and decisions.md → Persona (the system prompt should carry it). Checklist:
+
+- [ ] `src/lib/ai/tools/registry.ts` — `defineTool({ name, area, kind, small, schema, describe, run })`;
+      tools of areas switched off in config are left out
+- [ ] Read tools for each area, trimmed JSON output
+- [ ] `src/lib/ai/agent.ts` — loop over `Adapter.send` (max ~8 steps); check `keyStatus` and
+      `withinBudget` first, `recordUsage` after every call; append `RunResult.messages` to history
+- [ ] `src/lib/ai/prompt.ts` — fixed JARVIS system prompt; date, page, memory, name and
+      `addressName()` in the user turn
+- [ ] `AssistantDrawer.svelte` (`Ctrl+J`), `?` prefix in `CommandPalette.svelte`, shortcut in the `?` list
+- [ ] Threads: keep per provider; a provider switch starts a new thread

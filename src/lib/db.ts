@@ -15,6 +15,7 @@ import {
 	type WriteBatch
 } from 'firebase/firestore';
 import type { ActivityCategory, ActivityGoal, ActivitySpan } from './activity';
+import { normalizeConfig, type AssistantConfig } from './ai/config';
 import { cleanGoals } from './activity';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
@@ -218,6 +219,8 @@ const weekNotesCol = (uid: string) => collection(db, 'users', uid, 'weekNotes');
 const activityCol = (uid: string) => collection(db, 'users', uid, 'activity');
 const activityGoalsCol = (uid: string) => collection(db, 'users', uid, 'activityGoals');
 const activityConfigDoc = (uid: string) => doc(db, 'users', uid, 'activityConfig', 'main');
+/** The assistant's account-wide settings. Its other data gets collections of its own (`assistant…`). */
+const assistantConfigDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'config');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -229,6 +232,15 @@ export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 
 export async function saveSettings(uid: string, settings: AppSettings): Promise<void> {
 	await setDoc(settingsDoc(uid), { ...settings, updatedAt: serverTimestamp() });
+}
+
+export async function loadAssistantConfig(uid: string): Promise<AssistantConfig> {
+	const snap = await getDoc(assistantConfigDoc(uid));
+	return normalizeConfig(snap.exists() ? snap.data() : null);
+}
+
+export async function saveAssistantConfig(uid: string, config: AssistantConfig): Promise<void> {
+	await setDoc(assistantConfigDoc(uid), { ...config, updatedAt: serverTimestamp() });
 }
 
 export async function loadDay(uid: string, key: string): Promise<string> {

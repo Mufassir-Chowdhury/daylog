@@ -25,7 +25,7 @@ the first step `progress.md` marks as not done. Update `progress.md` at the end 
   so it can be undone exactly like a button press.
 - **Proactive, not reactive.** Borrowed from dots and Grok Bot (details in
   [research.md](docs/assistant/research.md)):
-  - **Scheduled check-ins**: 08:00 daily wrap-up, 17:00 brief, 23:15 brief (editable in Settings).
+  - **Scheduled check-ins**: 08:00 morning warm-up, 17:00 brief, 23:15 brief (editable in Settings).
   - **Detectors**: free, local checks over your data (deadline close and nothing planned, money
     written in a day but not recorded, a routine streak about to break…). The model only runs when
     one fires. This avoids dots' main problem, noisy and badly timed suggestions.
@@ -37,7 +37,8 @@ the first step `progress.md` marks as not done. Update `progress.md` at the end 
 - **Your own key, your choice of model.** Claude or Gemini, switchable, key stored per device.
 - **Everywhere.** Desktop app and web (including phone). Whichever device is open runs the
   check-ins; the Inbox syncs through Firestore.
-- **A name you choose**, shown everywhere it speaks.
+- **Feels like JARVIS**: composed, anticipating, brief, a little dry wit. Named `Jarvis` by
+  default; the name and how it addresses you are both settings (see decisions.md → Persona).
 
 ---
 
@@ -63,12 +64,12 @@ proposal card unless you've switched that kind to "always allow". No delete tool
 
 ### 2.2 Proactive features
 
-1. **08:00 daily wrap-up** — yesterday's unfinished lines and tasks (carry over?), routines and
-   money mentioned but not logged, then today's classes, tasks and near deadlines.
+1. **08:00 morning warm-up** — what's up for the day: classes and rooms, tasks with time blocks,
+   near deadlines, anything carried over from yesterday (move it here?), best focus window.
 2. **17:00 brief** — what's still open today, tonight's and tomorrow morning's schedule, anything
    due tomorrow, spending pace if it's off.
-3. **23:15 brief** — what got done, what's left (move to tomorrow / Later / drop?), streaks at risk,
-   first thing tomorrow.
+3. **23:15 brief** — what got done, what's left (move to tomorrow / Later / drop?), routines and
+   money mentioned but not logged, streaks at risk, first thing tomorrow.
 4. **Capture → structure** — a few seconds after you stop typing (day page or quick bar), lines that
    look like money, dates, cancellations or deadlines get a chip: `exam on nov 12` → "add as
    deadline ✓"; `gave @rahim 500` → a lend to approve. The line itself stays as written.
@@ -159,18 +160,18 @@ API details: [research.md §3](docs/assistant/research.md#3-llm-providers).
   `reminders.rs`).
 - **No server.** Firestore rules already cover `users/{uid}/**`.
 
-### Data (`users/{uid}/assistant/…`)
+### Data (Firestore, under `users/{uid}/`)
 
-| Doc / collection | Contents                                                                                                               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `config`         | name, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
-| `memory/{id}`    | `{ text, kind: preference / fact / summary, source, updatedAt }`, editable in Settings                                 |
-| `inbox/{id}`     | `{ kind, title, body, changes[], signalKey, priority, status, expiresAt, createdAt }`                                  |
-| `threads/{id}`   | provider, model, raw transcript (capped)                                                                               |
-| `checkins/{id}`  | `{ at, why, done }` from `schedule_checkin`                                                                            |
-| `lease`          | `{ deviceId, until }`                                                                                                  |
-| `feedback`       | applied / dismissed / muted counts per signal type                                                                     |
-| _(per device)_   | API key, provider, model slots, today's token usage                                                                    |
+| Doc / collection         | Contents                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assistant/config`       | name, how it addresses you, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
+| `assistantMemory/{id}`   | `{ text, kind: preference / fact / summary, source, updatedAt }`, editable in Settings                                                       |
+| `assistantInbox/{id}`    | `{ kind, title, body, changes[], signalKey, priority, status, expiresAt, createdAt }`                                                        |
+| `assistantThreads/{id}`  | provider, model, raw transcript (capped)                                                                                                     |
+| `assistantCheckins/{id}` | `{ at, why, done }` from `schedule_checkin`                                                                                                  |
+| `assistant/lease`        | `{ deviceId, until }`                                                                                                                        |
+| `assistant/feedback`     | applied / dismissed / muted counts per signal type                                                                                           |
+| _(per device)_           | API key, provider, model slots, today's token usage                                                                                          |
 
 ---
 
@@ -186,19 +187,13 @@ return them; `run()` applies them to page state, saves through `db.ts` and shows
 `invert()` is the undo. The Schedule page runs on it. Other pages can move over when they're
 touched (listed in progress.md).
 
-### Step 1 — Providers and settings
+### Step 1 — Providers and settings ✅ (see progress.md)
 
-- `src/lib/ai/types.ts` — `Message`, `ToolDef`, `ToolCall`, `ToolResult`, `RunResult`.
-- `src/lib/ai/providers/anthropic.ts`, `gemini.ts` — `send`, `listModels`, error mapping.
-- `src/lib/ai/transport.ts` — browser `fetch` on web, Tauri command on desktop.
-- `src-tauri/src/ai.rs` — `ai_request`, `ai_key_get/set/clear` (`keyring`); wire into
-  `commands.rs`, `desktop.ts`, `desktop-tauri.ts`.
-- `src/lib/ai/budget.ts` — per-device token counter and cap.
-- `src/lib/ai/config.ts` — `assistant/config` load/save with defaults from decisions.md (name
-  `Assistant`, check-ins 08:00 / 17:00 / 23:15, all data areas on).
-- Settings → **Assistant**: name, provider, key + Test, chat/background model, budget, check-in
-  times, quiet hours, data areas.
-- Tests with recorded provider responses (no network in CI).
+`src/lib/ai/`: one `Adapter` interface (`send`, `listModels`, `pickDefaults`) with a Claude adapter
+(official SDK, loaded only when used) and a Gemini adapter (REST). Keys per device: browser
+storage on the web, the OS credential store on desktop, where Rust (`src-tauri/src/ai.rs`) adds
+the key to each request. Synced settings in `assistant/config` (name `Jarvis`, check-ins, quiet
+hours, areas); per-device provider, models and daily token limits. Settings → **Assistant**.
 
 ### Step 2 — Tool registry and chat
 
@@ -206,7 +201,8 @@ touched (listed in progress.md).
   converted per provider. `small: true` marks auto-apply tools.
 - Read tools for every area; trimmed JSON output.
 - `src/lib/ai/agent.ts` — tool loop (max ~8 steps).
-- `src/lib/ai/prompt.ts` — fixed system prompt; date, view, memory and name go in the user turn.
+- `src/lib/ai/prompt.ts` — fixed system prompt with the JARVIS persona (decisions.md); date, view,
+  memory, name and form of address go in the user turn.
 - `AssistantDrawer.svelte` (`Ctrl+J`), `?` prefix in `CommandPalette.svelte`.
 
 ### Step 3 — Write tools, bubbles, approvals
@@ -235,7 +231,7 @@ touched (listed in progress.md).
 
 ### Step 6 — Feature packs
 
-In order: 08:00 wrap-up → 17:00 / 23:15 briefs → capture → structure → deadline planner →
+In order: 08:00 warm-up → 17:00 / 23:15 briefs → capture → structure → deadline planner →
 weekly review → pre-event prep and person briefs → money watch → focus coach.
 
 ### Step 7 — Evaluation and tuning
@@ -251,7 +247,7 @@ Not scheduled yet. When added:
 - **Ears**: ElevenLabs realtime speech-to-text (Scribe) over WebSocket, from a mic button in the
   drawer and the quick bar (and a hotkey on desktop).
 - **Voice**: ElevenLabs text-to-speech, streamed, for replies and optionally for the briefs ("read
-  my 08:00 wrap-up").
+  my 08:00 warm-up").
 - **Same brain**: the transcript goes into the normal agent loop, so tools, memory, bubbles and
   approvals work the same; ElevenLabs is only input and output.
 - **Key**: a third BYOK key in Settings. Desktop: key in the keychain, Rust mints the short-lived
