@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { dismiss, toasts } from '$lib/toast.svelte';
 	import { fly } from 'svelte/transition';
+	import Icon from './Icon.svelte';
 </script>
 
 <div
@@ -16,7 +17,11 @@
 				: 'border-line bg-ink text-canvas'}"
 			role={t.tone === 'error' ? 'alert' : 'status'}
 		>
-			<span>{t.message}</span>
+			<span>
+				{#if t.from}<span class="mr-1 inline-flex items-center gap-1 font-semibold"
+						><Icon name="sparkle" size={13} />{t.from}</span
+					>{/if}{t.message}
+			</span>
 			{#if t.undo}
 				<button
 					type="button"

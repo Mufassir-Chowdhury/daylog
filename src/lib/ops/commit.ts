@@ -3,7 +3,7 @@
  * it updates the caller's state right away, saves in the background (Firestore's
  * offline cache makes the write durable at once) and shows an Undo toast.
  */
-import { editDayLines } from '../capture';
+import { editDayLines, type LineEdit } from '../capture';
 import {
 	deleteDeadline,
 	deleteEvent,
@@ -23,6 +23,7 @@ import {
 	saveTransaction,
 	saveWeekNote
 } from '../db';
+import { liveEditor } from '../live';
 import { saveFailed, toast } from '../toast.svelte';
 import { invert, type Change } from './change';
 
@@ -41,8 +42,13 @@ function write(uid: string, c: Change): Promise<void> {
 			return saveWeekNote(uid, c.after ?? { week: c.id, text: '' });
 		case 'transaction':
 			return c.after ? saveTransaction(uid, c.after) : deleteTransaction(uid, c.id);
-		case 'note':
-			return c.after ? saveNote(uid, c.after) : deleteNote(uid, c.id);
+		case 'note': {
+			if (!c.after) return deleteNote(uid, c.id);
+			// An open note page shows the change and saves it itself.
+			const editor = liveEditor('note', c.id);
+			if (editor) return Promise.resolve(editor(c.after));
+			return saveNote(uid, c.after);
+		}
 		case 'longterm':
 			return c.after ? saveLongTermTask(uid, c.after) : deleteLongTermTask(uid, c.id);
 		case 'person': {
@@ -50,6 +56,8 @@ function write(uid: string, c: Change): Promise<void> {
 			if (!c.after) return Promise.reject(new Error('People are not deleted by ops'));
 			// savePerson merges, so blank out fields the other side doesn't have.
 			const { handle, name = '', bio = '' } = c.after;
+			const editor = liveEditor('person', handle);
+			if (editor) return Promise.resolve(editor({ handle, name, bio }));
 			return savePerson(uid, { handle, name, bio });
 		}
 		case 'routineValue': {
@@ -64,10 +72,10 @@ function write(uid: string, c: Change): Promise<void> {
 
 /** Writes the changes. Lines for the same day are applied together, in order. */
 export async function commit(uid: string, changes: Change[]): Promise<void> {
-	const days = new Map<string, { line: string; add: boolean }[]>();
+	const days = new Map<string, LineEdit[]>();
 	for (const c of changes) {
 		if (c.kind !== 'dayLine') continue;
-		const edit = c.after ? { line: c.after.line, add: true } : { line: c.before!.line, add: false };
+		const edit = { from: c.before?.line ?? null, to: c.after?.line ?? null };
 		days.set(c.id, [...(days.get(c.id) ?? []), edit]);
 	}
 	await Promise.all([

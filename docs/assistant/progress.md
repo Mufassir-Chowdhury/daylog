@@ -11,8 +11,8 @@ that differs from the plan, and say what comes next.
 | 0    | Ops layer                       | ✅ done 2026-10-30    |
 | 1    | Providers and settings          | ✅ done 2026-10-30    |
 | 2    | Tool registry and chat          | ✅ done 2026-10-30    |
-| 3    | Write tools, bubbles, approvals | ⏭ **next**            |
-| 4    | Memory and Inbox                | not started           |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
+| 4    | Memory and Inbox                | ⏭ **next**            |
 | 5    | Proactive engine                | not started           |
 | 6    | Feature packs                   | not started           |
 | 7    | Evaluation and tuning           | not started           |
@@ -256,20 +256,83 @@ pending }`, `openAssistant(question?)`, `closeAssistant`, `newConversation`, `as
 
 ---
 
-## Next: Step 3 — Write tools, bubbles, approvals
+## Step 3 — Write tools, bubbles, approvals (done 2026-10-30)
 
-See the plan, §5 Step 3, and decisions.md (small additions auto-apply with an Undo bubble;
-everything else is a proposal card; no deletes). Checklist:
+### What was built
 
-- [ ] Write tools (`kind: 'write'`) built on `src/lib/ops/` planners; each returns `Change[]` and
-      a plain description; ids checked against fresh data (`findOccurrence` etc.)
-- [ ] `small: true` tools (`append_line`, `add_task`, `create_note`, `append_to_note`,
-      `add_subtask`, `log_routine_value`) apply at once via `run()` and show an assistant bubble
-      (its name + what it did + Undo); the tool result tells the model it's done
-- [ ] Everything else becomes a proposal card in the chat (Apply / Dismiss, "Always allow this
-      kind" saved in config); the tool result tells the model it's waiting for approval
-- [ ] `describeChange(change)` for cards and bubbles
-- [ ] Person bios: live-editor registry for open person pages (see Step 0 known gaps)
-- [ ] Update `SYSTEM_PROMPT` (it can now change things; small ones happen at once, others are
-      proposed) and include `write` tools in `assistant.svelte.ts`
-- [ ] Eval cases from schedule-chat.md §9
+- **Registry** (`tools/registry.ts`): write tools have `kind: 'write'`, `plan(ctx, input) →
+{ changes, summary }`, `small` and a `label` (for Settings). `runTool` hands plans to
+  `ctx.propose` and returns its answer to the model; with no changes it says "nothing to change";
+  without `propose` (background runs, Step 5) writes are refused. New schema helpers `num`,
+  `optNum`, `optBool`, `strList`, `enumOf`.
+- **26 write tools** (★ = small, applied at once by default):
+  - days: `append_line`★, `set_line_done`, `move_line` (lines found by their text)
+  - schedule: `set_event_status`, `move_event`, `update_event`, `add_event`,
+    `cancel_week_classes`, `add_task`★, `set_task_status`, `move_task`, `update_task`,
+    `add_deadline`, `update_deadline`, `set_week_note` (ids looked up fresh; untouched timetable
+    rows resolved from `slot_date` ids; times must be `HH:MM`)
+  - notes: `create_note`★, `append_to_note`★
+  - long-term: `add_longterm`, `add_subtask`★, `set_subtask_done`, `set_longterm_done`
+  - routines: `log_routine_value`★ (by name; remembers the old value for undo)
+  - people: `append_person_note`, `set_person_name`
+  - finance: `add_transaction` (accounts by name; asks which when several; lend/borrow need a
+    person), `update_transaction`
+- **`assistant.svelte.ts`**: `proposer` — `permissionFor(config, tool, small)` is `auto` → apply
+  now (`commit` then `invalidateAll` so the page shows it), bubble with its name and Undo, a ✓ line
+  in the chat with Undo; otherwise a `Card { summary, details, changes, status, always }`.
+  `applyCard` (checks `staleChanges` first; "Always do this" saves `permissions[tool] = 'auto'`),
+  `dismissCard`, `undoCard`, `undoAction`. What you did ("The owner applied/dismissed/undid: …")
+  goes in front of your next message as "Since your last reply".
+- **Config**: `permissions: Record<toolName, 'auto' | 'ask'>`, `permissionFor`.
+- **Settings**: "Changes it makes without asking" — a checkbox per write tool.
+- **Panel**: ✓ lines with Undo, cards with the changes in plain words, Apply / Dismiss /
+  "Always do this without asking", and states (Applied + Undo, undone, dismissed, changed since).
+- **Prompt**: a "Making changes" section — act when clear, small ones happen at once, others are
+  cards, ids only from tools, ask when ambiguous, nothing is deleted, the schedule habits from
+  schedule-chat.md, money rules, respect dismissed cards.
+- **Ops**: `dayLine` changes can now rewrite a line (before and after both set);
+  `capture.editDayLines` takes `{ from, to }` edits and the day page's editor has `replace`.
+  `ops/describe.ts` (`describeChange`), `ops/fresh.ts` (`staleChanges`).
+- **Open editors**: `src/lib/live.ts` — open note and person pages register; `commit` hands them
+  the change and they save it like typing (fixes the Step 0 "person bio" gap). Day, note and
+  person pages now keep their text when their data reloads for the same day/note/person, so the
+  assistant's page refresh never wipes unsaved typing.
+- **Toasts** take a `from` (the assistant's name, with the sparkle icon).
+- **`docs/assistant/evals.md`**: 15 cases (schedule-chat.md §9 plus capture, money, routines,
+  carry-over, ambiguity, dismissed cards).
+
+### Different from the plan
+
+- Cards have Apply / Dismiss, no Edit: to change a proposal, tell the assistant ("make it 3 PM")
+  and it proposes again.
+- No `update_slot` (permanent timetable changes) and no `set_day_goal` yet; both rare. Add them
+  the same way if wanted.
+- Cards live in the chat only (lost on reload) until the Inbox (Step 4) stores them.
+
+### Checks run
+
+- `svelte-check` 0/0, `eslint .`, `prettier --check .`: clean.
+- Vitest: 26 files, 243 tests passed. New: write tools against mocked data (virtual timetable
+  rows, bad ids, moves, times, accounts, lend without a person, routines, lines), the registry's
+  write path, permissions, `staleChanges`, `describeChange`, `editDayLines` (with and without an
+  open page), `commit` → open note/person pages, and browser tests of the panel (small addition
+  applied + Undo, card applied → told to the model next turn, stale card refused, "always do
+  this" saved) and the Settings list.
+- `npm run build`, `vite build --mode desktop`, e2e: OK.
+- Not tried against a real provider or clicked through signed in. Svelte MCP autofixer still
+  unreachable.
+
+---
+
+## Next: Step 4 — Memory and Inbox
+
+See the plan, §5 Step 4. Checklist:
+
+- [ ] `assistantMemory/{id}` collection + `remember`★ / `forget` write tools and a read tool
+      (`recall`), or memory put straight into the context block when short
+- [ ] Memory list in Settings (view, edit, delete)
+- [ ] `assistantInbox/{id}` collection: cards and briefs that outlive the chat (proposals from
+      chat can be saved there too, so they survive a reload)
+- [ ] `InboxList.svelte`; Inbox at the top of `PlanPanel.svelte` and in the panel; expiry
+- [ ] Save conversations (`assistantThreads`) so a reload doesn't lose them
+- [ ] Prompt: when to remember things (lasting preferences, facts about people and courses)

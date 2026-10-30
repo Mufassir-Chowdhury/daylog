@@ -4,6 +4,7 @@
  * work. Inputs are validated here before `run`, since not every provider
  * guarantees them.
  */
+import type { Change } from '../../ops/change';
 import type { AssistantConfig, DataArea } from '../config';
 import type { Schema, ToolCall, ToolDef, ToolResult } from '../types';
 
@@ -15,6 +16,23 @@ export interface ToolContext {
 	cache: Map<string, Promise<unknown>>;
 	/** Opens a page in the app. */
 	navigate: (path: string) => void;
+	/**
+	 * Hands planned changes to whoever is running the assistant: they're applied
+	 * at once or shown as a card. Returns what to tell the model. Without it
+	 * (background runs) write tools refuse.
+	 */
+	propose?: (proposal: Proposal) => Promise<string>;
+}
+
+/** What a write tool wants to do. */
+export interface Plan {
+	changes: Change[];
+	/** One line in plain words: "Add “Grade DM” to Later". */
+	summary: string;
+}
+
+export interface Proposal extends Plan {
+	tool: Tool;
 }
 
 export interface Tool {
@@ -25,7 +43,14 @@ export interface Tool {
 	kind: 'read' | 'write' | 'ui';
 	/** What it's doing, in a few words, for the chat ("Checking your schedule"). */
 	describe(input: Record<string, unknown>): string;
-	run(ctx: ToolContext, input: Record<string, unknown>): Promise<unknown>;
+	/** Read and ui tools: does the work and returns what the model sees. */
+	run?(ctx: ToolContext, input: Record<string, unknown>): Promise<unknown>;
+	/** Write tools: works out the changes; `ctx.propose` decides what happens to them. */
+	plan?(ctx: ToolContext, input: Record<string, unknown>): Promise<Plan>;
+	/** Write tools: a small addition, applied at once with Undo unless Settings say otherwise. */
+	small?: boolean;
+	/** Write tools: what it does, for Settings ("Add tasks"). */
+	label?: string;
 }
 
 /** Runs `load` once per turn for `key`, so several tools can share a fetch. */
@@ -108,10 +133,19 @@ export async function runTool(
 	for (const key of Object.keys(tool.def.parameters.properties ?? {}))
 		if (!(key in input)) input[key] = null;
 	try {
+		if (tool.kind === 'write') {
+			if (!ctx.propose || !tool.plan)
+				return fail('Changes aren’t allowed here; describe them instead.');
+			const plan = await tool.plan(ctx, input);
+			const content = plan.changes.length
+				? await ctx.propose({ ...plan, tool })
+				: `Nothing to change — ${plan.summary} is already the case.`;
+			return { callId: call.id, name: call.name, content };
+		}
 		return {
 			callId: call.id,
 			name: call.name,
-			content: serializeResult(await tool.run(ctx, input))
+			content: serializeResult(await tool.run!(ctx, input))
 		};
 	} catch (e) {
 		return fail(e instanceof Error ? e.message : String(e));
@@ -123,6 +157,22 @@ export async function runTool(
 export const str = (description: string): Schema => ({ type: 'string', description });
 export const optStr = (description: string): Schema => ({ type: ['string', 'null'], description });
 export const optInt = (description: string): Schema => ({ type: ['integer', 'null'], description });
+export const num = (description: string): Schema => ({ type: 'number', description });
+export const optNum = (description: string): Schema => ({ type: ['number', 'null'], description });
+export const optBool = (description: string): Schema => ({
+	type: ['boolean', 'null'],
+	description
+});
+export const strList = (description: string): Schema => ({
+	type: 'array',
+	items: { type: 'string' },
+	description
+});
+export const enumOf = (values: string[], description: string): Schema => ({
+	type: 'string',
+	enum: values,
+	description
+});
 export const optEnum = (values: string[], description: string): Schema => ({
 	type: ['string', 'null'],
 	enum: values,

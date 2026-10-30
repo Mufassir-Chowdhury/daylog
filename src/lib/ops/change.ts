@@ -23,7 +23,10 @@ export interface RoutineValue {
 	value: number;
 }
 
-/** A line added at the end of a day's text — removing it is the undo. */
+/**
+ * A line of a day's text. Created = added at the end, removed = taken out,
+ * changed = the last line reading `before.line` rewritten as `after.line`.
+ */
 export interface DayLine {
 	date: string;
 	line: string;

@@ -5,12 +5,22 @@
  */
 import { loadDay, savePerson, saveDay } from './db';
 import type { CaptureEntry } from './desktop';
-import { extractMentions, joinLine, removeLine } from './parse';
+import { extractMentions, joinLine, replaceLine } from './parse';
 
 export interface DayEditor {
 	append(line: string): void;
-	remove(line: string): void;
+	/** Replaces the last line reading exactly `from`; null removes it. */
+	replace(from: string, to: string | null): void;
 }
+
+/** One edit to a day's lines: add (`from` null), change, or remove (`to` null). */
+export interface LineEdit {
+	from: string | null;
+	to: string | null;
+}
+
+const applyEdit = (text: string, { from, to }: LineEdit) =>
+	from === null ? (to === null ? text : joinLine(text, to)) : replaceLine(text, from, to);
 
 /**
  * Open day pages register an editor so captured lines land in their live
@@ -41,28 +51,22 @@ export async function appendToDay(uid: string, { date, line }: CaptureEntry): Pr
 }
 
 /**
- * Adds and removes lines on one day in order — the ops layer's way of writing
- * day text. Without an open page it loads the text once and saves it once.
+ * Adds, changes and removes lines on one day in order — the ops layer's way of
+ * writing day text. Without an open page it loads the text once and saves it once.
  */
-export async function editDayLines(
-	uid: string,
-	date: string,
-	edits: { line: string; add: boolean }[]
-): Promise<void> {
+export async function editDayLines(uid: string, date: string, edits: LineEdit[]): Promise<void> {
 	const editor = live.get(date);
 	if (editor) {
-		for (const { line, add } of edits) {
-			if (add) editor.append(line);
-			else editor.remove(line);
+		for (const { from, to } of edits) {
+			if (from === null) {
+				if (to !== null) editor.append(to);
+			} else editor.replace(from, to);
 		}
 		return;
 	}
 	const text = await loadDay(uid, date);
-	const next = edits.reduce(
-		(acc, { line, add }) => (add ? joinLine(acc, line) : removeLine(acc, line)),
-		text
-	);
-	const handles = new Set(edits.filter((e) => e.add).flatMap((e) => extractMentions(e.line)));
+	const next = edits.reduce(applyEdit, text);
+	const handles = new Set(edits.flatMap((e) => (e.to ? extractMentions(e.to) : [])));
 	await Promise.all([
 		...(next !== text ? [saveDay(uid, date, next)] : []),
 		...[...handles].map((handle) => savePerson(uid, { handle }))

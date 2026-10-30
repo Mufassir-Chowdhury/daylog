@@ -10,6 +10,7 @@ times and when something needs attention, so you don't have to keep asking it.
 | **assistant.md** (this file)                               | What we're building, the architecture and the step-by-step plan                                                                  |
 | [docs/assistant/decisions.md](docs/assistant/decisions.md) | The owner's choices (name, provider, check-in times, auto-apply rules…). **These win over this plan.**                           |
 | [docs/assistant/progress.md](docs/assistant/progress.md)   | Which step is done, what was built, and exactly where to pick up next                                                            |
+| [docs/assistant/evals.md](docs/assistant/evals.md)         | Messages it should handle and the tool calls expected (for Step 7 and manual checks)                                             |
 | [docs/assistant/research.md](docs/assistant/research.md)   | How Grok Bot and dots work, facts about daylog's code, provider and ElevenLabs API notes, sources                                |
 | [schedule-chat.md](schedule-chat.md)                       | Older plan for a Schedule-page chat. Its tool list (§5) and test messages (§9) are reused; its server route is replaced (see §3) |
 
@@ -203,16 +204,14 @@ before running. `agent.ts` loops over the adapter (max 8 tool rounds, budget che
 counted); `prompt.ts` holds the fixed JARVIS prompt and the per-message `<context>`. Chat panel
 (`Ctrl+J`, sidebar/header button, `?` in the palette and the desktop quick bar).
 
-### Step 3 — Write tools, bubbles, approvals
+### Step 3 — Write tools, bubbles, approvals ✅ (see progress.md)
 
-- Write tools (`kind: 'write'`) return `Change[]` from `src/lib/ops/`; ids validated against fresh
-  data. Update `SYSTEM_PROMPT`'s "You can't change data yet" paragraph, and stop filtering
-  `write` tools out in `assistant.svelte.ts`.
-- Small additions: `run()` immediately + `AssistantBubble` (toast with the assistant's name and
-  Undo).
-- `ProposalCard.svelte` for everything else; "Always allow this kind" saved in config.
-- `describeChange(change)` → plain words for cards and bubbles.
-- schedule-chat.md §9 messages become the first eval set.
+26 write tools plan `Change[]` with the Step 0 ops; `ctx.propose` applies small additions at once
+(bubble with Undo) and turns the rest into cards (Apply / Dismiss / "Always do this"). Cards are
+checked against the stored data before applying (`ops/fresh.ts`). What you did with a card is
+told to the assistant with your next message. Open day, note and person pages receive changes
+through themselves (`capture.ts`, `live.ts`). Settings list which kinds happen without asking.
+Eval cases in [docs/assistant/evals.md](docs/assistant/evals.md).
 
 ### Step 4 — Memory and Inbox
 

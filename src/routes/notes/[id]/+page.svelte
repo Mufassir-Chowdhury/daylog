@@ -3,17 +3,20 @@
 	import { resolve } from '$app/paths';
 	import { session } from '$lib/auth.svelte';
 	import { deleteNote, saveNote } from '$lib/db';
+	import { registerLive } from '$lib/live';
 	import { saveFailed, toast } from '$lib/toast.svelte';
+	import { untrack } from 'svelte';
 
 	let { data } = $props();
 
 	const uid = session.user!.uid;
 	const id = $derived(data.note.id);
 
-	// Overridable deriveds: reset on navigation, locally editable in between.
-	let title = $derived(data.note.title);
-	let content = $derived(data.note.content);
-	let tagsInput = $derived(data.note.tags.join(', '));
+	// Overridable deriveds: reset on navigation to another note, locally editable in between
+	// (a reload of the same note keeps what you're typing).
+	let title = $derived.by(() => (void id, untrack(() => data.note.title)));
+	let content = $derived.by(() => (void id, untrack(() => data.note.content)));
+	let tagsInput = $derived.by(() => (void id, untrack(() => data.note.tags.join(', '))));
 
 	let saveState: 'saved' | 'pending' | 'error' = $state('saved');
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -63,6 +66,16 @@
 	}
 
 	beforeNavigate(flush);
+
+	// Changes from elsewhere (the assistant, an undo) land here and save like typing.
+	$effect(() =>
+		registerLive('note', id, (note) => {
+			title = note.title;
+			content = note.content;
+			tagsInput = note.tags.join(', ');
+			onInput();
+		})
+	);
 </script>
 
 <svelte:head>

@@ -2,16 +2,22 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import {
+		applyCard,
 		ask,
 		assistant,
 		closeAssistant,
+		dismissCard,
 		newConversation,
-		refreshIdentity
+		refreshIdentity,
+		undoAction,
+		undoCard,
+		type ChatEntry
 	} from '$lib/ai/assistant.svelte';
 	import { describeView } from '$lib/ai/prompt';
 	import { session } from '$lib/auth.svelte';
 	import { go } from '$lib/nav';
 	import { tick } from 'svelte';
+	import Icon from './Icon.svelte';
 
 	const uid = session.user!.uid;
 	const displayName = session.user!.displayName;
@@ -75,6 +81,83 @@
 	const unique = (steps: string[]) => [...new Set(steps)];
 </script>
 
+{#snippet changes(entry: ChatEntry)}
+	{#each entry.done ?? [] as action, i (i)}
+		<p class="flex items-center gap-1.5 text-sm text-mute">
+			<Icon name="check" size={14} class="shrink-0 text-accent" />
+			<span class="min-w-0 flex-1" class:line-through={action.undone}>{action.summary}</span>
+			{#if action.undone}
+				<span class="text-xs text-faint">undone</span>
+			{:else}
+				<button
+					type="button"
+					onclick={() => undoAction(uid, action)}
+					class="text-xs font-medium text-accent hover:underline">Undo</button
+				>
+			{/if}
+		</p>
+	{/each}
+	{#each entry.cards ?? [] as card (card.id)}
+		<div
+			class="rounded-card border border-line bg-card p-3 shadow-card"
+			role="group"
+			aria-label="Proposed change"
+		>
+			<p class="text-sm font-medium text-ink">{card.summary}</p>
+			{#if card.details.length}
+				<ul class="mt-1 space-y-0.5 text-xs text-faint">
+					{#each card.details as line, i (i)}<li>{line}</li>{/each}
+				</ul>
+			{/if}
+			<div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+				{#if card.status === 'pending' || card.status === 'working'}
+					<button
+						type="button"
+						onclick={() => applyCard(uid, card)}
+						disabled={card.status === 'working'}
+						class="rounded-ctl bg-accent-fill px-3 py-1 font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
+					>
+						{card.status === 'working' ? 'Applying…' : 'Apply'}
+					</button>
+					<button
+						type="button"
+						onclick={() => dismissCard(card)}
+						disabled={card.status === 'working'}
+						class="rounded-ctl px-3 py-1 text-mute hover:bg-tint hover:text-ink disabled:opacity-50"
+					>
+						Dismiss
+					</button>
+					<label class="ml-auto flex items-center gap-1.5 text-xs text-faint">
+						<input
+							type="checkbox"
+							bind:checked={card.always}
+							class="rounded border-line bg-card text-accent-fill"
+						/>
+						Always do this without asking
+					</label>
+				{:else if card.status === 'applied'}
+					<span class="flex items-center gap-1 text-accent"
+						><Icon name="check" size={14} /> Applied</span
+					>
+					<button
+						type="button"
+						onclick={() => undoCard(uid, card)}
+						class="text-xs font-medium text-accent hover:underline">Undo</button
+					>
+				{:else if card.status === 'undone'}
+					<span class="text-faint">Applied, then undone</span>
+				{:else if card.status === 'dismissed'}
+					<span class="text-faint">Dismissed</span>
+				{:else}
+					<span class="text-amber-600 dark:text-amber-400"
+						>Things changed since this was proposed — ask again.</span
+					>
+				{/if}
+			</div>
+		</div>
+	{/each}
+{/snippet}
+
 <dialog
 	{@attach open}
 	onclose={closeAssistant}
@@ -121,10 +204,13 @@
 						{entry.text}
 					</p>
 				{:else if entry.role === 'assistant'}
-					<div class="max-w-[95%]">
-						<p class="text-sm leading-relaxed whitespace-pre-wrap text-ink">{entry.text}</p>
+					<div class="max-w-[95%] space-y-2">
+						{#if entry.text}
+							<p class="text-sm leading-relaxed whitespace-pre-wrap text-ink">{entry.text}</p>
+						{/if}
+						{@render changes(entry)}
 						{#if entry.steps?.length}
-							<p class="mt-1 text-xs text-faint">{unique(entry.steps).join(' · ')}</p>
+							<p class="text-xs text-faint">{unique(entry.steps).join(' · ')}</p>
 						{/if}
 					</div>
 				{:else}
@@ -141,6 +227,7 @@
 							>
 						{/if}
 					</div>
+					{@render changes(entry)}
 				{/if}
 			{:else}
 				<div class="space-y-4 pt-6">

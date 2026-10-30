@@ -15,16 +15,19 @@
 	import { linesMentioning } from '$lib/parse';
 	import { loadTxnPrefs } from '$lib/prefs';
 	import { settings } from '$lib/settings.svelte';
+	import { registerLive } from '$lib/live';
 	import { saveFailed, toast } from '$lib/toast.svelte';
+	import { untrack } from 'svelte';
 
 	let { data } = $props();
 
 	const uid = session.user!.uid;
 	const handle = $derived(data.handle);
 
-	// Overridable deriveds: reset on navigation, editable in place.
-	let name = $derived(data.person.name ?? '');
-	let bio = $derived(data.person.bio ?? '');
+	// Overridable deriveds: reset on navigation to another person, editable in place
+	// (a reload of the same person keeps what you're typing).
+	let name = $derived.by(() => (void handle, untrack(() => data.person.name ?? '')));
+	let bio = $derived.by(() => (void handle, untrack(() => data.person.bio ?? '')));
 	let txns = $derived(data.txns);
 	const accounts = $derived(data.accounts);
 
@@ -51,6 +54,15 @@
 	}
 
 	beforeNavigate(flush);
+
+	// Changes from elsewhere (the assistant, an undo) land here and save like typing.
+	$effect(() =>
+		registerLive('person', handle, (person) => {
+			name = person.name ?? '';
+			bio = person.bio ?? '';
+			onInput();
+		})
+	);
 
 	// ——— Money: everything lent to / borrowed from this person.
 	const stats = $derived(personStats(txns).get(handle));

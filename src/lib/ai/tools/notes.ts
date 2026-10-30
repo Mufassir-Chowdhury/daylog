@@ -1,5 +1,6 @@
-import { listNotes, loadNote } from '../../db';
-import { cached, optStr, params, str, type Tool } from './registry';
+import { listNotes, loadNote, newNoteId } from '../../db';
+import { appendToNote, createNote } from '../../ops/records';
+import { cached, optStr, params, str, strList, type Tool } from './registry';
 
 /** About 160 characters around the first hit. */
 function snippet(content: string, word: string): string {
@@ -59,4 +60,54 @@ export const readNote: Tool = {
 	}
 };
 
-export const NOTE_TOOLS = [searchNotes, readNote];
+// ——— Changes.
+
+export const createNoteTool: Tool = {
+	area: 'notes',
+	kind: 'write',
+	small: true,
+	label: 'Create notes',
+	def: {
+		name: 'create_note',
+		description: 'Create a new note.',
+		parameters: params({
+			title: str('Title.'),
+			content: str('Text of the note (may be empty).'),
+			tags: strList('Tags without #, often empty.')
+		})
+	},
+	describe: () => 'Creating a note',
+	async plan(ctx, input) {
+		const title = String(input.title).trim();
+		const tags = [
+			...new Set((input.tags as string[]).map((t) => t.replace(/^#/, '').trim()))
+		].filter(Boolean);
+		return {
+			changes: createNote({ id: newNoteId(ctx.uid), title, content: String(input.content), tags }),
+			summary: `Create the note “${title || 'Untitled'}”`
+		};
+	}
+};
+
+export const appendToNoteTool: Tool = {
+	area: 'notes',
+	kind: 'write',
+	small: true,
+	label: 'Add to notes',
+	def: {
+		name: 'append_to_note',
+		description: 'Add text at the end of an existing note.',
+		parameters: params({ id: str('Note id from search_notes.'), text: str('Text to add.') })
+	},
+	describe: () => 'Adding to a note',
+	async plan(ctx, input) {
+		const note = await loadNote(ctx.uid, String(input.id));
+		if (!note.title && !note.content) throw new Error('No note with that id.');
+		return {
+			changes: appendToNote(note, String(input.text)),
+			summary: `Add to the note “${note.title || 'Untitled'}”`
+		};
+	}
+};
+
+export const NOTE_TOOLS = [searchNotes, readNote, createNoteTool, appendToNoteTool];

@@ -1,7 +1,21 @@
 import { addDays } from '../../date';
 import { listDays, loadDay } from '../../db';
-import { parseDay, type Line } from '../../parse';
-import { cached, dayKey, optInt, optStr, params, str, weekday, type Tool } from './registry';
+import { appendLine } from '../../ops/records';
+import { change } from '../../ops/change';
+import { doneContent, parseDay, toggleDone, type Line } from '../../parse';
+import { shortDay } from '../../schedule';
+import {
+	cached,
+	dayKey,
+	optBool,
+	optInt,
+	optStr,
+	params,
+	str,
+	weekday,
+	type Tool,
+	type ToolContext
+} from './registry';
 
 const lineText = (l: Line) =>
 	l.segments
@@ -106,4 +120,100 @@ export const recentDays: Tool = {
 	}
 };
 
-export const DAY_TOOLS = [readDay, searchDays, recentDays];
+// ——— Changes.
+
+/** The raw line on a day whose text is `wanted` (as read_day shows it, or as written). */
+async function findLine(ctx: ToolContext, date: string, wanted: string): Promise<Line> {
+	const { timed, notes } = parseDay(await loadDay(ctx.uid, date));
+	const lines = [...timed, ...notes];
+	const target = wanted.trim().toLowerCase();
+	const hit =
+		lines.find(
+			(l) => lineText(l).toLowerCase() === target || l.raw.trim().toLowerCase() === target
+		) ?? lines.find((l) => l.raw.toLowerCase().includes(target));
+	if (!hit) throw new Error(`No line like “${wanted}” on ${date}. Read the day first.`);
+	return hit;
+}
+
+export const appendLineTool: Tool = {
+	area: 'days',
+	kind: 'write',
+	small: true,
+	label: 'Add lines to a day',
+	def: {
+		name: 'append_line',
+		description:
+			'Add a line at the end of a day page. Start it with a time (21:00 gym) to put it on that day’s schedule; ' +
+			'@handle mentions a person.',
+		parameters: params({
+			date: str('Day, YYYY-MM-DD.'),
+			text: str('The line, as the owner would write it.')
+		})
+	},
+	describe: () => 'Adding a line',
+	async plan(_ctx, input) {
+		const date = dayKey(input.date);
+		const text = String(input.text).trim();
+		if (!text) throw new Error('text is empty.');
+		return { changes: appendLine(date, text), summary: `Add “${text}” to ${shortDay(date)}` };
+	}
+};
+
+export const setLineDone: Tool = {
+	area: 'days',
+	kind: 'write',
+	label: 'Cross lines out',
+	def: {
+		name: 'set_line_done',
+		description: 'Cross a line on a day page out (done) or back in.',
+		parameters: params({
+			date: str('Day, YYYY-MM-DD.'),
+			line: str('The line’s text as read_day shows it.'),
+			done: optBool('true to cross out (default), false to bring back.')
+		})
+	},
+	describe: () => 'Crossing a line out',
+	async plan(ctx, input) {
+		const date = dayKey(input.date);
+		const line = await findLine(ctx, date, String(input.line));
+		const done = input.done !== false;
+		const label = `“${lineText(line)}” on ${shortDay(date)}`;
+		if (line.done === done)
+			return { changes: [], summary: `${label} ${done ? 'crossed out' : 'open'}` };
+		return {
+			changes: [change('dayLine', { date, line: line.raw }, { date, line: toggleDone(line.raw) })],
+			summary: `${done ? 'Cross out' : 'Bring back'} ${label}`
+		};
+	}
+};
+
+export const moveLine: Tool = {
+	area: 'days',
+	kind: 'write',
+	label: 'Move lines between days',
+	def: {
+		name: 'move_line',
+		description:
+			'Move a line from one day page to the end of another (e.g. carry an unfinished item to today).',
+		parameters: params({
+			from: str('Day it’s on now, YYYY-MM-DD.'),
+			line: str('The line’s text as read_day shows it.'),
+			to: str('Day to move it to, YYYY-MM-DD.')
+		})
+	},
+	describe: () => 'Moving a line',
+	async plan(ctx, input) {
+		const from = dayKey(input.from, 'from');
+		const to = dayKey(input.to, 'to');
+		if (from === to) throw new Error('from and to are the same day.');
+		const line = await findLine(ctx, from, String(input.line));
+		// It arrives open, without the crossing-out.
+		const moved = line.done ? (doneContent(line.raw) ?? line.raw) : line.raw;
+		return {
+			changes: [change('dayLine', { date: from, line: line.raw }, null), ...appendLine(to, moved)],
+			summary: `Move “${lineText(line)}” from ${shortDay(from)} to ${shortDay(to)}`
+		};
+	}
+};
+
+export const DAY_TOOLS = [readDay, searchDays, recentDays, appendLineTool, setLineDone, moveLine];

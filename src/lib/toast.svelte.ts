@@ -4,6 +4,8 @@ export interface Toast {
 	id: number;
 	message: string;
 	tone: 'info' | 'error';
+	/** Who's speaking — the assistant's name on its bubbles. */
+	from?: string;
 	/** Shown as an "Undo" button; the toast closes once it's clicked. */
 	undo?: () => void;
 }
@@ -16,10 +18,10 @@ const timers: Record<number, ReturnType<typeof setTimeout>> = {};
 
 export function toast(
 	message: string,
-	opts: { undo?: () => void; tone?: Toast['tone']; duration?: number } = {}
+	opts: { undo?: () => void; tone?: Toast['tone']; duration?: number; from?: string } = {}
 ): void {
 	const id = nextId++;
-	toasts.push({ id, message, tone: opts.tone ?? 'info', undo: opts.undo });
+	toasts.push({ id, message, tone: opts.tone ?? 'info', undo: opts.undo, from: opts.from });
 	// Keep the stack short — the oldest message goes first.
 	if (toasts.length > 3) dismiss(toasts[0].id);
 	timers[id] = setTimeout(() => dismiss(id), opts.duration ?? (opts.undo ? 9000 : 3500));

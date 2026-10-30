@@ -12,7 +12,10 @@ const listModels = vi.hoisted(() => vi.fn());
 vi.mock('$lib/auth.svelte', () => ({
 	session: { user: { uid: 'u1', displayName: 'Mufassir Chowdhury' } }
 }));
-vi.mock('$lib/db', () => db);
+vi.mock('$lib/db', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/db')>()),
+	...db
+}));
 vi.mock('$lib/ai', () => ({
 	loadAdapter: async () => ({
 		listModels,
@@ -77,5 +80,19 @@ describe('AssistantSettings', () => {
 		await screen.getByLabelText('API key').fill('bad');
 		await screen.getByRole('button', { name: 'Save key' }).click();
 		await expect.element(screen.getByText(/The API key was rejected/)).toBeInTheDocument();
+	});
+
+	it('lists the changes it may make without asking, small additions ticked', async () => {
+		const screen = render(AssistantSettings);
+		await expect.element(screen.getByLabelText('Add tasks to the plan')).toBeChecked();
+		await expect.element(screen.getByLabelText('Record money')).not.toBeChecked();
+
+		await screen.getByLabelText('Move tasks').click();
+		await vi.waitFor(() =>
+			expect(db.saveAssistantConfig).toHaveBeenLastCalledWith(
+				'u1',
+				expect.objectContaining({ permissions: { move_task: 'auto' } })
+			)
+		);
 	});
 });

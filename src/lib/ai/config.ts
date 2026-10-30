@@ -46,7 +46,14 @@ export interface AssistantConfig {
 	maxCardsPerDay: number;
 	/** Which parts of the app it may read and send to the provider. */
 	areas: Record<DataArea, boolean>;
+	/**
+	 * Per write tool: `auto` applies at once (with an Undo bubble), `ask` makes a card.
+	 * Tools not listed follow their default — small additions auto, the rest ask.
+	 */
+	permissions: Record<string, Permission>;
 }
+
+export type Permission = 'auto' | 'ask';
 
 export const DEFAULT_CHECKINS: Checkin[] = [
 	{ id: 'warmup', label: 'Morning warm-up', time: '08:00', kind: 'warmup', enabled: true },
@@ -60,7 +67,8 @@ export const DEFAULT_CONFIG: AssistantConfig = {
 	checkins: DEFAULT_CHECKINS,
 	quietHours: { start: '00:00', end: '07:30' },
 	maxCardsPerDay: 5,
-	areas: Object.fromEntries(DATA_AREAS.map((a) => [a.id, true])) as Record<DataArea, boolean>
+	areas: Object.fromEntries(DATA_AREAS.map((a) => [a.id, true])) as Record<DataArea, boolean>,
+	permissions: {}
 };
 
 export const isTime = (v: unknown): v is string =>
@@ -102,7 +110,12 @@ export function normalizeConfig(raw: unknown): AssistantConfig {
 		areas: Object.fromEntries(DATA_AREAS.map((a) => [a.id, r.areas?.[a.id] !== false])) as Record<
 			DataArea,
 			boolean
-		>
+		>,
+		permissions: Object.fromEntries(
+			Object.entries(r.permissions ?? {}).filter(
+				([name, p]) => /^[a-z_]{1,40}$/.test(name) && (p === 'auto' || p === 'ask')
+			)
+		) as Record<string, Permission>
 	};
 }
 
@@ -123,4 +136,9 @@ export function inQuietHours(config: AssistantConfig, time: string): boolean {
 	const { start, end } = config.quietHours;
 	if (start === end) return false;
 	return start < end ? time >= start && time < end : time >= start || time < end;
+}
+
+/** Whether a write tool's changes apply at once or wait on a card. */
+export function permissionFor(config: AssistantConfig, tool: string, small: boolean): Permission {
+	return config.permissions[tool] ?? (small ? 'auto' : 'ask');
 }

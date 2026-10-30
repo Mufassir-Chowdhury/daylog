@@ -6,11 +6,13 @@
 		CHECKIN_KINDS,
 		DATA_AREAS,
 		DEFAULT_CONFIG,
+		permissionFor,
 		sortCheckins,
 		type AssistantConfig
 	} from '$lib/ai/config';
 	import { loadDevicePrefs, saveDevicePrefs } from '$lib/ai/device';
 	import { loadAdapter } from '$lib/ai';
+	import { ALL_TOOLS } from '$lib/ai/tools';
 	import { keyStatus, saveKey } from '$lib/ai/transport';
 	import { PROVIDERS, type ModelInfo, type ModelSlot, type ProviderId } from '$lib/ai/types';
 	import { loadAssistantConfig, saveAssistantConfig } from '$lib/db';
@@ -128,6 +130,14 @@
 			hint: 'check-ins and watching for things on its own — a cheaper one is fine'
 		}
 	];
+
+	// Kinds of change it can make, for "without asking".
+	const WRITE_TOOLS = ALL_TOOLS.filter((t) => t.kind === 'write');
+
+	function setPermission(tool: string, auto: boolean) {
+		config.permissions[tool] = auto ? 'auto' : 'ask';
+		persist();
+	}
 
 	const input = 'mt-1 block rounded-ctl border-line bg-card text-sm text-ink';
 	const check = 'rounded border-line bg-card text-accent-fill';
@@ -423,6 +433,30 @@
 			<p class="text-xs text-faint">
 				Whatever it can see is sent to {provider.label} when it works on something.
 			</p>
+		</div>
+
+		<!-- Changes it may make without asking (synced) -->
+		<div class="space-y-2">
+			<div>
+				<p class={subhead}>Changes it makes without asking</p>
+				<p class="text-xs text-faint">
+					Ticked kinds happen at once and show a bubble with Undo. The rest wait as a card in the
+					chat for you to apply. It never deletes anything.
+				</p>
+			</div>
+			<div class="grid gap-1.5 sm:grid-cols-2">
+				{#each WRITE_TOOLS as tool (tool.def.name)}
+					<label class="flex items-center gap-2 text-sm text-ink">
+						<input
+							type="checkbox"
+							checked={permissionFor(config, tool.def.name, !!tool.small) === 'auto'}
+							onchange={(e) => setPermission(tool.def.name, e.currentTarget.checked)}
+							class={check}
+						/>
+						{tool.label}
+					</label>
+				{/each}
+			</div>
 		</div>
 	</div>
 </section>

@@ -213,3 +213,79 @@ describe('prompt', () => {
 		);
 	});
 });
+
+describe('write tools in runTool', () => {
+	const writer: Tool = {
+		area: 'days',
+		kind: 'write',
+		small: true,
+		label: 'Write',
+		def: { name: 'write', description: 'Write.', parameters: params({ text: str('Text.') }) },
+		describe: () => 'Writing',
+		plan: async (_ctx, input) => ({
+			summary: `Add “${input.text}”`,
+			changes:
+				input.text === 'same'
+					? []
+					: [
+							{
+								kind: 'dayLine',
+								id: '2026-10-30',
+								before: null,
+								after: { date: '2026-10-30', line: String(input.text) }
+							}
+						]
+		})
+	};
+
+	it('hands the plan to propose and returns what it says', async () => {
+		const propose = vi.fn(async () => 'Done: Add “x”.');
+		const result = await runTool(
+			[writer],
+			{ ...ctx(), propose },
+			{
+				id: 'c',
+				name: 'write',
+				input: { text: 'x' }
+			}
+		);
+		expect(result.content).toBe('Done: Add “x”.');
+		expect(propose).toHaveBeenCalledWith(
+			expect.objectContaining({ tool: writer, summary: 'Add “x”', changes: expect.any(Array) })
+		);
+	});
+
+	it('says when there is nothing to change', async () => {
+		const propose = vi.fn();
+		const result = await runTool(
+			[writer],
+			{ ...ctx(), propose },
+			{
+				id: 'c',
+				name: 'write',
+				input: { text: 'same' }
+			}
+		);
+		expect(result.content).toContain('Nothing to change');
+		expect(propose).not.toHaveBeenCalled();
+	});
+
+	it('refuses to write where changes are not allowed (background runs)', async () => {
+		const result = await runTool([writer], ctx(), { id: 'c', name: 'write', input: { text: 'x' } });
+		expect(result.isError).toBe(true);
+	});
+});
+
+describe('permissions', () => {
+	it('defaults small additions to auto and the rest to ask, unless set', async () => {
+		const { normalizeConfig, permissionFor } = await import('./config');
+		const config = normalizeConfig({
+			permissions: { add_task: 'ask', move_event: 'auto', 'Bad Name': 'auto', x_y: 'maybe' }
+		});
+		expect(config.permissions).toEqual({ add_task: 'ask', move_event: 'auto' });
+		expect(permissionFor(config, 'add_task', true)).toBe('ask');
+		expect(permissionFor(config, 'move_event', false)).toBe('auto');
+		expect(permissionFor(config, 'append_line', true)).toBe('auto');
+		expect(permissionFor(config, 'add_transaction', false)).toBe('ask');
+	});
+});

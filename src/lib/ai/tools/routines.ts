@@ -1,6 +1,7 @@
-import { listRoutineLogs, listRoutines } from '../../db';
+import { listRoutineLogs, listRoutines, loadRoutineLog } from '../../db';
+import { logRoutineValue } from '../../ops/records';
 import { dayMet, recentValues, routineStreaks } from '../../routines';
-import { dayKey, optStr, params, type Tool } from './registry';
+import { dayKey, optNum, optStr, params, str, type Tool } from './registry';
 
 export const routineStats: Tool = {
 	area: 'routines',
@@ -33,4 +34,51 @@ export const routineStats: Tool = {
 	}
 };
 
-export const ROUTINE_TOOLS = [routineStats];
+// ——— Changes.
+
+export const logRoutineValueTool: Tool = {
+	area: 'routines',
+	kind: 'write',
+	small: true,
+	label: 'Log routine values',
+	def: {
+		name: 'log_routine_value',
+		description:
+			'Log the number for a daily routine on a day (replaces what was logged), or clear it.',
+		parameters: params({
+			routine: str('Routine name (or id).'),
+			date: optStr('Day, YYYY-MM-DD, or null for today.'),
+			value: optNum('The number, or null to clear the day.')
+		})
+	},
+	describe: () => 'Logging a routine',
+	async plan(ctx, input) {
+		const date = input.date ? dayKey(input.date) : ctx.today;
+		const wanted = String(input.routine).trim().toLowerCase();
+		const routines = await listRoutines(ctx.uid);
+		const routine =
+			routines.find((r) => r.id === input.routine || r.name.toLowerCase() === wanted) ??
+			routines.find((r) => r.name.toLowerCase().includes(wanted));
+		if (!routine)
+			throw new Error(
+				`No routine like “${input.routine}”. There are: ${routines.map((r) => r.name).join(', ') || 'none'}.`
+			);
+		const current = (await loadRoutineLog(ctx.uid, date))[routine.id];
+		const value = input.value === null ? null : Number(input.value);
+		const unit = routine.unit ? ` ${routine.unit}` : '';
+		return {
+			changes: logRoutineValue(
+				date,
+				routine.id,
+				typeof current === 'number' ? current : null,
+				value
+			),
+			summary:
+				value === null
+					? `Clear ${routine.name} for ${date}`
+					: `Log ${value}${unit} of ${routine.name}${date === ctx.today ? '' : ` for ${date}`}`
+		};
+	}
+};
+
+export const ROUTINE_TOOLS = [routineStats, logRoutineValueTool];

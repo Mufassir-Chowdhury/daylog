@@ -3,6 +3,7 @@ import {
 	doneContent,
 	joinLine,
 	removeLine,
+	replaceLine,
 	parseCapture,
 	extractMentions,
 	highlightLine,
@@ -222,5 +223,10 @@ describe('quick capture', () => {
 		expect(removeLine(joinLine('a\nb', 'c'), 'c')).toBe('a\nb');
 		expect(removeLine('x\ny\nx', 'x')).toBe('x\ny');
 		expect(removeLine('a\nb', 'zz')).toBe('a\nb');
+	});
+
+	it('replaces the last matching line', () => {
+		expect(replaceLine('a\nb\na', 'a', '~~a~~')).toBe('a\nb\n~~a~~');
+		expect(replaceLine('a', 'zz', 'y')).toBe('a');
 	});
 });
