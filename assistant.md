@@ -195,19 +195,19 @@ storage on the web, the OS credential store on desktop, where Rust (`src-tauri/s
 the key to each request. Synced settings in `assistant/config` (name `Jarvis`, check-ins, quiet
 hours, areas); per-device provider, models and daily token limits. Settings → **Assistant**.
 
-### Step 2 — Tool registry and chat
+### Step 2 — Tool registry and chat ✅ (see progress.md)
 
-- `src/lib/ai/tools/registry.ts` — `defineTool({ name, area, kind, small, schema, describe, run })`,
-  converted per provider. `small: true` marks auto-apply tools.
-- Read tools for every area; trimmed JSON output.
-- `src/lib/ai/agent.ts` — tool loop (max ~8 steps).
-- `src/lib/ai/prompt.ts` — fixed system prompt with the JARVIS persona (decisions.md); date, view,
-  memory, name and form of address go in the user turn.
-- `AssistantDrawer.svelte` (`Ctrl+J`), `?` prefix in `CommandPalette.svelte`.
+`src/lib/ai/tools/`: a `Tool` is a schema plus `run`, with `area` (filtered by Settings) and
+`kind` (`read` / `ui` / `write`). Read tools for every area plus `open_page`; inputs validated
+before running. `agent.ts` loops over the adapter (max 8 tool rounds, budget checked, usage
+counted); `prompt.ts` holds the fixed JARVIS prompt and the per-message `<context>`. Chat panel
+(`Ctrl+J`, sidebar/header button, `?` in the palette and the desktop quick bar).
 
 ### Step 3 — Write tools, bubbles, approvals
 
-- Write tools return `Change[]` from `src/lib/ops/`; ids validated against fresh data.
+- Write tools (`kind: 'write'`) return `Change[]` from `src/lib/ops/`; ids validated against fresh
+  data. Update `SYSTEM_PROMPT`'s "You can't change data yet" paragraph, and stop filtering
+  `write` tools out in `assistant.svelte.ts`.
 - Small additions: `run()` immediately + `AssistantBubble` (toast with the assistant's name and
   Undo).
 - `ProposalCard.svelte` for everything else; "Always allow this kind" saved in config.

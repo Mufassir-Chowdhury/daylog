@@ -10,8 +10,8 @@ that differs from the plan, and say what comes next.
 | ---- | ------------------------------- | --------------------- |
 | 0    | Ops layer                       | ✅ done 2026-10-30    |
 | 1    | Providers and settings          | ✅ done 2026-10-30    |
-| 2    | Tool registry and chat          | ⏭ **next**            |
-| 3    | Write tools, bubbles, approvals | not started           |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30    |
+| 3    | Write tools, bubbles, approvals | ⏭ **next**            |
 | 4    | Memory and Inbox                | not started           |
 | 5    | Proactive engine                | not started           |
 | 6    | Feature packs                   | not started           |
@@ -181,16 +181,95 @@ libxdo-dev libssl-dev libdbus-1-dev`); after that `cargo check` works in `src-ta
 
 ---
 
-## Next: Step 2 — Tool registry and chat
+## Step 2 — Tool registry and chat (done 2026-10-30)
 
-See the plan, §5 Step 2, and decisions.md → Persona (the system prompt should carry it). Checklist:
+### What was built
 
-- [ ] `src/lib/ai/tools/registry.ts` — `defineTool({ name, area, kind, small, schema, describe, run })`;
-      tools of areas switched off in config are left out
-- [ ] Read tools for each area, trimmed JSON output
-- [ ] `src/lib/ai/agent.ts` — loop over `Adapter.send` (max ~8 steps); check `keyStatus` and
-      `withinBudget` first, `recordUsage` after every call; append `RunResult.messages` to history
-- [ ] `src/lib/ai/prompt.ts` — fixed JARVIS system prompt; date, page, memory, name and
-      `addressName()` in the user turn
-- [ ] `AssistantDrawer.svelte` (`Ctrl+J`), `?` prefix in `CommandPalette.svelte`, shortcut in the `?` list
-- [ ] Threads: keep per provider; a provider switch starts a new thread
+- **`src/lib/ai/tools/registry.ts`** — `Tool { def, area, kind, describe, run }`.
+  - `kind`: `read` (looks things up), `ui` (acts on the screen only: `open_page`), `write` (none
+    yet; Step 3). Background runs (Step 5) must get `read` tools only.
+  - `area` is a `DataArea` or `ui`; `toolsFor(config, tools)` drops areas switched off.
+  - `runTool` checks the input against the schema (`validate`), fills missing nullable fields
+    with null, and turns any failure into an error result the model can read. Results over 12k
+    characters are cut with a note.
+  - `ToolContext { uid, today, cache, navigate }`; `cached(ctx, key, load)` shares a fetch between
+    tools in one turn. Helpers: `params`, `str`, `optStr`, `optInt`, `optEnum`, `dayKey`,
+    `compact` (drops empty fields to save tokens), `weekday`.
+- **Read tools** (one file per area, all in `tools/index.ts` → `ALL_TOOLS`, fixed order):
+  - days: `read_day`, `search_days` (every word or an `@handle`, newest first, date range),
+    `open_lines` (unfinished lines on the days before a date)
+  - schedule: `schedule_snapshot` (occurrences with ids incl. untouched timetable rows, TBD events,
+    tasks in range / overdue / later, deadlines with days left, week notes, timetable; defaults to
+    this week and next, max two months)
+  - people: `list_people` (with money balances), `get_person` (bio, balance, lend/borrow records,
+    latest mentions)
+  - notes: `search_notes`, `read_note`
+  - long-term: `list_longterm`
+  - routines: `routine_stats` (value, target met, streaks, last 7 days)
+  - finance: `finance_summary` (month totals, pace against last month on the same day, top
+    categories, account balances, who owes whom, currency), `find_transactions`
+  - activity: `activity_day` (merges this computer's tracker, other computers and manual time like
+    the Activity page; totals, top apps/sites with titles, goals, observations, best focus hours).
+    New one-shot loaders in `db.ts`: `listActivityDocs`, `loadActivityConfig`, `loadActivityGoals`.
+  - ui: `open_page` (day, schedule, people, notes, routines, finance, activity, settings, person,
+    note)
+- **`agent.ts`** — `runAgent`: send → run every tool call of the reply (in parallel) → send the
+  results → … until a final answer, at most 8 tool rounds. Checks `withinBudget` before every call
+  (`AiError('budget')`), `recordUsage` after. Returns the new history; a failed or step-limited
+  exchange isn't kept, so the history always ends on a finished reply.
+- **`prompt.ts`** — `SYSTEM_PROMPT`: fixed (cacheable) text with the JARVIS character, working
+  rules (look things up, never guess; Sun–Thu week; currency from the finance tools; hidden
+  areas; can read and open pages but **can't change anything yet**) and writing style (plain
+  text, short, "- " bullets). `contextBlock` puts the date and time, its name, the form of
+  address, the page being looked at and hidden areas in front of every message. `describeView`.
+- **`assistant.svelte.ts`** — app state: `assistant { open, busy, step, name, address, entries,
+pending }`, `openAssistant(question?)`, `closeAssistant`, `newConversation`, `ask(question, env)`.
+  Uses the **chat** model; the conversation continues until "New conversation", or a change of
+  provider or chat model.
+- **`AssistantPanel.svelte`** — right-side panel: header with the orb (pulses while working), its
+  name and the current step; messages with "what it looked at" under each answer; errors with an
+  "Open Settings" link for missing key / rejected key / used-up budget; suggestions when empty;
+  Enter sends, Shift+Enter is a new line.
+- **Ways in:** `Ctrl+J` (anywhere, toggles), sidebar button on desktop and header button on the
+  web (both show its name), "Ask the assistant" in the palette, `?question` in the palette, and
+  `?question` in the **desktop quick bar** (opens the main window on today's page with
+  `?ask=…`, which the layout turns into a question). Shortcuts list updated. New `sparkle` icon.
+
+### Different from the plan
+
+- Conversations live in memory only (gone on reload). Saving them (`assistantThreads`) fits with
+  memory in Step 4.
+- No markdown rendering: the prompt asks for plain text and the panel shows it as written.
+
+### Checks run
+
+- `svelte-check` 0/0, `eslint .` and `prettier --check .` clean.
+- Vitest: 23 files, 212 tests passed, including the loop (tool round trip, step limit, budget,
+  usage), validation, the prompt, tools against mocked data (days, schedule, finance, open_page),
+  and a browser test of the panel (greeting, a question answered through `read_day`, follow-up
+  keeps the history, missing key → Settings link). The panel test caught a real bug — the loop
+  passed its growing history array to the adapter by reference; it now passes a copy.
+- `npm run build`, `vite build --mode desktop`, e2e: OK.
+- **Not tried against a real provider** (no key here) and not clicked through signed in. First
+  real check: add a key, press `Ctrl+J`, ask "What's up today?".
+- Svelte MCP autofixer still unreachable.
+
+---
+
+## Next: Step 3 — Write tools, bubbles, approvals
+
+See the plan, §5 Step 3, and decisions.md (small additions auto-apply with an Undo bubble;
+everything else is a proposal card; no deletes). Checklist:
+
+- [ ] Write tools (`kind: 'write'`) built on `src/lib/ops/` planners; each returns `Change[]` and
+      a plain description; ids checked against fresh data (`findOccurrence` etc.)
+- [ ] `small: true` tools (`append_line`, `add_task`, `create_note`, `append_to_note`,
+      `add_subtask`, `log_routine_value`) apply at once via `run()` and show an assistant bubble
+      (its name + what it did + Undo); the tool result tells the model it's done
+- [ ] Everything else becomes a proposal card in the chat (Apply / Dismiss, "Always allow this
+      kind" saved in config); the tool result tells the model it's waiting for approval
+- [ ] `describeChange(change)` for cards and bubbles
+- [ ] Person bios: live-editor registry for open person pages (see Step 0 known gaps)
+- [ ] Update `SYSTEM_PROMPT` (it can now change things; small ones happen at once, others are
+      proposed) and include `write` tools in `assistant.svelte.ts`
+- [ ] Eval cases from schedule-chat.md §9

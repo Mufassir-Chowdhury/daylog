@@ -108,7 +108,15 @@ export interface Adapter {
 	pickDefaults(models: ModelInfo[]): Record<ModelSlot, string>;
 }
 
-export type AiErrorKind = 'no_key' | 'auth' | 'rate_limit' | 'bad_request' | 'server' | 'network';
+export type AiErrorKind =
+	| 'no_key'
+	| 'auth'
+	| 'rate_limit'
+	| 'bad_request'
+	| 'server'
+	| 'network'
+	/** This device's daily token limit is used up. */
+	| 'budget';
 
 export class AiError extends Error {
 	constructor(

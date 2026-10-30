@@ -883,6 +883,32 @@ export function watchActivity(
 	);
 }
 
+/** Every device's docs for days `from`–`to`, read once (the Activity page watches instead). */
+export async function listActivityDocs(
+	uid: string,
+	from: string,
+	to: string
+): Promise<ActivityDayDoc[]> {
+	const q = query(activityCol(uid), where('date', '>=', from), where('date', '<=', to));
+	const snap = await getDocs(q);
+	return snap.docs.map((d) => toActivityDayDoc(d.data()));
+}
+
+export async function loadActivityConfig(uid: string): Promise<ActivityConfig> {
+	const data = (await getDoc(activityConfigDoc(uid))).data() ?? {};
+	return {
+		categories: (data.categories as Record<string, ActivityCategory>) ?? {},
+		defaultGoals: cleanGoals(data.defaultGoals)
+	};
+}
+
+/** A day's goals: its own if set, else the default goals. */
+export async function loadActivityGoals(uid: string, date: string): Promise<ActivityGoal[]> {
+	const snap = await getDoc(doc(activityGoalsCol(uid), date));
+	if (snap.exists()) return cleanGoals(snap.data().goals);
+	return (await loadActivityConfig(uid)).defaultGoals;
+}
+
 /** Deletes every device's activity, manual entries included (goals and settings stay). */
 export async function deleteAllActivity(uid: string): Promise<void> {
 	const snap = await getDocs(activityCol(uid));

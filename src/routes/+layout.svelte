@@ -1,14 +1,18 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { logOut, session } from '$lib/auth.svelte';
 	import { startActivitySync } from '$lib/activity-sync';
+	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { appendToDay } from '$lib/capture';
+	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
 	import CommandPalette, { type PaletteAction } from '$lib/components/CommandPalette.svelte';
 	import DesktopShell from '$lib/components/DesktopShell.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import Login from '$lib/components/Login.svelte';
 	import Toaster from '$lib/components/Toaster.svelte';
 	import { humanDate, relativeLabel } from '$lib/date';
@@ -91,6 +95,22 @@
 		};
 	});
 
+	// ——— Assistant: a question handed over in the URL (`?ask=`, from the quick bar) opens it.
+	$effect(() => {
+		const question = page.url.searchParams.get('ask');
+		if (!question || !session.user) return;
+		const url = new URL(page.url);
+		url.searchParams.delete('ask');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- same page, only the query changes
+		goto(`${url.pathname}${url.search}`, { replaceState: true, noScroll: true, keepFocus: true });
+		openAssistant(question);
+	});
+
+	function askFromPalette(question: string) {
+		closePalette();
+		openAssistant(question);
+	}
+
 	// ——— Command palette
 	async function captureFromPalette(entry: { date: string; line: string }) {
 		await appendToDay(session.user!.uid, entry).catch((e) => {
@@ -110,6 +130,17 @@
 	}
 
 	const paletteActions: PaletteAction[] = [
+		{
+			id: 'assistant',
+			label: 'Ask the assistant',
+			icon: 'sparkle',
+			hint: 'Ctrl J',
+			keywords: 'jarvis ai chat question help',
+			run: () => {
+				closePalette();
+				openAssistant();
+			}
+		},
 		{
 			id: 'theme',
 			label: 'Toggle light / dark',
@@ -192,6 +223,15 @@
 			else openPalette();
 			return;
 		}
+		if (ctrl && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'j') {
+			e.preventDefault();
+			if (assistant.open) closeAssistant();
+			else {
+				closePalette();
+				openAssistant();
+			}
+			return;
+		}
 		if (e.altKey && !ctrl && !e.shiftKey && /^Digit[1-9]$/.test(e.code)) {
 			const item = NAV[Number(e.code.slice(5)) - 1];
 			if (item) {
@@ -231,6 +271,8 @@
 	const SHORTCUTS: [string[], string][] = $derived([
 		[['Ctrl', 'K'], 'Command palette — search, jump, capture'],
 		[['/'], 'Command palette (when not typing)'],
+		[['Ctrl', 'J'], `Ask ${assistant.name}`],
+		[['Ctrl', 'K', '?'], `Ask ${assistant.name} from the palette`],
 		...NAV.map((n, i): [string[], string] => [['Alt', String(i + 1)], `Go to ${n.label}`]),
 		...NAV.map((n): [string[], string] => [['g', n.key], `Go to ${n.label}`]),
 		[['Alt', '←'], 'Previous day (on a day page)'],
@@ -274,6 +316,7 @@
 			email={session.user.email}
 			prefs={desktopPrefs}
 			onpalette={() => openPalette()}
+			onassistant={() => openAssistant()}
 			onhelp={() => (helpOpen = true)}
 			onsignout={() => logOut()}
 		>
@@ -329,6 +372,16 @@
 						</button>
 						<button
 							type="button"
+							onclick={() => openAssistant()}
+							title="{assistant.name} (Ctrl+J)"
+							aria-label={assistant.name}
+							class="flex items-center gap-1.5 rounded-ctl px-2.5 py-1.5 text-sm text-mute hover:bg-tint hover:text-ink"
+						>
+							<Icon name="sparkle" size={16} />
+							<span class="hidden md:inline">{assistant.name}</span>
+						</button>
+						<button
+							type="button"
 							onclick={() => (helpOpen = true)}
 							title="Keyboard shortcuts (?)"
 							aria-label="Keyboard shortcuts"
@@ -370,9 +423,15 @@
 				actions={paletteActions}
 				navigate={paletteNavigate}
 				capture={captureFromPalette}
+				ask={askFromPalette}
+				assistantName={assistant.name}
 				close={closePalette}
 			/>
 		</dialog>
+	{/if}
+
+	{#if assistant.open}
+		<AssistantPanel />
 	{/if}
 
 	{#if helpOpen}
