@@ -16,6 +16,7 @@ import { withinBudget } from './budget';
 import type { Checkin } from './config';
 import { deviceId, loadDevicePrefs } from './device';
 import type { InboxItem } from './inbox';
+import { checkinFacts } from './facts';
 import { checkinMessage } from './prompt';
 import { dueCheckins, type CheckinRecord } from './scheduler';
 import { keyStatus } from './transport';
@@ -46,6 +47,7 @@ export async function runCheckin(
 		displayName,
 		now,
 		message: checkinMessage(checkin),
+		facts: checkinFacts(checkin.kind, dateKey(now)),
 		signalKey,
 		priority: 0
 	});

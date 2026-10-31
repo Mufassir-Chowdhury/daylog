@@ -8,6 +8,21 @@ const db = vi.hoisted(() => ({
 	loadAssistantConfig: vi.fn(),
 	listMemory: vi.fn(async () => []),
 	listTasks: vi.fn(async () => []),
+	// What the check-in's facts read.
+	listSlots: vi.fn(async () => []),
+	listEvents: vi.fn(async () => []),
+	listDeadlines: vi.fn(async () => []),
+	listWeekNotes: vi.fn(async () => []),
+	listAccounts: vi.fn(async () => []),
+	listPeople: vi.fn(async () => []),
+	listTransactions: vi.fn(async () => []),
+	listRoutines: vi.fn(async () => []),
+	listRoutineLogs: vi.fn(async () => []),
+	loadRoutineLog: vi.fn(async () => ({})),
+	listActivityDocs: vi.fn(async () => []),
+	loadActivityConfig: vi.fn(async () => ({ categories: {} })),
+	loadActivityGoals: vi.fn(async () => []),
+	MANUAL_DEVICE: 'manual',
 	loadDay: vi.fn(async () => 'call mom'),
 	newScheduleId: () => 'task-new',
 	newInboxId: vi.fn(),
@@ -118,8 +133,13 @@ describe('runCheckin', () => {
 		expect(names).not.toContain('remember');
 		const text = req.turn.kind === 'user' ? req.turn.text : '';
 		expect(text).toContain('# Check-in: Evening brief');
-		expect(text).toContain("Tomorrow's first classes");
+		expect(text).toContain('Tomorrow: the first class or event');
 		expect(text).toContain('<memory>');
+		// The evening brief starts from today and tomorrow, today's page and money.
+		expect(text).toContain('<facts>');
+		expect(text).toContain('## Today and tomorrow — schedule_snapshot');
+		expect(text).toContain('## Money this month — finance_summary');
+		expect(text).toContain("## Today's page — read_day");
 	});
 
 	it('leaves no brief when the answer is empty or refused', async () => {

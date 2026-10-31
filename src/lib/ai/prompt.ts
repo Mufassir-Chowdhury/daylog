@@ -94,40 +94,43 @@ export function describeView(url: URL): string {
 	return `${where} (${url.pathname}${url.search})`;
 }
 
-/** What each kind of check-in covers (docs/assistant/decisions.md). */
-const CHECKIN_FOCUS: Record<CheckinKind, string> = {
+/** What each kind of check-in covers, in order (docs/assistant/decisions.md). */
+const CHECKIN_FOCUS: Record<CheckinKind, string[]> = {
 	warmup: [
-		"Today's classes and events with times and rooms, and anything cancelled or moved.",
-		"Today's tasks with their time blocks.",
-		'Deadlines within a week (two weeks for hard ones), nearest first.',
-		"Anything left unfinished on yesterday's page — propose moving it to today with move_line.",
-		'If activity data shows a best focus window, name it.'
-	].join('\n- '),
+		'Opening: the greeting, then the shape of the day in one short sentence ("Three classes and a quiz to grade.").',
+		"Today's classes and events in time order, with times and rooms. Say plainly if one is cancelled or moved.",
+		"Today's tasks, with their time blocks when they have one.",
+		'Deadlines within a week (two weeks for hard ones), nearest first, with how many days are left.',
+		'Lines left open yesterday: propose moving each one still worth doing to today (move_line, one card per line); mention the rest in a word or skip them.',
+		"If yesterday's computer time shows when focus was best and that time is free today, name it as the window for deep work. Otherwise leave focus out."
+	],
 	brief: [
-		"What's still open today, and what's on tonight.",
-		"Tomorrow's first classes or events and anything due tomorrow.",
-		"Spending pace, only if it's well ahead of last month."
-	].join('\n- '),
+		"What's still open today: unfinished tasks and lines not crossed out, and anything still on tonight.",
+		'Tomorrow: the first class or event with its time and room, and anything due tomorrow.',
+		'Spending, only if this month is clearly ahead of last month at the same day (a fifth or more); one line with both numbers.'
+	],
 	wrapup: [
-		'What got done today (lines crossed out, tasks and events done).',
-		"What's left — propose moving open lines to tomorrow (move_line) or open tasks to tomorrow or Later.",
-		'Routines not logged today and streaks at risk; money mentioned on the page but not recorded.',
-		'The first thing on tomorrow.'
-	].join('\n- ')
+		'What got done today, in a line or two (crossed-out lines, tasks and classes marked done). No list of everything.',
+		"What's left: for open lines worth doing, propose moving them to tomorrow (move_line); for open tasks, propose moving them to tomorrow or Later (move_task), or dropping ones that no longer matter (set_task_status dropped, with a reason).",
+		"Routines not logged today, and streaks that break if nothing is logged. Mention them; don't log values you can't see.",
+		'Money mentioned on today\'s page but not among "Money recorded today": propose add_transaction when the amount and kind are clear, otherwise just mention it.',
+		'The first thing on tomorrow, with its time and room.'
+	]
 };
 
-/** The message that starts a check-in. */
+/** The message that starts a check-in; its facts come in a `<facts>` block before it. */
 export function checkinMessage(checkin: Checkin): string {
 	return `# Check-in: ${checkin.label}
 This is a scheduled check-in. Nobody is in the chat: your final answer becomes a brief card in the owner's Inbox, read later.
 
-Cover:
-- ${CHECKIN_FOCUS[checkin.kind]}
+Cover, in this order:
+- ${CHECKIN_FOCUS[checkin.kind].join('\n- ')}
 
 How:
-- Look everything up with the tools first. Skip anything that turns out empty rather than saying "none".
-- Write the brief as a short status report: an opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.
-- Propose changes only when they clearly help (the cases above, or a clash or slip you notice). Each one becomes a card the owner applies or dismisses; nothing is applied now. Mention each in a few words in the brief.
+- Start from <facts>, looked up just now. Call tools only for what's missing there, or to get ids for a change.
+- Skip any part that turns out empty rather than saying "none". A quiet day can be a two-line brief.
+- Write it as a short status report: the opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.
+- Propose changes only in the cases above, or for a clash or slip you notice. Each becomes a card the owner applies or dismisses; nothing is applied now. Mention each in a few words ("card: move to today").
 - Don't ask questions — nobody can answer.`;
 }
 
