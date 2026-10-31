@@ -224,6 +224,16 @@
 			}
 		},
 		{
+			id: 'guide',
+			label: 'Help and guide',
+			icon: 'keyboard',
+			keywords: 'help guide tutorial how to features tips best practices assistant',
+			run: () => {
+				closePalette();
+				go(resolve('/help'));
+			}
+		},
+		{
 			id: 'help',
 			label: 'Keyboard shortcuts',
 			icon: 'keyboard',
@@ -515,7 +525,12 @@
 						</div>
 					{/each}
 				</dl>
-				<div class="mt-4 flex justify-end">
+				<div class="mt-4 flex items-center justify-between gap-3">
+					<a
+						href={resolve('/help')}
+						onclick={() => (helpOpen = false)}
+						class="text-sm font-medium text-accent hover:underline">The full guide →</a
+					>
 					<button
 						type="button"
 						onclick={() => (helpOpen = false)}

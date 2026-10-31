@@ -189,6 +189,14 @@
 					<p class="text-ink">
 						{greeting}{assistant.address ? `, ${assistant.address}` : ''}. What can I look into?
 					</p>
+					<p class="text-sm text-mute">
+						Not sure what to ask? See
+						<a
+							href="{resolve('/help')}#assistant"
+							onclick={closeAssistant}
+							class="font-medium text-accent hover:underline">what I can do</a
+						>.
+					</p>
 					<div class="flex flex-wrap gap-2">
 						{#each SUGGESTIONS as suggestion (suggestion)}
 							<button
