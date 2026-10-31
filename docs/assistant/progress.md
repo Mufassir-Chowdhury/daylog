@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                                           |
-| ---- | ------------------------------- | ------------------------------------------------ |
-| 0    | Ops layer                       | ✅ done 2026-10-30                               |
-| 1    | Providers and settings          | ✅ done 2026-10-30                               |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30                               |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                               |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30                               |
-| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                               |
-| 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune) |
-| 7    | Evaluation and tuning           | usage log + backup ✅ · ⏭ **next: eval runner**  |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled                            |
+| Step | What                            | Status                                                   |
+| ---- | ------------------------------- | -------------------------------------------------------- |
+| 0    | Ops layer                       | ✅ done 2026-10-30                                       |
+| 1    | Providers and settings          | ✅ done 2026-10-30                                       |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30                                       |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                       |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30                                       |
+| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                       |
+| 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune)         |
+| 7    | Evaluation and tuning           | usage log, backup, eval runner ✅ · ⏭ **needs real use** |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled                                    |
 
 ---
 
@@ -809,9 +809,7 @@ Everything is built; this step needs real use. Checklist:
       `docs/assistant/evals.md` (34 cases), and note what reads wrong or too long
 - [ ] Tune the check-in instructions (6.1–6.2 are a first pass) and detector thresholds from
       that
-- [ ] `npm run eval:ai` — a script that runs the eval cases against a fake data set on a chosen
-      provider and prints the tool calls and replies for grading by reading (never in CI; costs
-      money)
+- [x] `npm run eval:ai` — done 2026-10-31 (below)
 - [x] Usage log per device in Settings — done 2026-10-31 (below)
 - [ ] After two weeks: use `assistant/feedback` (applied / dismissed per kind) to retune or drop
       suggestion kinds people mostly dismiss
@@ -853,3 +851,26 @@ Everything is built; this step needs real use. Checklist:
   `help.svelte.spec.ts` (sections, search and section filters, try buttons, line demo,
   checklist). Totals: 45 files, 362 tests; lint, types, both builds, e2e OK.
 - Keep it current: when a feature changes, update its topic in `help.ts`.
+
+### 7 — Eval runner (2026-10-31)
+
+- `npm run eval:ai` (`scripts/eval-ai.mjs` → vitest project `eval`, which exists only when
+  `DAYLOG_EVAL` is set — `npm test` and CI never run it). Key from `ANTHROPIC_API_KEY` or
+  `GEMINI_API_KEY` (`EVAL_PROVIDER=gemini`); `EVAL_MODEL`, `EVAL_BACKGROUND_MODEL`,
+  `EVAL_ONLY=1,7,22`. Without a key it skips everything and says what to set.
+- `src/lib/ai/evals/fixture.ts` — the sample week (Thu 29 Oct 2026 10:00): the timetable with
+  SWE Mon, the DBMS lab Wed, ICA Sun and two Thursday classes, an invigilation, the Excel grading
+  and DBMS evaluation tasks, a hard report deadline, yesterday's open lines, @rahim with an open
+  lend, a reading routine, a thesis note and one memory. A `db.ts` stand-in over it; writes are
+  recorded, never stored.
+- `cases.ts` — 18 chat cases and 4 check-in cases from `evals.md`, each with the tools it must
+  call (`all` / `any`) or that it must change nothing (`noChanges`).
+- `run.eval.ts` — chat cases through `runAgent` with every tool and a proposer that records
+  (small additions "applied", the rest "cards", as Settings would); check-ins through the real
+  `runCheckin`. Tool checks are soft, so every case runs. A report — tool calls, changes, the
+  reply, what was missing, or why it failed — goes to `.eval-out/report-<provider>-<time>.md`
+  (git-ignored) for grading by reading.
+- `fixture.spec.ts` (in the normal suite, free): every read tool and every check-in's facts run
+  cleanly against the fixture.
+- Checked here: no key → skips; a fake key → reaches Anthropic, which rejects it, and the
+  report says so. **Not run with a real key** (none in this environment).
