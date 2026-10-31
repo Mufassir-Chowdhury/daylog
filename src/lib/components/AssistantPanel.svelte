@@ -75,8 +75,10 @@
 	$effect(() => {
 		if (assistant.pending && !assistant.busy) {
 			const question = assistant.pending;
+			const spoken = assistant.pendingSpoken;
 			assistant.pending = '';
-			send(question);
+			assistant.pendingSpoken = false;
+			send(question, spoken);
 		}
 	});
 

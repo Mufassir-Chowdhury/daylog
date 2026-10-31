@@ -25,6 +25,7 @@
 	import { dayHref, NAV } from '$lib/nav';
 	import { parseCapture } from '$lib/parse';
 	import { tick } from 'svelte';
+	import { cancelListening, listen, stopListening, voice } from '$lib/ai/voice.svelte';
 	import Icon from './Icon.svelte';
 
 	let {
@@ -37,6 +38,7 @@
 		capture,
 		ask,
 		assistantName = 'the assistant',
+		voiceInput = false,
 		close
 	}: {
 		uid: string;
@@ -49,7 +51,9 @@
 		navigate: (route: string) => void;
 		capture: (entry: CaptureEntry) => Promise<void> | void;
 		/** Hands a question to the assistant (`?` prefix); without it there's no `?`. */
-		ask?: (question: string) => void;
+		ask?: (question: string, spoken?: boolean) => void;
+		/** A mic in the box (the quick bar), shown while voice is on: say a line or a question. */
+		voiceInput?: boolean;
 		assistantName?: string;
 		close: () => void;
 	} = $props();
@@ -86,6 +90,8 @@
 
 	$effect(() => {
 		void epoch;
+		// Opened again: whatever was being heard last time is dropped.
+		cancelListening();
 		selected = 0;
 		refresh();
 		tick().then(() => {
@@ -277,7 +283,32 @@
 		);
 	}
 
+	// ——— The mic (quick bar): what you say lands in the box — Enter adds it to today, like
+	// typing. With `?` typed first, it goes straight to the assistant as a spoken question.
+	const showMic = $derived(voiceInput && voice.available);
+
+	async function talk() {
+		if (voice.phase === 'listening') return stopListening();
+		if (voice.phase !== 'idle') return;
+		const asking = !!ask && query.trim().startsWith('?');
+		const said = await listen();
+		if (said && asking) {
+			query = '';
+			ask?.(said, true);
+			return;
+		}
+		if (said) query = said;
+		selected = 0;
+		await tick();
+		input?.focus();
+	}
+
 	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && voice.phase === 'listening') {
+			cancelListening();
+			e.preventDefault();
+			return;
+		}
 		const ctrl = e.ctrlKey || e.metaKey;
 		if (e.key === 'ArrowDown' || (ctrl && e.key === 'n')) move(1);
 		else if (e.key === 'ArrowUp' || (ctrl && e.key === 'p')) move(-1);
@@ -310,9 +341,15 @@
 			type="text"
 			spellcheck="false"
 			autocomplete="off"
-			placeholder={quick
-				? 'Capture a thought, or jump anywhere…'
-				: 'Search, jump to a day, or type to add a line…'}
+			placeholder={voice.phase === 'listening' && showMic
+				? 'Listening — pause or tap the mic when you’re done…'
+				: voice.phase === 'transcribing' && showMic
+					? 'Writing down what you said…'
+					: quick
+						? showMic
+							? 'Capture a thought, jump anywhere, or tap the mic…'
+							: 'Capture a thought, or jump anywhere…'
+						: 'Search, jump to a day, or type to add a line…'}
 			aria-label="Command"
 			role="combobox"
 			aria-expanded="true"
@@ -320,8 +357,40 @@
 			aria-activedescendant={entries[selected] ? `palette-${selected}` : undefined}
 			class="h-14 min-w-0 flex-1 border-0 bg-transparent px-0 text-[17px] text-ink placeholder:text-faint focus:ring-0"
 		/>
+		{#if showMic}
+			<button
+				type="button"
+				onclick={talk}
+				disabled={voice.phase === 'transcribing'}
+				aria-label={voice.phase === 'listening'
+					? 'Done talking'
+					: query.trim().startsWith('?')
+						? `Ask ${assistantName} out loud`
+						: 'Say it instead of typing'}
+				aria-pressed={voice.phase === 'listening'}
+				title={query.trim().startsWith('?') ? `Ask ${assistantName} out loud` : 'Say it'}
+				class="relative grid h-9 w-9 shrink-0 place-items-center rounded-full border text-base disabled:opacity-50 {voice.phase ===
+				'listening'
+					? 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400'
+					: 'border-line text-mute hover:bg-tint hover:text-ink'}"
+			>
+				{#if voice.phase === 'listening'}
+					<span
+						class="absolute inset-0 rounded-full bg-red-500/20"
+						style:transform="scale({1 + voice.level * 0.6})"
+						aria-hidden="true"
+					></span>
+				{/if}
+				<span aria-hidden="true">🎙</span>
+			</button>
+		{/if}
 		<kbd class="hidden sm:inline">esc</kbd>
 	</div>
+	{#if showMic && voice.error}
+		<p class="border-b border-line px-4 py-1.5 text-xs text-red-600 dark:text-red-400" role="alert">
+			{voice.error}
+		</p>
+	{/if}
 
 	<div
 		bind:this={list}

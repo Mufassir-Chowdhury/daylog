@@ -109,8 +109,6 @@
 		const uid = session.user?.uid;
 		if (!uid || isQuick) return;
 		const displayName = session.user?.displayName ?? null;
-		// Voice mode is on only while an ElevenLabs key is saved on this device.
-		refreshVoice();
 		const stopInbox = startInbox(uid);
 		const stopLease = startLease(uid, {
 			kind: desktop ? 'desktop' : 'web',
@@ -144,15 +142,23 @@
 		};
 	});
 
-	// ——— Assistant: a question handed over in the URL (`?ask=`, from the quick bar) opens it.
+	// ——— Assistant: a question handed over in the URL (`?ask=`, from the quick bar) opens it;
+	// `&spoken=1` when it was said aloud, so the reply is read aloud too.
 	$effect(() => {
 		const question = page.url.searchParams.get('ask');
 		if (!question || !session.user) return;
+		const spoken = page.url.searchParams.get('spoken') === '1';
 		const url = new URL(page.url);
 		url.searchParams.delete('ask');
+		url.searchParams.delete('spoken');
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- same page, only the query changes
 		goto(`${url.pathname}${url.search}`, { replaceState: true, noScroll: true, keepFocus: true });
-		openAssistant(question);
+		openAssistant(question, spoken);
+	});
+
+	// ——— Voice is on only while an ElevenLabs key is saved here — in every window, quick bar too.
+	$effect(() => {
+		if (session.user) refreshVoice();
 	});
 
 	function askFromPalette(question: string) {

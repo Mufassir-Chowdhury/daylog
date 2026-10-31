@@ -5,6 +5,7 @@
 	import { desktop, type CaptureEntry } from '$lib/desktop';
 	import { dateKey } from '$lib/date';
 	import { dayHref, go } from '$lib/nav';
+	import { cancelListening, refreshVoice } from '$lib/ai/voice.svelte';
 
 	// The desktop quick bar: a frameless, always-on-top window that stays loaded
 	// while hidden, so the hotkey shows it instantly. Each open bumps `epoch`,
@@ -18,11 +19,15 @@
 			clearTimeout(hideTimer);
 			query = '';
 			epoch++;
+			// A key added in Settings since the last open turns the mic on.
+			refreshVoice();
 		})
 	);
 
 	function close() {
 		clearTimeout(hideTimer);
+		// Hidden while listening: let go of the microphone.
+		cancelListening();
 		desktop?.quickHide();
 	}
 
@@ -31,9 +36,12 @@
 		else go(route);
 	}
 
-	// Questions go to the assistant in the main window, which opens on today's page.
-	function ask(question: string) {
-		navigate(`${dayHref(dateKey())}?ask=${encodeURIComponent(question)}`);
+	// Questions go to the assistant in the main window, which opens on today's page; a spoken
+	// one is answered aloud there.
+	function ask(question: string, spoken = false) {
+		navigate(
+			`${dayHref(dateKey())}?ask=${encodeURIComponent(question)}${spoken ? '&spoken=1' : ''}`
+		);
 	}
 
 	// The main window does the write (it may have that day open), then the bar
@@ -65,6 +73,7 @@
 			{navigate}
 			{capture}
 			{ask}
+			voiceInput
 			assistantName="the assistant"
 			{close}
 		/>
