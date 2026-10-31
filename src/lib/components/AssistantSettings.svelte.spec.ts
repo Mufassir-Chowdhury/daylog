@@ -9,7 +9,9 @@ const db = vi.hoisted(() => ({
 	listMemory: vi.fn(),
 	saveMemory: vi.fn(async () => {}),
 	deleteMemory: vi.fn(async () => {}),
-	newMemoryId: () => 'new-memory'
+	newMemoryId: () => 'new-memory',
+	loadFeedback: vi.fn(async () => ({ deadline: { applied: 2, dismissed: 1, muted: false } })),
+	setMuted: vi.fn(async () => {})
 }));
 const listModels = vi.hoisted(() => vi.fn());
 const runCheckin = vi.hoisted(() => vi.fn());
@@ -147,5 +149,13 @@ describe('AssistantSettings', () => {
 		await expect
 			.element(screen.getByRole('button', { name: 'Run now' }).first())
 			.toBeInTheDocument();
+	});
+
+	it('lists its own suggestions with how they were received, to switch off', async () => {
+		const screen = render(AssistantSettings);
+		await expect.element(screen.getByText('· applied 2, dismissed 1')).toBeInTheDocument();
+		await screen.getByLabelText('Plan tasks for a deadline coming up').click();
+		expect(db.setMuted).toHaveBeenCalledWith('u1', 'deadline', true);
+		await expect.element(screen.getByLabelText('Notify me on this device')).toBeChecked();
 	});
 });

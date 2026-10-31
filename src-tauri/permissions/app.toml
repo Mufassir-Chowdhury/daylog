@@ -12,6 +12,7 @@ permissions = [
   "allow-quick-navigate",
   "allow-quick-capture",
   "allow-reminders-set",
+  "allow-notify-show",
   "allow-auth-google-start",
   "allow-prefs-get",
   "allow-prefs-set",

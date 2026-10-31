@@ -9,7 +9,7 @@
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
-	import { runBackgroundWork } from '$lib/ai/engine';
+	import { notifyAbout, runBackgroundWork } from '$lib/ai/engine';
 	import { appendToDay } from '$lib/capture';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
@@ -114,6 +114,7 @@
 				runBackgroundWork(uid, displayName)
 					.then((cards) => {
 						if (!cards.length) return;
+						notifyAbout(uid, cards).catch(() => {});
 						const brief = cards.find((c) => c.kind === 'brief');
 						toast(
 							brief && cards.length === 1

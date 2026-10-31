@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { assistant } from '$lib/ai/assistant.svelte';
-	import { applyItem, applying, dismissItem, undoItem } from '$lib/ai/inbox.svelte';
+	import { SUGGESTION_TYPES, suggestionType } from '$lib/ai/feedback';
+	import { applyItem, applying, dismissItem, muteItem, undoItem } from '$lib/ai/inbox.svelte';
+	import { toast } from '$lib/toast.svelte';
 	import type { InboxItem } from '$lib/ai/inbox';
 	import Icon from './Icon.svelte';
 
@@ -10,6 +12,17 @@
 	let always = $state(false);
 	const working = $derived(applying.has(item.id));
 	const expired = $derived(item.status === 'pending' && item.expiresAt <= Date.now());
+	/** A suggestion it made on its own (not a check-in or a chat proposal), which can be muted. */
+	const type = $derived(suggestionType(item.signalKey));
+
+	function mute() {
+		if (!muteItem(uid, item.id)) return;
+		const label = SUGGESTION_TYPES.find((t) => t.id === type)?.label ?? 'this';
+		toast(`Won't suggest “${label.toLowerCase()}” again — switch it back on in Settings.`, {
+			from: assistant.name,
+			duration: 6000
+		});
+	}
 </script>
 
 <div
@@ -48,6 +61,16 @@
 			>
 				Dismiss
 			</button>
+			{#if type}
+				<button
+					type="button"
+					onclick={mute}
+					disabled={working}
+					class="rounded-ctl px-2 py-1 text-xs text-faint hover:bg-tint hover:text-ink disabled:opacity-50"
+				>
+					Don't suggest these again
+				</button>
+			{/if}
 			{#if item.kind === 'proposal' && item.tool}
 				<label class="ml-auto flex items-center gap-1.5 text-xs text-faint">
 					<input

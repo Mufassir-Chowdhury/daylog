@@ -2,7 +2,9 @@
 //! in src/lib/desktop.ts. Every argument comes from a web page, so each is
 //! checked before use.
 
-use crate::{activity, ai, auth, hotkeys, prefs, reminders, tray, updater, windows, AppState};
+use crate::{
+    activity, ai, auth, hotkeys, notify, prefs, reminders, tray, updater, windows, AppState,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager, WebviewWindow};
@@ -82,6 +84,13 @@ pub fn quick_capture(app: AppHandle, entry: Value) {
 #[tauri::command]
 pub fn reminders_set(list: Vec<reminders::Reminder>) {
     reminders::set(list);
+}
+
+/// A notification now (the assistant's check-ins); clicking it opens `route`.
+#[tauri::command]
+pub fn notify_show(app: AppHandle, title: String, body: String, route: String) {
+    let route = if route.is_empty() { "/".into() } else { route };
+    notify::show(&app, &title, &body, Some(route));
 }
 
 #[tauri::command]

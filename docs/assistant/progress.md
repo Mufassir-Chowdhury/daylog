@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                       |
-| ---- | ------------------------------- | ---------------------------- |
-| 0    | Ops layer                       | ✅ done 2026-10-30           |
-| 1    | Providers and settings          | ✅ done 2026-10-30           |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30           |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30           |
-| 5    | Proactive engine (5.1–5.7)      | 5.1–5.6 ✅ · ⏭ **next: 5.7** |
-| 6    | Feature packs                   | not started                  |
-| 7    | Evaluation and tuning           | not started                  |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled        |
+| Step | What                            | Status                |
+| ---- | ------------------------------- | --------------------- |
+| 0    | Ops layer                       | ✅ done 2026-10-30    |
+| 1    | Providers and settings          | ✅ done 2026-10-30    |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30    |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30    |
+| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31    |
+| 6    | Feature packs                   | ⏭ **next**            |
+| 7    | Evaluation and tuning           | not started           |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled |
 
 ---
 
@@ -413,7 +413,7 @@ engine and two detectors that prove it.
 | 5.4 ✅ | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
 | 5.5 ✅ | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
 | 5.6 ✅ | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
-| 5.7    | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
+| 5.7 ✅ | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
 
 ### 5.1 — Background runs
 
@@ -600,3 +600,49 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
 - Desktop notifications for high-priority cards, none in quiet hours.
 - "Don't suggest this again" on cards; `assistant/feedback` counts applied / dismissed / muted per
   signal type, checked by detectors.
+
+**Done 2026-10-31.** Built:
+
+- `src/lib/ai/feedback.ts` (pure): `SUGGESTION_TYPES` (carryover, deadline, with Settings
+  labels), `suggestionType(signalKey)`, `Feedback` per type `{ applied, dismissed, muted }`,
+  `noticeFor(cards, config, now)` — **check-in briefs, follow-ups and priority-2 cards** are
+  worth a notification, none in quiet hours, one per round ("+2 more in your Inbox").
+- `db.ts`: `loadFeedback`, `countFeedback` (`increment`), `setMuted` on `assistant/feedback`.
+- Inbox: applying or dismissing a detector's card counts it; `muteItem` dismisses and mutes the
+  type. `InboxCard` has **"Don't suggest these again"** on detector cards (bubble says how to
+  undo it in Settings). `runSignals` skips muted types.
+- Notifications: `engine.notifyAbout(uid, cards)` after each round with new cards. Desktop: new
+  Rust command `notify_show(title, body, route)` (commands.rs, lib.rs, build.rs, app.toml →
+  `notify::show`), opening today's page when clicked. Web: the Notification API, only when the
+  browser allowed it and the page isn't in view (in view, the bubble is enough).
+- Device prefs: `notify` (default on). Settings: "Notify me on this device", "Allow in this
+  browser" (asks the browser) or a note when it's blocked; "Suggestions it makes on its own" —
+  a tick per type (unticking mutes) with applied/dismissed counts.
+- **Fix:** `deviceId()` (5.2) used the same localStorage key as the device prefs. With saved
+  prefs the "id" was the prefs' JSON (so lease holders and "another tab in this browser" in
+  Settings were garbled); without, a stray id sat where prefs go. Saved prefs were never lost.
+  The id now has its own key (`daylog.ai.deviceId`); each browser gets a fresh id once.
+- Not done: the plan's automatic retuning (drop types with low apply rates) — the counts are
+  there for Step 7.
+- Tests: `feedback.spec.ts`, mute + notify in `engine.spec.ts`, `deviceId` in `config.spec.ts`,
+  panel (mute button) and Settings (suggestion list, notify switch). Totals: 36 files, 311 tests;
+  lint, types, both builds, e2e; Rust fmt, clippy (old `updater.rs` warning only), 14 tests OK.
+
+---
+
+## Next: Step 6 — Feature packs
+
+The engine is in place; Step 6 makes each feature good. In the plan's order:
+
+- [ ] **08:00 warm-up** — tune `checkinMessage('warmup')` against real days; give it the
+      timetable's rooms, carry-overs and the best focus window (activity) reliably
+- [ ] **17:00 / 23:15 briefs** — same for `brief` and `wrapup`; wrap-up offers moves to tomorrow
+      / Later / drop and spots money or routines mentioned but not logged
+- [ ] **Capture → structure** — a detector over today's newly typed lines (money, dates,
+      cancellations, deadlines) → chips/cards like "add as deadline ✓"
+- [ ] **Deadline planner** — grow `unplannedDeadline` into planning around the timetable and
+      focus hours
+- [ ] **Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
+- [ ] **Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
+- [ ] **Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
+- [ ] **Focus coach** (desktop, opt-in) — at most one nudge an hour

@@ -21,12 +21,15 @@ export interface DevicePrefs {
 	models: Record<ProviderId, Record<ModelSlot, string>>;
 	/** Tokens a day this device may spend per slot; the assistant stops when it's used up. */
 	dailyTokens: Record<ModelSlot, number>;
+	/** Notify on this device about check-ins and urgent suggestions (desktop, or a browser that allowed it). */
+	notify: boolean;
 }
 
 export const DEFAULT_DEVICE_PREFS: DevicePrefs = {
 	provider: 'anthropic',
 	models: DEFAULT_MODELS,
-	dailyTokens: { chat: 1_000_000, background: 300_000 }
+	dailyTokens: { chat: 1_000_000, background: 300_000 },
+	notify: true
 };
 
 const KEY = 'daylog.ai.device';
@@ -51,7 +54,8 @@ export function normalizeDevicePrefs(raw: unknown): DevicePrefs {
 		dailyTokens: {
 			chat: count(r.dailyTokens?.chat, d.dailyTokens.chat),
 			background: count(r.dailyTokens?.background, d.dailyTokens.background)
-		}
+		},
+		notify: typeof r.notify === 'boolean' ? r.notify : d.notify
 	};
 }
 
@@ -63,7 +67,8 @@ export function saveDevicePrefs(prefs: DevicePrefs, storage: KV = deviceStorage(
 	writeJson(storage, KEY, prefs);
 }
 
-const ID_KEY = 'daylog.ai.device';
+// Not `KEY`: that one holds the prefs.
+const ID_KEY = 'daylog.ai.deviceId';
 
 /** A random id for this device (browser profile or desktop app), made once. */
 export function deviceId(storage: KV = deviceStorage()): string {

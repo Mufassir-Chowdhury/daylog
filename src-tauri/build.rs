@@ -8,6 +8,7 @@ const COMMANDS: &[&str] = &[
     "quick_navigate",
     "quick_capture",
     "reminders_set",
+    "notify_show",
     "auth_google_start",
     "prefs_get",
     "prefs_set",

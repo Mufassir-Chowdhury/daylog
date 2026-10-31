@@ -144,6 +144,8 @@ export interface DesktopBridge {
 	onNavigate(callback: (route: string) => void): () => void;
 	onCapture(callback: (entry: CaptureEntry) => void): () => void;
 	onQuickOpen(callback: () => void): () => void;
+	/** Shows a notification now; clicking it opens `route` in the main window. */
+	notify(title: string, body: string, route: string): void;
 	/** The start of every minute, from Rust: hidden windows' own timers are throttled. */
 	onAssistantTick(callback: () => void): () => void;
 	onGoogleCredential(callback: (tokens: GoogleTokens) => void): () => void;

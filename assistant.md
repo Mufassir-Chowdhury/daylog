@@ -223,7 +223,7 @@ shown in the chat, at the top of the panel ("Waiting for you") and at the top of
 panel; they expire after a week. Conversations are saved in `assistantThreads` and picked up after
 a reload.
 
-### Step 5 — Proactive engine
+### Step 5 — Proactive engine ✅ (see progress.md)
 
 Split into parts 5.1–5.7 (background runs → scheduler → lease → web triggers → desktop wake-ups →
 detectors → notifications and feedback); see progress.md.

@@ -106,6 +106,7 @@ export function tauriBridge(): DesktopBridge {
 		onNavigate: (callback) => listen('navigate', callback),
 		onCapture: (callback) => listen('capture', callback),
 		onQuickOpen: (callback) => listen('quick:open', () => callback()),
+		notify: (title, body, route) => send('notify_show', { title, body, route }),
 		onAssistantTick: (callback) => listen('assistant:tick', () => callback()),
 		aiFetch: (request) => invoke('ai_fetch', { request }),
 		aiKeys: () => invoke('ai_keys'),

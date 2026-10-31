@@ -7,16 +7,19 @@
 import { invalidateAll } from '$app/navigation';
 import { SvelteSet } from 'svelte/reactivity';
 import {
+	countFeedback,
 	deleteInboxItem,
 	loadAssistantConfig,
 	saveAssistantConfig,
 	saveInboxItem,
+	setMuted,
 	watchInbox
 } from '../db';
 import { invert, type Change } from '../ops/change';
 import { commit } from '../ops/commit';
 import { staleChanges } from '../ops/fresh';
 import { saveFailed, toast } from '../toast.svelte';
+import { suggestionType } from './feedback';
 import { staleItems, type InboxItem, type InboxStatus } from './inbox';
 
 export const inbox = $state({ items: [] as InboxItem[] });
@@ -121,6 +124,7 @@ export async function applyItem(uid: string, id: string, opts: ApplyOptions): Pr
 		await applyChanges(uid, changes);
 		setStatus(uid, id, 'applied');
 		noteOutcome(`The owner applied: ${item.title}.`);
+		count(uid, item, 'applied');
 		toast(`${item.title}.`, { from: opts.from, undo: () => undoItem(uid, id) });
 	} catch {
 		toast("Couldn't apply that — check your connection and try again.", { tone: 'error' });
@@ -142,4 +146,24 @@ export function dismissItem(uid: string, id: string): void {
 	if (item?.status !== 'pending' || applying.has(id)) return;
 	setStatus(uid, id, 'dismissed');
 	noteOutcome(`The owner dismissed: ${item.title}.`);
+	count(uid, item, 'dismissed');
+}
+
+/** Counts how a suggestion the assistant made on its own was received. */
+function count(uid: string, item: InboxItem, what: 'applied' | 'dismissed'): void {
+	const type = suggestionType(item.signalKey);
+	if (type) countFeedback(uid, type, what).catch(() => {});
+}
+
+/**
+ * "Don't suggest these again": dismisses the card and stops that kind of
+ * suggestion (switch it back on in Settings). Returns the kind, or null.
+ */
+export function muteItem(uid: string, id: string): string | null {
+	const item = inboxItem(id);
+	const type = item ? suggestionType(item.signalKey) : null;
+	if (!item || !type) return null;
+	dismissItem(uid, id);
+	setMuted(uid, type, true).catch(saveFailed);
+	return type;
 }

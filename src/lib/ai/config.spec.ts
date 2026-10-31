@@ -3,6 +3,7 @@ import { recordUsage, spentToday, withinBudget } from './budget';
 import { addressName, DEFAULT_CONFIG, inQuietHours, normalizeConfig } from './config';
 import {
 	DEFAULT_DEVICE_PREFS,
+	deviceId,
 	loadDevicePrefs,
 	normalizeDevicePrefs,
 	saveDevicePrefs
@@ -133,5 +134,17 @@ describe('web key storage', () => {
 		await expect(providerFetch('gemini', storage)('https://x')).rejects.toMatchObject({
 			kind: 'no_key'
 		});
+	});
+});
+
+describe('deviceId', () => {
+	it('is made once and lives apart from the device prefs', () => {
+		const storage = memoryStorage();
+		const prefs = { ...DEFAULT_DEVICE_PREFS, provider: 'gemini' as const, notify: false };
+		saveDevicePrefs(prefs, storage);
+		const id = deviceId(storage);
+		expect(id).toMatch(/^[a-z0-9]{4,}$/);
+		expect(deviceId(storage)).toBe(id);
+		expect(loadDevicePrefs(storage)).toEqual(prefs);
 	});
 });

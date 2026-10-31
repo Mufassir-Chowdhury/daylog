@@ -5,6 +5,7 @@ import {
 	doc,
 	getDoc,
 	getDocs,
+	increment,
 	limit,
 	onSnapshot,
 	orderBy,
@@ -21,6 +22,7 @@ import { normalizeConfig, type AssistantConfig } from './ai/config';
 import type { InboxItem } from './ai/inbox';
 import type { MemoryItem } from './ai/memory';
 import { isDue, type FollowUp } from './ai/followup';
+import { normalizeFeedback, type Feedback } from './ai/feedback';
 import { nextAttempt, recordId, type CheckinRecord } from './ai/scheduler';
 import type { Checkin } from './ai/config';
 import { LEASE_FOR, mayTake, type HolderKind, type Lease } from './ai/lease';
@@ -236,6 +238,7 @@ const checkinsCol = (uid: string) => collection(db, 'users', uid, 'assistantChec
 const leaseDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'lease');
 const followupsCol = (uid: string) => collection(db, 'users', uid, 'assistantFollowups');
 const signalsCol = (uid: string) => collection(db, 'users', uid, 'assistantSignals');
+const feedbackDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'feedback');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -501,6 +504,25 @@ export async function claimFollowup(uid: string, id: string): Promise<FollowUp |
 		tx.set(ref, { at: next.at, why: next.why, status: next.status, claimedAt: now });
 		return next;
 	});
+}
+
+// How each kind of suggestion is received (see ai/feedback.ts).
+
+export async function loadFeedback(uid: string): Promise<Feedback> {
+	return normalizeFeedback((await getDoc(feedbackDoc(uid))).data());
+}
+
+/** Counts one applied or dismissed card of `type`. */
+export async function countFeedback(
+	uid: string,
+	type: string,
+	what: 'applied' | 'dismissed'
+): Promise<void> {
+	await setDoc(feedbackDoc(uid), { [type]: { [what]: increment(1) } }, { merge: true });
+}
+
+export async function setMuted(uid: string, type: string, muted: boolean): Promise<void> {
+	await setDoc(feedbackDoc(uid), { [type]: { muted } }, { merge: true });
 }
 
 // Signals from the detectors that have been dealt with, so each is raised once.
