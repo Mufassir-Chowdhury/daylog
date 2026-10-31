@@ -8,6 +8,7 @@
 	import { startActivitySync } from '$lib/activity-sync';
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { startInbox } from '$lib/ai/inbox.svelte';
+	import { startLease } from '$lib/ai/lease.svelte';
 	import { appendToDay } from '$lib/capture';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
@@ -96,11 +97,17 @@
 		};
 	});
 
-	// ——— Assistant: the Inbox stays live while signed in (not in the quick bar).
+	// ——— Assistant: the Inbox stays live while signed in (not in the quick bar), and this
+	// window competes for the lease to look after check-ins (the desktop app wins).
 	$effect(() => {
 		const uid = session.user?.uid;
 		if (!uid || isQuick) return;
-		return startInbox(uid);
+		const stopInbox = startInbox(uid);
+		const stopLease = startLease(uid, { kind: desktop ? 'desktop' : 'web' });
+		return () => {
+			stopInbox();
+			stopLease();
+		};
 	});
 
 	// ——— Assistant: a question handed over in the URL (`?ask=`, from the quick bar) opens it.

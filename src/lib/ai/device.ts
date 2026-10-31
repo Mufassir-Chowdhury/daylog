@@ -62,3 +62,15 @@ export function loadDevicePrefs(storage: KV = deviceStorage()): DevicePrefs {
 export function saveDevicePrefs(prefs: DevicePrefs, storage: KV = deviceStorage()): void {
 	writeJson(storage, KEY, prefs);
 }
+
+const ID_KEY = 'daylog.ai.device';
+
+/** A random id for this device (browser profile or desktop app), made once. */
+export function deviceId(storage: KV = deviceStorage()): string {
+	let id = storage.getItem(ID_KEY);
+	if (!id) {
+		id = Math.random().toString(36).slice(2, 10);
+		storage.setItem(ID_KEY, id);
+	}
+	return id;
+}

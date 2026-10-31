@@ -223,6 +223,9 @@ a reload.
 
 ### Step 5 — Proactive engine
 
+Split into parts 5.1–5.7 (background runs → scheduler → lease → web triggers → desktop wake-ups →
+detectors → notifications and feedback); see progress.md.
+
 - `src/lib/ai/detectors/*.ts` — pure `(data, now, config) → Signal[]`, stable `signalKey` for
   dedupe, fully unit-tested.
 - `src/lib/ai/scheduler.ts` — check-in times, lease, quiet hours, caps, feedback; one background
