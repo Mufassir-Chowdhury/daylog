@@ -13,7 +13,7 @@ that differs from the plan, and say what comes next.
 | 2    | Tool registry and chat          | ✅ done 2026-10-30           |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30           |
-| 5    | Proactive engine (5.1–5.7)      | 5.1–5.4 ✅ · ⏭ **next: 5.5** |
+| 5    | Proactive engine (5.1–5.7)      | 5.1–5.5 ✅ · ⏭ **next: 5.6** |
 | 6    | Feature packs                   | not started                  |
 | 7    | Evaluation and tuning           | not started                  |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled        |
@@ -411,7 +411,7 @@ engine and two detectors that prove it.
 | 5.2 ✅ | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
 | 5.3 ✅ | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
 | 5.4 ✅ | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
-| 5.5    | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
+| 5.5 ✅ | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
 | 5.6    | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
 | 5.7    | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
 
@@ -534,6 +534,25 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
 
 - `src-tauri/src/assistant.rs`: wake at the next check-in time (like `reminders.rs`) and tell the
   webview, so a hidden window still runs it.
+
+**Done 2026-10-31.** Built:
+
+- `src-tauri/src/assistant.rs`: a thread that emits `assistant:tick` to the main window **one
+  second past every minute** (`until_next_minute`, re-reading the clock each time so it's right
+  after the computer sleeps). Check-in times are whole minutes, so this is on time without the
+  app sending its schedule to Rust. Differs from the sketch (wake at the next check-in time):
+  the lease needs renewing every minute while hidden anyway, and events from Rust reach a hidden
+  webview where its own timers are throttled. Started in `lib.rs` next to reminders; no new
+  command or permission.
+- `desktop.onAssistantTick` (`desktop.ts`, `desktop-tauri.ts`).
+- `startLease(…, { ticks })`: outside wake-ups run the same check (skipped if the page's own check
+  ran in the last 5 seconds). The layout passes `desktop?.onAssistantTick`.
+- Tests: Rust `assistant::tests` (wait lengths); `lease.spec.ts` (ticks run the check, are
+  de-duplicated, and are unsubscribed on stop). Totals: 32 files, 284 tests; lint, types, both
+  builds, e2e OK; `cargo test assistant::`, `cargo clippy` (only the old `updater.rs` warning) and
+  `cargo fmt --check` OK.
+- Not run in the real desktop app here. First real check: desktop app in the tray across a
+  check-in time — the brief should be in the Inbox within the minute.
 
 ### 5.6 — Detectors and self-scheduled check-ins
 

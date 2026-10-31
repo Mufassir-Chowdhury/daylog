@@ -1,13 +1,15 @@
 //! daylog desktop — a Tauri shell around the same SvelteKit app the web build
 //! serves. It stays running in the tray, answers two global hotkeys (summon the
 //! window, open the quick bar from any app), fires reminders for timed lines,
-//! signs in with Google through the system browser, tracks which apps you use
+//! signs in with Google through the system browser, keeps the assistant's
+//! check-ins on time while hidden (assistant.rs), tracks which apps you use
 //! (opt-in, see activity/), keeps itself up to date (updater.rs), and
 //! remembers its window size. docs/tauri-migration.md tells how it replaced the
 //! Electron app.
 
 mod activity;
 mod ai;
+mod assistant;
 mod auth;
 mod commands;
 mod hotkeys;
@@ -94,6 +96,7 @@ pub fn run() {
             updater::start(&handle);
             tray::create(&handle)?;
             reminders::start(handle.clone());
+            assistant::start(handle.clone());
             activity::start(handle.clone());
             migrate::run(&handle);
             if !tauri::is_dev() && !prefs::store().get().launch_at_login_defaulted {

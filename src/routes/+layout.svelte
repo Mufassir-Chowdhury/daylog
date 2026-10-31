@@ -108,6 +108,8 @@
 		const stopInbox = startInbox(uid);
 		const stopLease = startLease(uid, {
 			kind: desktop ? 'desktop' : 'web',
+			// The desktop app wakes the window every minute, even hidden in the tray.
+			ticks: desktop?.onAssistantTick,
 			onHeld: () =>
 				runDueCheckins(uid, displayName)
 					.then((result) => {

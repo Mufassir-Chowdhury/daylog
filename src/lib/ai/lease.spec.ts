@@ -98,4 +98,28 @@ describe('startLease', () => {
 		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(2));
 		stop();
 	});
+
+	it("also checks on the desktop app's minute ticks", async () => {
+		let fire = () => {};
+		const off = vi.fn();
+		const onHeld = vi.fn();
+		const stop = startLease('u1', {
+			kind: 'desktop',
+			onHeld,
+			eligible: async () => true,
+			ticks: (cb) => {
+				fire = cb;
+				return off;
+			}
+		});
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(1));
+		fire(); // straight after its own check: nothing new
+		await Promise.resolve();
+		expect(db.takeLease).toHaveBeenCalledTimes(1);
+		vi.setSystemTime(Date.now() + 10_000);
+		fire();
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(2));
+		stop();
+		expect(off).toHaveBeenCalled();
+	});
 });

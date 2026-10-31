@@ -31,6 +31,11 @@ export interface LeaseOptions {
 	/** Called after each minute the lease is held, and on coming back to the tab. */
 	onHeld?: () => void;
 	eligible?: () => Promise<boolean>;
+	/**
+	 * Extra wake-ups from outside the page (the desktop app's minute tick), for
+	 * when the page's own timer is throttled. Returns an unsubscribe function.
+	 */
+	ticks?: (callback: () => void) => () => void;
 }
 
 /** Competes for the lease until the returned function is called. */
@@ -67,12 +72,17 @@ export function startLease(uid: string, opts: LeaseOptions): () => void {
 	};
 	tick();
 	const timer = setInterval(tick, RENEW_EVERY);
+	// A tick right after the page's own one would only repeat it.
+	const offTicks = opts.ticks?.(() => {
+		if (Date.now() - last > 5_000) tick();
+	});
 	addEventListener('pagehide', release);
 	addEventListener('visibilitychange', onVisible);
 
 	return () => {
 		stopped = true;
 		clearInterval(timer);
+		offTicks?.();
 		removeEventListener('pagehide', release);
 		removeEventListener('visibilitychange', onVisible);
 		unwatch();

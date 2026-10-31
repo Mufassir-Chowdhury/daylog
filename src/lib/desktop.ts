@@ -144,6 +144,8 @@ export interface DesktopBridge {
 	onNavigate(callback: (route: string) => void): () => void;
 	onCapture(callback: (entry: CaptureEntry) => void): () => void;
 	onQuickOpen(callback: () => void): () => void;
+	/** The start of every minute, from Rust: hidden windows' own timers are throttled. */
+	onAssistantTick(callback: () => void): () => void;
 	onGoogleCredential(callback: (tokens: GoogleTokens) => void): () => void;
 	/** Sends an assistant request with the provider key from the OS credential store. */
 	aiFetch(request: AiHttpRequest): Promise<AiHttpResponse>;
