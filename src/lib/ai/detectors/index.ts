@@ -11,6 +11,7 @@ import { addDays } from '../../date';
 import type { Deadline, PlanTask } from '../../db';
 import { parseDay } from '../../parse';
 import { daysUntil } from '../../schedule';
+import type { FactSource } from '../facts';
 
 export interface DetectorData {
 	today: string;
@@ -36,6 +37,8 @@ export interface Signal {
 	 * (say, by the morning warm-up), the signal needs no run of its own.
 	 */
 	coveredBy?: string;
+	/** Looked up before the run starts (`facts.ts`). */
+	facts?: FactSource[];
 }
 
 export type Detector = (data: DetectorData) => Signal[];
@@ -89,9 +92,30 @@ export const unplannedDeadline: Detector = ({ today, deadlines, tasks }) => {
 				key: `deadline:${d.id}`,
 				type: 'deadline',
 				title: `Coming up: ${d.text}`,
-				about:
-					`The deadline “${d.text}”${d.hard ? ' (hard)' : ''} is due ${d.due} (${left === 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}) ` +
-					'and no open task is about it. Check the schedule for free time, then propose 2–4 tasks (add_task with dates and time blocks) that get it done in time.',
+				about: [
+					`The deadline “${d.text}”${d.hard ? ' (hard)' : ''} (id ${d.id}) is due ${d.due} (${left === 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}) and no open task is about it.`,
+					...(d.note ? [`Its note: ${d.note}`] : []),
+					'Plan it: split the work into 2–4 steps sized to the time left, and propose each as add_task with a date and a time block (start and end) inside a free block from <facts>.',
+					"Prefer the best focus hours from yesterday's computer time when they are free, keep at least 30 minutes clear of classes on each side when you can, and leave the weekend (Fri, Sat) for the last resort.",
+					`Finish ${d.hard ? 'a day before it is due' : 'by the day it is due'}. If there is not enough free time, say so instead of cramming.`
+				].join(' '),
+				facts: [
+					{
+						label: 'Schedule until it is due',
+						tool: 'schedule_snapshot',
+						input: { from: today, to: d.due! }
+					},
+					{
+						label: 'Free time until it is due',
+						tool: 'free_time',
+						input: { from: today, to: d.due!, min_minutes: 45 }
+					},
+					{
+						label: "Yesterday's computer time (for the best focus hours)",
+						tool: 'activity_day',
+						input: { date: addDays(today, -1) }
+					}
+				],
 				priority: d.hard || left <= 2 ? 2 : 1
 			};
 		});

@@ -39,6 +39,8 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 25  | (typed on today's page, then a pause) "gave @rahim 500"                                | `add_transaction` card (lend, 500, rahim) under the editor; the line unchanged                                | card          |
 | 26  | (typed) "DBMS exam on nov 12"                                                          | `add_deadline` card (DBMS exam, 2026-11-12)                                                                   | card          |
 | 27  | (typed) "thursday's SWE class is cancelled"                                            | `set_event_status` card (that Thursday's SWE → cancelled), id from the facts                                  | card          |
+| 28  | "when am I free on Thursday?"                                                          | `free_time` (that Thursday); answers with the free blocks                                                     | —             |
+| 29  | (signal) a hard deadline in 4 days, no tasks, classes Sun–Tue                          | 2–4 `add_task` cards with dates and time blocks inside free blocks, done a day early                          | cards         |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.

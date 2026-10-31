@@ -8,6 +8,7 @@ import {
 	newScheduleId
 } from '../../db';
 import * as ops from '../../ops/schedule';
+import { freeTime, hhmm } from '../freetime';
 import {
 	daysUntil,
 	EVENT_KINDS,
@@ -26,11 +27,13 @@ import {
 import type { Deadline, PlanTask, ScheduleEvent } from '../../db';
 import type { Occurrence } from '../../schedule';
 import {
+	cached,
 	compact,
 	dayKey,
 	enumOf,
 	optBool,
 	optEnum,
+	optInt,
 	optStr,
 	params,
 	str,
@@ -574,8 +577,61 @@ export const setWeekNote: Tool = {
 	}
 };
 
+export const freeTimeTool: Tool = {
+	area: 'schedule',
+	kind: 'read',
+	def: {
+		name: 'free_time',
+		description:
+			'Free blocks between 08:00 and 22:00 on each day — gaps between classes, events and timed tasks. ' +
+			'For planning work into the week or answering "when am I free?". Today starts from now. Fri and Sat are the weekend.',
+		parameters: params({
+			from: optStr('First day, YYYY-MM-DD, or null for today.'),
+			to: optStr('Last day, YYYY-MM-DD, or null for a week from `from`. At most 14 days.'),
+			min_minutes: optInt('Shortest block worth listing, in minutes (default 60).')
+		})
+	},
+	describe: () => 'Looking for free time',
+	async run(ctx, input) {
+		const from = input.from ? dayKey(input.from, 'from') : ctx.today;
+		const to = input.to ? dayKey(input.to, 'to') : addDays(from, 6);
+		if (to < from) throw new Error('to is before from.');
+		if (to > addDays(from, 13)) throw new Error('Ask for at most 14 days at a time.');
+		const min = Math.max(15, Number(input.min_minutes) || 60);
+		const [slots, events, tasks] = await Promise.all([
+			cached(ctx, 'slots', () => listSlots(ctx.uid)),
+			cached(ctx, 'events', () => listEvents(ctx.uid)),
+			cached(ctx, 'tasks', () => listTasks(ctx.uid))
+		]);
+		const now = new Date();
+		const days = freeTime(
+			{ slots, events, tasks },
+			from,
+			to,
+			min,
+			ctx.today,
+			now.getHours() * 60 + now.getMinutes()
+		);
+		return days.map((d) => {
+			const day = weekday(d.date);
+			return compact({
+				date: d.date,
+				weekday: day,
+				weekend: day === 'Fri' || day === 'Sat',
+				free: d.blocks.map((b) => {
+					const length = b.end - b.start;
+					const h = Math.floor(length / 60);
+					const m = length % 60;
+					return `${hhmm(b.start)}–${hhmm(b.end)} (${h ? `${h}h` : ''}${m ? `${m}m` : ''})`;
+				})
+			});
+		});
+	}
+};
+
 export const SCHEDULE_TOOLS = [
 	scheduleSnapshot,
+	freeTimeTool,
 	setEventStatus,
 	moveEvent,
 	updateEvent,

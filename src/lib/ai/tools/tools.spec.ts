@@ -5,7 +5,14 @@ import { addTransactionTool, financeSummary, findTransactions } from './finance'
 import { scheduleCheckin } from './followup';
 import { forget, recall, remember } from './memory';
 import { logRoutineValueTool } from './routines';
-import { addTask, moveEvent, scheduleSnapshot, setEventStatus, updateDeadline } from './schedule';
+import {
+	addTask,
+	freeTimeTool,
+	moveEvent,
+	scheduleSnapshot,
+	setEventStatus,
+	updateDeadline
+} from './schedule';
 import { openPage } from './ui';
 import type { ToolContext } from './registry';
 
@@ -536,5 +543,33 @@ describe('schedule_checkin', () => {
 		await expect(plan('2026-10-31T09:00')).rejects.toThrow('passed');
 		await expect(plan('2026-11-09T09:00')).rejects.toThrow('7 days');
 		await expect(plan('tomorrow 3pm')).rejects.toThrow('2026-10-31T15:00');
+	});
+});
+
+describe('free_time', () => {
+	it('lists free blocks per day with their length, marking the weekend', async () => {
+		db.listSlots.mockResolvedValue([
+			{ id: 's1', weekday: 4, start: '09:00', end: '10:30', title: 'DM', kind: 'class', room: '' }
+		]);
+		db.listEvents.mockResolvedValue([]);
+		db.listTasks.mockResolvedValue([]);
+		const out = await freeTimeTool.run!(
+			{ ...ctx(), today: '2026-10-28' },
+			{ from: '2026-10-29', to: '2026-10-30', min_minutes: null }
+		);
+		expect(out).toEqual([
+			{
+				date: '2026-10-29',
+				weekday: 'Thu',
+				free: ['08:00–09:00 (1h)', '10:30–22:00 (11h30m)']
+			},
+			{ date: '2026-10-30', weekday: 'Fri', weekend: true, free: ['08:00–22:00 (14h)'] }
+		]);
+	});
+
+	it('refuses more than two weeks', async () => {
+		await expect(
+			freeTimeTool.run!(ctx(), { from: '2026-10-29', to: '2026-11-20', min_minutes: null })
+		).rejects.toThrow('14 days');
 	});
 });

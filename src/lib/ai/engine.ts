@@ -164,7 +164,8 @@ export async function runSignals(
 			now,
 			message: signalMessage(signal.about),
 			signalKey: signal.key,
-			priority: signal.priority
+			priority: signal.priority,
+			facts: signal.facts
 		});
 		left -= run.proposals.length;
 		out.push(...run.proposals);
