@@ -4,12 +4,17 @@
  * Defaults come from docs/assistant/decisions.md.
  */
 
-export type CheckinKind = 'warmup' | 'brief' | 'wrapup';
+export type CheckinKind = 'warmup' | 'brief' | 'wrapup' | 'review';
 
 export const CHECKIN_KINDS: { id: CheckinKind; label: string; hint: string }[] = [
 	{ id: 'warmup', label: 'Warm-up', hint: "what's up for the day" },
 	{ id: 'brief', label: 'Brief', hint: "what's left today and what's next" },
-	{ id: 'wrapup', label: 'Wrap-up', hint: 'how the day went and what moves to tomorrow' }
+	{ id: 'wrapup', label: 'Wrap-up', hint: 'how the day went and what moves to tomorrow' },
+	{
+		id: 'review',
+		label: 'Weekly review',
+		hint: 'the week, saved as a note, and a plan for next week'
+	}
 ];
 
 export interface Checkin {
@@ -19,6 +24,8 @@ export interface Checkin {
 	time: string;
 	kind: CheckinKind;
 	enabled: boolean;
+	/** Only on this day of the week (0 = Sunday … 6 = Saturday); null = every day. */
+	weekday: number | null;
 }
 
 export const DATA_AREAS = [
@@ -51,15 +58,54 @@ export interface AssistantConfig {
 	 * Tools not listed follow their default — small additions auto, the rest ask.
 	 */
 	permissions: Record<string, Permission>;
+	/** Which defaults this config has seen, so new ones are added once (see `normalizeConfig`). */
+	version: number;
 }
 
 export type Permission = 'auto' | 'ask';
 
+/** The end of the Sunday–Thursday work week. */
+export const WEEKLY_REVIEW: Checkin = {
+	id: 'review',
+	label: 'Weekly review',
+	time: '20:00',
+	kind: 'review',
+	enabled: true,
+	weekday: 4
+};
+
 export const DEFAULT_CHECKINS: Checkin[] = [
-	{ id: 'warmup', label: 'Morning warm-up', time: '08:00', kind: 'warmup', enabled: true },
-	{ id: 'evening', label: 'Evening brief', time: '17:00', kind: 'brief', enabled: true },
-	{ id: 'night', label: 'Night brief', time: '23:15', kind: 'wrapup', enabled: true }
+	{
+		id: 'warmup',
+		label: 'Morning warm-up',
+		time: '08:00',
+		kind: 'warmup',
+		enabled: true,
+		weekday: null
+	},
+	{
+		id: 'evening',
+		label: 'Evening brief',
+		time: '17:00',
+		kind: 'brief',
+		enabled: true,
+		weekday: null
+	},
+	{
+		id: 'night',
+		label: 'Night brief',
+		time: '23:15',
+		kind: 'wrapup',
+		enabled: true,
+		weekday: null
+	},
+	WEEKLY_REVIEW
 ];
+
+/** Bumped when a default is added that existing configs should get once. */
+export const CONFIG_VERSION = 2;
+
+export const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const DEFAULT_CONFIG: AssistantConfig = {
 	name: 'Jarvis',
@@ -68,7 +114,8 @@ export const DEFAULT_CONFIG: AssistantConfig = {
 	quietHours: { start: '00:00', end: '07:30' },
 	maxCardsPerDay: 5,
 	areas: Object.fromEntries(DATA_AREAS.map((a) => [a.id, true])) as Record<DataArea, boolean>,
-	permissions: {}
+	permissions: {},
+	version: CONFIG_VERSION
 };
 
 export const isTime = (v: unknown): v is string =>
@@ -85,7 +132,8 @@ function normalizeCheckin(raw: unknown, i: number): Checkin | null {
 		label: text(r.label, 'Check-in'),
 		time: r.time,
 		kind: CHECKIN_KINDS.some((k) => k.id === r.kind) ? r.kind! : 'brief',
-		enabled: r.enabled !== false
+		enabled: r.enabled !== false,
+		weekday: Number.isInteger(r.weekday) && r.weekday! >= 0 && r.weekday! <= 6 ? r.weekday! : null
 	};
 }
 
@@ -93,9 +141,13 @@ function normalizeCheckin(raw: unknown, i: number): Checkin | null {
 export function normalizeConfig(raw: unknown): AssistantConfig {
 	const r = (raw ?? {}) as Partial<AssistantConfig>;
 	const d = DEFAULT_CONFIG;
-	const checkins = Array.isArray(r.checkins)
+	let checkins = Array.isArray(r.checkins)
 		? r.checkins.map(normalizeCheckin).filter((c): c is Checkin => c !== null)
 		: d.checkins;
+	// Version 2 added the weekly review: offer it once to configs saved before it.
+	const version = Number(r.version) || 1;
+	if (version < 2 && Array.isArray(r.checkins) && !checkins.some((c) => c.kind === 'review'))
+		checkins = [...checkins, WEEKLY_REVIEW];
 	const max = Number(r.maxCardsPerDay);
 	return {
 		name: text(r.name, d.name, 24),
@@ -115,7 +167,8 @@ export function normalizeConfig(raw: unknown): AssistantConfig {
 			Object.entries(r.permissions ?? {}).filter(
 				([name, p]) => /^[a-z_]{1,40}$/.test(name) && (p === 'auto' || p === 'ask')
 			)
-		) as Record<string, Permission>
+		) as Record<string, Permission>,
+		version: CONFIG_VERSION
 	};
 }
 

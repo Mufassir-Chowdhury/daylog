@@ -38,6 +38,19 @@ describe('checkinFacts', () => {
 			to: '2026-11-07'
 		});
 		expect(checkinFacts('warmup', '2026-10-31')[3].input).toEqual({ date: '2026-10-30' });
+		// The review reads every page of the week so far (Sun 25 → Thu 29 Oct) and two weeks ahead.
+		const review = checkinFacts('review', '2026-10-29');
+		expect(review.filter((s) => s.tool === 'read_day').map((s) => s.input.date)).toEqual([
+			'2026-10-25',
+			'2026-10-26',
+			'2026-10-27',
+			'2026-10-28',
+			'2026-10-29'
+		]);
+		expect(review.find((s) => s.tool === 'schedule_snapshot')?.input).toEqual({
+			from: '2026-10-25',
+			to: '2026-11-07'
+		});
 	});
 });
 

@@ -7,6 +7,7 @@
  */
 import { dateKey } from '../date';
 import { listMemory, loadAssistantConfig, newInboxId } from '../db';
+import type { Change } from '../ops/change';
 import { describeChange } from '../ops/describe';
 import { runAgent } from './agent';
 import { addressName } from './config';
@@ -53,24 +54,15 @@ export async function backgroundRun(job: BackgroundJob): Promise<BackgroundResul
 
 	// Changes are collected as cards, never applied.
 	const propose = async ({ tool, summary, changes }: Proposal): Promise<string> => {
-		const at = Date.now();
-		const item: InboxItem = {
-			id: newInboxId(uid),
-			kind: 'proposal',
-			source: 'checkin',
-			title: summary,
-			body: '',
-			tool: tool.def.name,
-			details: changes.flatMap(describeChange),
-			changes,
-			status: 'pending',
-			signalKey,
-			priority: job.priority,
-			createdAt: at,
-			expiresAt: at + PROPOSAL_LIFETIME
-		};
-		proposals.push(item);
-		putItem(uid, item);
+		proposals.push(
+			saveProposal(uid, {
+				title: summary,
+				tool: tool.def.name,
+				changes,
+				signalKey,
+				priority: job.priority
+			})
+		);
 		return `Saved as a card in the owner's Inbox: “${summary}”. Mention it in a few words in your answer.`;
 	};
 
@@ -111,6 +103,31 @@ export async function backgroundRun(job: BackgroundJob): Promise<BackgroundResul
 		truncated: result.stop === 'max_tokens',
 		proposals
 	};
+}
+
+/** Saves a proposal card from a background run. */
+export function saveProposal(
+	uid: string,
+	p: { title: string; tool: string; changes: Change[]; signalKey: string; priority: number }
+): InboxItem {
+	const at = Date.now();
+	const item: InboxItem = {
+		id: newInboxId(uid),
+		kind: 'proposal',
+		source: 'checkin',
+		title: p.title,
+		body: '',
+		tool: p.tool,
+		details: p.changes.flatMap(describeChange),
+		changes: p.changes,
+		status: 'pending',
+		signalKey: p.signalKey,
+		priority: p.priority,
+		createdAt: at,
+		expiresAt: at + PROPOSAL_LIFETIME
+	};
+	putItem(uid, item);
+	return item;
 }
 
 /** Saves a brief card. */

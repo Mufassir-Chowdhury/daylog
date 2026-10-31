@@ -12,13 +12,14 @@ import { memoryStorage } from './storage';
 import { keyStatus, providerFetch, saveKey } from './transport';
 
 describe('normalizeConfig', () => {
-	it('starts as Jarvis with the 08:00 / 17:00 / 23:15 check-ins and every area on', () => {
+	it('starts as Jarvis with the daily check-ins, a Thursday review and every area on', () => {
 		const config = normalizeConfig(null);
 		expect(config.name).toBe('Jarvis');
-		expect(config.checkins.map((c) => [c.time, c.kind])).toEqual([
-			['08:00', 'warmup'],
-			['17:00', 'brief'],
-			['23:15', 'wrapup']
+		expect(config.checkins.map((c) => [c.time, c.kind, c.weekday])).toEqual([
+			['08:00', 'warmup', null],
+			['17:00', 'brief', null],
+			['20:00', 'review', 4],
+			['23:15', 'wrapup', null]
 		]);
 		expect(Object.values(config.areas).every(Boolean)).toBe(true);
 	});
@@ -36,14 +37,44 @@ describe('normalizeConfig', () => {
 			areas: { finance: false }
 		});
 		expect(config.name).toBe('Friday');
+		// Saved before the weekly review existed: it's added once.
 		expect(config.checkins).toEqual([
-			{ id: 'early', label: 'Check-in', time: '06:30', kind: 'brief', enabled: true },
-			{ id: 'late', label: 'Late', time: '22:00', kind: 'wrapup', enabled: false }
+			{
+				id: 'early',
+				label: 'Check-in',
+				time: '06:30',
+				kind: 'brief',
+				enabled: true,
+				weekday: null
+			},
+			{
+				id: 'review',
+				label: 'Weekly review',
+				time: '20:00',
+				kind: 'review',
+				enabled: true,
+				weekday: 4
+			},
+			{ id: 'late', label: 'Late', time: '22:00', kind: 'wrapup', enabled: false, weekday: null }
 		]);
+		expect(config.version).toBe(2);
 		expect(config.quietHours).toEqual({ start: '23:00', end: DEFAULT_CONFIG.quietHours.end });
 		expect(config.maxCardsPerDay).toBe(DEFAULT_CONFIG.maxCardsPerDay);
 		expect(config.areas.finance).toBe(false);
 		expect(config.areas.activity).toBe(true);
+	});
+
+	it("doesn't bring back a review you removed, and keeps a check-in's weekday", () => {
+		const config = normalizeConfig({
+			version: 2,
+			checkins: [{ id: 'sat', label: 'Plan', time: '10:00', kind: 'brief', weekday: 6 }]
+		});
+		expect(config.checkins).toEqual([
+			{ id: 'sat', label: 'Plan', time: '10:00', kind: 'brief', enabled: true, weekday: 6 }
+		]);
+		expect(
+			normalizeConfig({ checkins: [{ id: 'x', time: '10:00', weekday: 9 }] }).checkins[0].weekday
+		).toBeNull();
 	});
 
 	it('falls back to the default name when blank', () => {

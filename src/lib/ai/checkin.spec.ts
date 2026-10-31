@@ -26,6 +26,7 @@ const db = vi.hoisted(() => ({
 	loadDay: vi.fn(async () => 'call mom'),
 	newScheduleId: () => 'task-new',
 	newInboxId: vi.fn(),
+	newNoteId: () => 'note-new',
 	listCheckinRecords: vi.fn(async () => [] as unknown[]),
 	claimCheckin: vi.fn(),
 	saveCheckinRecord: vi.fn(async () => {})
@@ -224,5 +225,45 @@ describe('runDueCheckins', () => {
 		// It ran, so the next minutes need no reads.
 		expect(await runDueCheckins('u1', null, day('08:30'))).toBeNull();
 		expect(db.listCheckinRecords).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('the weekly review', () => {
+	const review = DEFAULT_CHECKINS.find((c) => c.kind === 'review')!;
+	const THU = new Date(2026, 9, 29, 20, 0);
+
+	it('keeps the review as a note when notes are made without asking', async () => {
+		send.mockResolvedValueOnce(reply({ text: 'Good evening.\nThis week:\n- All classes held.' }));
+		const { brief } = await runCheckin('u1', review, null, THU);
+		expect(brief?.title).toBe('Weekly review · Thu 29 Oct');
+		expect(commit).toHaveBeenCalledWith('u1', [
+			expect.objectContaining({
+				kind: 'note',
+				before: null,
+				after: expect.objectContaining({
+					id: 'note-new',
+					title: 'Weekly review · Sun 25 Oct–Thu 29 Oct',
+					content: 'Good evening.\nThis week:\n- All classes held.',
+					tags: ['review']
+				})
+			})
+		]);
+		const text = send.mock.calls[0][0].turn;
+		expect(text.kind === 'user' && text.text).toContain('"This week:" and "Next week:"');
+	});
+
+	it('asks with a card when notes need asking', async () => {
+		const config = structuredClone(DEFAULT_CONFIG);
+		config.permissions.create_note = 'ask';
+		db.loadAssistantConfig.mockResolvedValue(config);
+		send.mockResolvedValueOnce(reply({ text: 'Review.' }));
+		const { proposals } = await runCheckin('u1', review, null, THU);
+		expect(commit).not.toHaveBeenCalled();
+		expect(proposals).toEqual([
+			expect.objectContaining({
+				tool: 'create_note',
+				title: 'Save “Weekly review · Sun 25 Oct–Thu 29 Oct” as a note'
+			})
+		]);
 	});
 });

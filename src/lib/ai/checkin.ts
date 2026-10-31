@@ -9,11 +9,20 @@
  * and desktop triggers, Steps 5.4–5.5); Settings' "Run now" calls `runCheckin`
  * directly.
  */
-import { dateKey } from '../date';
-import { claimCheckin, listCheckinRecords, loadAssistantConfig, saveCheckinRecord } from '../db';
-import { backgroundRun, saveBrief } from './background';
+import { dateKey, fromKey } from '../date';
+import {
+	claimCheckin,
+	listCheckinRecords,
+	loadAssistantConfig,
+	newNoteId,
+	saveCheckinRecord
+} from '../db';
+import { commit } from '../ops/commit';
+import { createNote } from '../ops/records';
+import { weekStart } from '../schedule';
+import { backgroundRun, saveBrief, saveProposal } from './background';
 import { withinBudget } from './budget';
-import type { Checkin } from './config';
+import { permissionFor, type Checkin } from './config';
 import { deviceId, loadDevicePrefs } from './device';
 import type { InboxItem } from './inbox';
 import { checkinFacts } from './facts';
@@ -59,7 +68,38 @@ export async function runCheckin(
 		// Above its own proposals, which it introduces.
 		priority: 1
 	});
+	if (checkin.kind === 'review') {
+		const note = await saveReview(uid, text, signalKey, now);
+		if (note) proposals.push(note);
+	}
 	return { brief, proposals };
+}
+
+/**
+ * Keeps the weekly review as a note — at once if "Create notes" happens
+ * without asking (the default), otherwise as a card. Returns the card, if any.
+ */
+async function saveReview(
+	uid: string,
+	text: string,
+	signalKey: string,
+	now: Date
+): Promise<InboxItem | null> {
+	const today = dateKey(now);
+	const title = `Weekly review · ${SHORT_DATE.format(fromKey(weekStart(today)))}–${SHORT_DATE.format(now)}`;
+	const changes = createNote({ id: newNoteId(uid), title, content: text, tags: ['review'] });
+	const config = await loadAssistantConfig(uid);
+	if (permissionFor(config, 'create_note', true) === 'auto') {
+		await commit(uid, changes);
+		return null;
+	}
+	return saveProposal(uid, {
+		title: `Save “${title}” as a note`,
+		tool: 'create_note',
+		changes,
+		signalKey,
+		priority: 0
+	});
 }
 
 let running = false;
