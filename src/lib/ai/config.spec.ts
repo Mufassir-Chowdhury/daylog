@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recordUsage, spentToday, withinBudget } from './budget';
+import { logUsage, recordUsage, spentToday, usageLog, withinBudget } from './budget';
 import { addressName, DEFAULT_CONFIG, inQuietHours, normalizeConfig } from './config';
 import {
 	DEFAULT_DEVICE_PREFS,
@@ -177,5 +177,24 @@ describe('deviceId', () => {
 		expect(id).toMatch(/^[a-z0-9]{4,}$/);
 		expect(deviceId(storage)).toBe(id);
 		expect(loadDevicePrefs(storage)).toEqual(prefs);
+	});
+});
+
+describe('usageLog', () => {
+	it('adds up tokens and calls per kind and day, newest first, for 30 days', () => {
+		const storage = memoryStorage();
+		const u = { input: 1000, output: 200, cacheRead: 5000 };
+		logUsage('chat', u, storage, '2026-10-30');
+		logUsage('chat', u, storage, '2026-10-30');
+		logUsage('checkin', u, storage, '2026-10-31');
+		expect(usageLog(storage)).toEqual([
+			{ date: '2026-10-31', total: 1700, byKind: { checkin: { tokens: 1700, calls: 1 } } },
+			{ date: '2026-10-30', total: 3400, byKind: { chat: { tokens: 3400, calls: 2 } } }
+		]);
+		for (let d = 1; d <= 31; d++)
+			logUsage('signal', u, storage, `2026-12-${String(d).padStart(2, '0')}`);
+		const log = usageLog(storage);
+		expect(log).toHaveLength(30);
+		expect(log.at(-1)?.date).toBe('2026-12-02');
 	});
 });

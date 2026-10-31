@@ -91,6 +91,8 @@ export const DEFAULT_CHECKINS: Checkin[] = [
 		enabled: true,
 		weekday: null
 	},
+	// In time order, as stored configs are.
+	WEEKLY_REVIEW,
 	{
 		id: 'night',
 		label: 'Night brief',
@@ -98,8 +100,7 @@ export const DEFAULT_CHECKINS: Checkin[] = [
 		kind: 'wrapup',
 		enabled: true,
 		weekday: null
-	},
-	WEEKLY_REVIEW
+	}
 ];
 
 /** Bumped when a default is added that existing configs should get once. */

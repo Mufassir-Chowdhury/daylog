@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { backupSummary, parseBackup, serializeBackup } from './backup';
 import type { UserData } from './db';
+import { DEFAULT_CONFIG } from './ai/config';
 
 const data: UserData = {
 	settings: { currency: '$', grouping: 'thousand', showFinancePanel: false },
@@ -94,6 +95,48 @@ const data: UserData = {
 describe('backup round-trip', () => {
 	it('parses its own serialized output back unchanged', () => {
 		expect(parseBackup(serializeBackup(data))).toEqual(data);
+	});
+
+	it("keeps the assistant's settings, memory, muted suggestions and follow-ups", () => {
+		const withAssistant: UserData = {
+			...data,
+			assistant: {
+				config: { ...structuredClone(DEFAULT_CONFIG), name: 'Friday' },
+				memory: [{ id: 'm1', text: 'Grades on Saturdays', kind: 'preference', updatedAt: 3 }],
+				feedback: { deadline: { applied: 2, dismissed: 1, muted: true } },
+				followups: [
+					{ id: 'f1', at: 1_800_000_000_000, why: 'Check the lab', status: 'pending', claimedAt: 0 }
+				]
+			}
+		};
+		expect(parseBackup(serializeBackup(withAssistant))).toEqual(withAssistant);
+	});
+
+	it("repairs the assistant's part and drops what can't be used", () => {
+		const parsed = parseBackup(
+			JSON.stringify({
+				app: 'daylog',
+				version: 1,
+				assistant: {
+					config: { name: '', maxCardsPerDay: 'lots' },
+					memory: [
+						{ id: 'm1', text: '  ' },
+						{ text: 'no id' },
+						{ id: 'm2', text: 'Fact', kind: 'x' }
+					],
+					followups: [{ id: 'f1', why: 'no time' }]
+				}
+			})
+		);
+		expect(parsed.assistant?.config.name).toBe('Jarvis');
+		expect(parsed.assistant?.config.maxCardsPerDay).toBe(DEFAULT_CONFIG.maxCardsPerDay);
+		expect(parsed.assistant?.memory).toEqual([
+			{ id: 'm2', text: 'Fact', kind: 'fact', updatedAt: 0 }
+		]);
+		expect(parsed.assistant?.followups).toEqual([]);
+		expect(parsed.assistant?.feedback).toEqual({});
+		// Older backups simply have none.
+		expect(parseBackup('{"app":"daylog","version":1}').assistant).toBeUndefined();
 	});
 });
 
@@ -209,5 +252,11 @@ describe('backupSummary', () => {
 		expect(backupSummary(data)).toBe(
 			'1 days, 1 people, 1 notes, 1 long-term tasks, 1 accounts, 1 transactions, 1 routines, 1 routine days, 1 timetable slots, 1 events, 1 plan tasks, 1 deadlines'
 		);
+		expect(
+			backupSummary({
+				...data,
+				assistant: { config: DEFAULT_CONFIG, memory: [], feedback: {}, followups: [] }
+			})
+		).toMatch(/, the assistant's settings and 0 memories$/);
 	});
 });

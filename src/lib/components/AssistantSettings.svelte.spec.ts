@@ -61,12 +61,14 @@ describe('AssistantSettings', () => {
 		);
 	});
 
-	it('shows the three default check-ins', async () => {
+	it('shows the default check-ins, with the weekly review on Thursday', async () => {
 		const screen = render(AssistantSettings);
 		const times = screen.getByLabelText('Check-in time');
 		await expect.element(times.nth(0)).toHaveValue('08:00');
 		await expect.element(times.nth(1)).toHaveValue('17:00');
-		await expect.element(times.nth(2)).toHaveValue('23:15');
+		await expect.element(times.nth(2)).toHaveValue('20:00');
+		await expect.element(times.nth(3)).toHaveValue('23:15');
+		await expect.element(screen.getByLabelText('Check-in days').nth(2)).toHaveValue('4');
 	});
 
 	it('saves a key on this browser, tests it and fills the model pickers', async () => {

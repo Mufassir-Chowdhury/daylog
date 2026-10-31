@@ -7,7 +7,7 @@
  * so the history always ends on a finished reply and stays valid for the
  * provider.
  */
-import { recordUsage, withinBudget } from './budget';
+import { logUsage, recordUsage, withinBudget, type RunKind } from './budget';
 import type { DevicePrefs } from './device';
 import { SYSTEM_PROMPT } from './prompt';
 import { runTool, type Tool, type ToolContext } from './tools/registry';
@@ -24,6 +24,8 @@ export interface AgentOptions {
 	adapter: Adapter;
 	model: string;
 	slot: ModelSlot;
+	/** For the usage log in Settings. */
+	kind: RunKind;
 	prefs: DevicePrefs;
 	tools: Tool[];
 	ctx: ToolContext;
@@ -68,6 +70,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
 			turn
 		});
 		recordUsage(o.slot, res.usage);
+		logUsage(o.kind, res.usage);
 		usage.input += res.usage.input;
 		usage.output += res.usage.output;
 		usage.cacheRead += res.usage.cacheRead;

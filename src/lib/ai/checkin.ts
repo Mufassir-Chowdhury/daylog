@@ -55,6 +55,7 @@ export async function runCheckin(
 		uid,
 		displayName,
 		now,
+		kind: 'checkin',
 		message: checkinMessage(checkin),
 		facts: checkinFacts(checkin.kind, dateKey(now)),
 		signalKey,

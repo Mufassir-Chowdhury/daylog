@@ -45,3 +45,63 @@ export function withinBudget(
 ): boolean {
 	return spentToday(storage, today)[slot] < prefs.dailyTokens[slot];
 }
+
+// ——— The usage log: what each kind of run cost on this device, per day, for Settings.
+
+export type RunKind = 'chat' | 'checkin' | 'signal' | 'capture' | 'prep' | 'followup';
+
+export const RUN_KINDS: { id: RunKind; label: string }[] = [
+	{ id: 'chat', label: 'Chat' },
+	{ id: 'checkin', label: 'Check-ins' },
+	{ id: 'followup', label: 'Follow-ups' },
+	{ id: 'signal', label: 'Suggestions' },
+	{ id: 'capture', label: 'From what you typed' },
+	{ id: 'prep', label: 'Prep notes' }
+];
+
+export interface KindUse {
+	tokens: number;
+	/** Model calls (one run can make several). */
+	calls: number;
+}
+
+export interface DayUse {
+	date: string;
+	total: number;
+	byKind: Partial<Record<RunKind, KindUse>>;
+}
+
+const LOG_KEY = 'daylog.ai.usage';
+/** Days kept in the log. */
+const LOG_DAYS = 30;
+
+type Log = Record<string, Partial<Record<RunKind, KindUse>>>;
+
+/** Adds one model call of `kind` to today's line of the log. */
+export function logUsage(
+	kind: RunKind,
+	usage: Usage,
+	storage: KV = deviceStorage(),
+	today: string = dateKey()
+): void {
+	const log = readJson<Log>(storage, LOG_KEY) ?? {};
+	const day = (log[today] ??= {});
+	const use = (day[kind] ??= { tokens: 0, calls: 0 });
+	use.tokens += usageTokens(usage);
+	use.calls += 1;
+	const keep = Object.keys(log).sort().slice(-LOG_DAYS);
+	writeJson(storage, LOG_KEY, Object.fromEntries(keep.map((d) => [d, log[d]])));
+}
+
+/** The log, newest day first. */
+export function usageLog(storage: KV = deviceStorage()): DayUse[] {
+	const log = readJson<Log>(storage, LOG_KEY) ?? {};
+	return Object.keys(log)
+		.sort()
+		.reverse()
+		.map((date) => ({
+			date,
+			byKind: log[date],
+			total: Object.values(log[date]).reduce((sum, u) => sum + (u?.tokens ?? 0), 0)
+		}));
+}
