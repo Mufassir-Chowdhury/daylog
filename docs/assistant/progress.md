@@ -13,7 +13,7 @@ that differs from the plan, and say what comes next.
 | 2    | Tool registry and chat          | ✅ done 2026-10-30           |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30           |
-| 5    | Proactive engine (5.1–5.7)      | 5.1–5.3 ✅ · ⏭ **next: 5.4** |
+| 5    | Proactive engine (5.1–5.7)      | 5.1–5.4 ✅ · ⏭ **next: 5.5** |
 | 6    | Feature packs                   | not started                  |
 | 7    | Evaluation and tuning           | not started                  |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled        |
@@ -410,7 +410,7 @@ engine and two detectors that prove it.
 | 5.1 ✅ | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
 | 5.2 ✅ | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
 | 5.3 ✅ | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
-| 5.4    | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
+| 5.4 ✅ | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
 | 5.5    | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
 | 5.6    | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
 | 5.7    | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
@@ -510,6 +510,25 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
 
 - On open, on tab visible (at most every 15 minutes), and a 1-minute timer while open: if this
   tab holds the lease, run what's due.
+
+**Done 2026-10-31.** Built:
+
+- Layout: `startLease(…, { onHeld })` runs `runDueCheckins` every minute the window holds the
+  lease (also right after opening). A brief that lands shows a bubble from Jarvis for 8 seconds
+  ("Evening brief · Sat 31 Oct is waiting on today's page."); failures stay quiet (recorded and
+  retried by 5.2). Runs in the desktop app too — 5.5 adds waking it when hidden.
+- `lease.svelte.ts`: on coming back to the tab (`visibilitychange`), checks at once if the last
+  check was over 30 seconds ago — hidden tabs' timers are slowed down. Differs from the sketch's
+  "at most every 15 minutes": the per-minute check is cheap enough (below).
+- `runDueCheckins` keeps today's records in memory and reads `assistantCheckins` only when they
+  say something is due (other devices only add records, which stop runs), so a quiet minute costs
+  no Firestore read. A run claimed elsewhere drops the memory so the next due check reads again.
+- Settings → Check-ins text now explains how they run (one window, desktop first, missed ones
+  the same day unless a later one is due, Run now).
+- Tests: no reads while nothing is due; the visibility check. Totals: 32 files, 283 tests; lint,
+  types, both builds, e2e OK.
+- Not watched live (no key and no signed-in browser here). First real check: leave a window open
+  across a check-in time; the bubble and the brief on today's page should appear within a minute.
 
 ### 5.5 — Desktop wake-ups
 

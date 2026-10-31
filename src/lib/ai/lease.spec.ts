@@ -82,4 +82,20 @@ describe('startLease', () => {
 		expect(lease.held).toBe(false);
 		stop();
 	});
+
+	it('checks again on coming back to the tab after a while', async () => {
+		const listeners: Record<string, () => void> = {};
+		vi.stubGlobal('addEventListener', (name: string, fn: () => void) => (listeners[name] = fn));
+		vi.stubGlobal('document', { visibilityState: 'visible' });
+		const onHeld = vi.fn();
+		const stop = startLease('u1', { kind: 'web', onHeld, eligible: async () => true });
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(1));
+		listeners.visibilitychange();
+		await Promise.resolve();
+		expect(db.takeLease).toHaveBeenCalledTimes(1); // too soon
+		vi.setSystemTime(Date.now() + 40_000);
+		listeners.visibilitychange();
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(2));
+		stop();
+	});
 });

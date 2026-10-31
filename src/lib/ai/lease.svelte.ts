@@ -28,7 +28,7 @@ export async function canRunCheckins(): Promise<boolean> {
 
 export interface LeaseOptions {
 	kind: HolderKind;
-	/** Called after each minute the lease is held (Step 5.4 runs what's due). */
+	/** Called after each minute the lease is held, and on coming back to the tab. */
 	onHeld?: () => void;
 	eligible?: () => Promise<boolean>;
 }
@@ -37,9 +37,11 @@ export interface LeaseOptions {
 export function startLease(uid: string, opts: LeaseOptions): () => void {
 	const eligible = opts.eligible ?? canRunCheckins;
 	let stopped = false;
+	let last = 0;
 
 	async function tick() {
 		if (stopped) return;
+		last = Date.now();
 		const can = await eligible().catch(() => false);
 		if (!can) {
 			if (lease.held) releaseLease(uid, holderId).catch(() => {});
@@ -59,14 +61,20 @@ export function startLease(uid: string, opts: LeaseOptions): () => void {
 		if (lease.held) releaseLease(uid, holderId).catch(() => {});
 		lease.held = false;
 	};
+	// Hidden tabs' timers are slowed down; check again on coming back.
+	const onVisible = () => {
+		if (document.visibilityState === 'visible' && Date.now() - last > 30_000) tick();
+	};
 	tick();
 	const timer = setInterval(tick, RENEW_EVERY);
 	addEventListener('pagehide', release);
+	addEventListener('visibilitychange', onVisible);
 
 	return () => {
 		stopped = true;
 		clearInterval(timer);
 		removeEventListener('pagehide', release);
+		removeEventListener('visibilitychange', onVisible);
 		unwatch();
 		release();
 	};

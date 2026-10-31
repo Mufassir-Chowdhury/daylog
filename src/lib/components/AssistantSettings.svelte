@@ -411,11 +411,10 @@
 			<div>
 				<p class={subhead}>Check-ins</p>
 				<p class="text-xs text-faint">
-					When {config.name || 'Jarvis'} reaches out on its own. Whichever device is open runs them.
-					<span class="text-mute"
-						>(They don't run on their own yet — "Run now" leaves the result in the Inbox on today's
-						page.)</span
-					>
+					When {config.name || 'Jarvis'} reaches out on its own: the result waits in the Inbox on today's
+					page. One open window runs them — the desktop app if it's open. A check-in missed while nothing
+					was open runs when you next open daylog that day, unless a later one is due. "Run now" tries
+					one straight away.
 				</p>
 				<p class="text-xs text-faint" aria-live="polite">{looksAfter}</p>
 			</div>

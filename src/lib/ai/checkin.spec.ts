@@ -162,14 +162,18 @@ describe('runDueCheckins', () => {
 
 	it("doesn't run what another device claimed", async () => {
 		db.claimCheckin.mockResolvedValue(null);
-		expect(await runDueCheckins('u1', null, NOW)).toBeNull();
+		// Each test its own day: runDueCheckins remembers today's records.
+		expect(await runDueCheckins('u1', null, new Date(2026, 9, 28, 17, 0))).toBeNull();
+		expect(db.claimCheckin).toHaveBeenCalled();
 		expect(send).not.toHaveBeenCalled();
 	});
 
 	it('records a failure so it can be retried', async () => {
 		db.claimCheckin.mockImplementation(async (_u, c) => claimed(c.id));
 		send.mockRejectedValueOnce(new Error('offline'));
-		await expect(runDueCheckins('u1', null, NOW)).rejects.toThrow('offline');
+		await expect(runDueCheckins('u1', null, new Date(2026, 9, 27, 17, 0))).rejects.toThrow(
+			'offline'
+		);
 		expect(db.saveCheckinRecord).toHaveBeenLastCalledWith(
 			'u1',
 			expect.objectContaining({ checkinId: 'evening', status: 'failed' })
@@ -180,5 +184,25 @@ describe('runDueCheckins', () => {
 		keys.anthropic = false;
 		expect(await runDueCheckins('u1', null, NOW)).toBeNull();
 		expect(db.claimCheckin).not.toHaveBeenCalled();
+	});
+
+	it("only reads today's records when something looks due", async () => {
+		const day = (time: string) => new Date(`2026-11-01T${time}:00`);
+		db.claimCheckin.mockImplementation(async (_u, c, date) => ({
+			...claimed(c.id),
+			date
+		}));
+		db.listCheckinRecords.mockClear();
+
+		expect(await runDueCheckins('u1', null, day('07:00'))).toBeNull();
+		expect(db.listCheckinRecords).not.toHaveBeenCalled();
+
+		send.mockResolvedValueOnce(reply({ text: 'Morning.' }));
+		await runDueCheckins('u1', null, day('08:01'));
+		expect(db.listCheckinRecords).toHaveBeenCalledTimes(1);
+
+		// It ran, so the next minutes need no reads.
+		expect(await runDueCheckins('u1', null, day('08:30'))).toBeNull();
+		expect(db.listCheckinRecords).toHaveBeenCalledTimes(1);
 	});
 });
