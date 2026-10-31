@@ -14,7 +14,7 @@ that differs from the plan, and say what comes next.
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
-| 6    | Feature packs                   | 6.1–6.3 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.4** |
+| 6    | Feature packs                   | 6.1–6.4 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.5** |
 | 7    | Evaluation and tuning           | not started                                       |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
 
@@ -637,8 +637,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 - [x] **6.1 08:00 warm-up** — first pass done 2026-10-31 (below); tune against real runs
 - [x] **6.2 17:00 / 23:15 briefs** — first pass done 2026-10-31 (below); tune against real runs
 - [x] **6.3 Capture → structure** — done 2026-10-31 (below)
-- [ ] **6.4 Deadline planner** — grow `unplannedDeadline` into planning around the timetable and
-      focus hours
+- [x] **6.4 Deadline planner** — done 2026-10-31 (below)
 - [ ] **6.5 Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
 - [ ] **6.6 Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
 - [ ] **6.7 Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
@@ -695,3 +694,23 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
   `engine.spec.ts` (claims, facts, cards only; muted, hidden area, already seen). Totals: 38
   files, 321 tests; lint, types, both builds, e2e OK.
 - Evals 25–27.
+
+### 6.4 — Deadline planner (2026-10-31)
+
+- `src/lib/ai/freetime.ts` (pure): `gaps(busy, min, from, to)` and `freeTime(data, from, to,
+min, today, nowMinutes)` — free blocks between 08:00 and 22:00, with classes and events
+  (not cancelled/moved; an hour when there's no end) and open timed tasks (on every day of a
+  span) as busy; today starts from now (next quarter hour); past days are left out.
+- **New read tool `free_time(from, to, min_minutes)`** (schedule area, after
+  `schedule_snapshot`): per day `{ date, weekday, weekend?, free: ["10:30–14:00 (3h30m)"] }`,
+  at most 14 days, default a week and 60 minutes. Also for chat ("when am I free on
+  Thursday?"); the prompt says to use it when fitting work into the week.
+- Signals can carry `facts`; `runSignals` passes them to the run. `unplannedDeadline` now
+  brings the schedule and free time (≥ 45 min) up to the due day and yesterday's computer time,
+  and asks for 2–4 steps sized to the time left, each `add_task` with a date and a time block
+  inside a free block; best focus hours first, 30 minutes clear of classes, the weekend last;
+  hard deadlines finish a day early; "not enough time" said plainly instead of cramming.
+- Tests: `freetime.spec.ts`, `free_time` in `tools.spec.ts`, the deadline signal's facts and
+  wording, facts reaching the run in `engine.spec.ts`. Totals: 39 files, 327 tests; lint, types,
+  both builds, e2e OK.
+- Evals 28–29.

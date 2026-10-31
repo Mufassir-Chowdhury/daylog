@@ -61,6 +61,16 @@ describe('unplannedDeadline', () => {
 		expect(signal).toMatchObject({ key: 'deadline:d1', type: 'deadline', priority: 1 });
 		expect(signal.about).toContain('due 2026-11-03 (in 3 days)');
 		expect(signal.title).toBe('Coming up: DBMS project report');
+		// It plans with the schedule, the free time and the focus hours up to the due day.
+		expect(signal.facts?.map((f) => [f.tool, f.input])).toEqual([
+			['schedule_snapshot', { from: TODAY, to: '2026-11-03' }],
+			['free_time', { from: TODAY, to: '2026-11-03', min_minutes: 45 }],
+			['activity_day', { date: '2026-10-30' }]
+		]);
+		expect(signal.about).toContain('by the day it is due');
+		expect(unplannedDeadline(data({ deadlines: [deadline({ hard: true })] }))[0].about).toContain(
+			'a day before it is due'
+		);
 	});
 
 	it('stays quiet when an open task is about it', () => {

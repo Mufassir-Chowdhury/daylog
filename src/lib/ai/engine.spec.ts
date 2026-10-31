@@ -96,6 +96,13 @@ describe('runSignals', () => {
 		]);
 	});
 
+	it("hands a signal's facts to its run", async () => {
+		bg.backgroundRun.mockResolvedValue({ text: 'NOTHING', truncated: false, proposals: [] });
+		const facts = [{ label: 'Free time', tool: 'free_time', input: { from: null } }];
+		await runSignals('u1', null, NOW, [() => [signal('deadline:d', { facts })]]);
+		expect(bg.backgroundRun.mock.calls[0][0].facts).toBe(facts);
+	});
+
 	it('scans at most every 30 minutes and not in quiet hours', async () => {
 		bg.backgroundRun.mockResolvedValue({ text: 'NOTHING', truncated: false, proposals: [] });
 		const detector = vi.fn(() => [signal('a:1')]);
