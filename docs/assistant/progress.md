@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                |
-| ---- | ------------------------------- | --------------------- |
-| 0    | Ops layer                       | ✅ done 2026-10-30    |
-| 1    | Providers and settings          | ✅ done 2026-10-30    |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30    |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30    |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30    |
-| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31    |
-| 6    | Feature packs                   | ⏭ **next**            |
-| 7    | Evaluation and tuning           | not started           |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled |
+| Step | What                            | Status                               |
+| ---- | ------------------------------- | ------------------------------------ |
+| 0    | Ops layer                       | ✅ done 2026-10-30                   |
+| 1    | Providers and settings          | ✅ done 2026-10-30                   |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30                   |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                   |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30                   |
+| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                   |
+| 6    | Feature packs                   | 6.1–6.2 first pass · ⏭ **next: 6.3** |
+| 7    | Evaluation and tuning           | not started                          |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled                |
 
 ---
 
@@ -632,17 +632,39 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
 
 ## Next: Step 6 — Feature packs
 
-The engine is in place; Step 6 makes each feature good. In the plan's order:
+The engine is in place; Step 6 makes each feature good. In the plan's order (numbered 6.1–6.8):
 
-- [ ] **08:00 warm-up** — tune `checkinMessage('warmup')` against real days; give it the
-      timetable's rooms, carry-overs and the best focus window (activity) reliably
-- [ ] **17:00 / 23:15 briefs** — same for `brief` and `wrapup`; wrap-up offers moves to tomorrow
-      / Later / drop and spots money or routines mentioned but not logged
-- [ ] **Capture → structure** — a detector over today's newly typed lines (money, dates,
+- [x] **6.1 08:00 warm-up** — first pass done 2026-10-31 (below); tune against real runs
+- [x] **6.2 17:00 / 23:15 briefs** — first pass done 2026-10-31 (below); tune against real runs
+- [ ] **6.3 Capture → structure** — a detector over today's newly typed lines (money, dates,
       cancellations, deadlines) → chips/cards like "add as deadline ✓"
-- [ ] **Deadline planner** — grow `unplannedDeadline` into planning around the timetable and
+- [ ] **6.4 Deadline planner** — grow `unplannedDeadline` into planning around the timetable and
       focus hours
-- [ ] **Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
-- [ ] **Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
-- [ ] **Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
-- [ ] **Focus coach** (desktop, opt-in) — at most one nudge an hour
+- [ ] **6.5 Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
+- [ ] **6.6 Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
+- [ ] **6.7 Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
+- [ ] **6.8 Focus coach** (desktop, opt-in) — at most one nudge an hour
+
+### 6.1–6.2 — Warm-up and briefs, first pass (2026-10-31)
+
+- **Facts up front** (`src/lib/ai/facts.ts`): `checkinFacts(kind, today)` names the read tools
+  each kind needs and `gatherFacts` runs them through `runTool` (validation, hidden areas
+  skipped, failures reported as "couldn't load — look it up with …") into a `<facts>` block
+  before the check-in message. `backgroundRun` takes `facts` and shares the turn's tool cache, so
+  a later call for the same thing costs nothing.
+  - warm-up: `schedule_snapshot` today → +7 days, `read_day` today, `open_lines` (1 day),
+    `activity_day` yesterday (for `bestFocusHours`)
+  - brief: `schedule_snapshot` today → tomorrow, `read_day` today, `finance_summary`
+  - wrap-up: `read_day` today, `schedule_snapshot` today → tomorrow, `routine_stats`,
+    `find_transactions` today
+- **Instructions** (`checkinMessage`): an ordered list per kind — warm-up opens with the day's
+  shape, classes with rooms, tasks with blocks, deadlines with days left, one `move_line` card
+  per carry-over, a focus window only if that time is free; the brief covers what's open,
+  tomorrow's first item, spending only when a fifth or more ahead; the wrap-up proposes
+  `move_line` / `move_task` / dropping, mentions routines without logging them, and proposes
+  `add_transaction` for money on the page that isn't recorded. Empty parts are skipped; a quiet
+  day can be two lines.
+- Tests: `facts.spec.ts` (sets per kind, gathering, skipping, failures) and the brief's facts in
+  `checkin.spec.ts`. Totals: 37 files, 314 tests; lint, types, both builds, e2e OK.
+- **Still to do:** run each kind against real days on both providers and tune wording and
+  length (evals 22–24).
