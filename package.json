@@ -19,6 +19,7 @@
 		"test": "npm run test:unit -- --run && npm run test:e2e",
 		"test:e2e": "playwright install && playwright test",
 		"gen": "wrangler types",
+		"eval:ai": "node scripts/eval-ai.mjs",
 		"tauri": "tauri",
 		"desktop": "tauri build --no-bundle",
 		"desktop:dev": "tauri dev",

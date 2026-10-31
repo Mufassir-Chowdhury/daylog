@@ -51,7 +51,23 @@ export default defineConfig(({ mode }) => ({
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
-			}
+			},
+
+			// The assistant evals call a real provider and cost money: only with `npm run eval:ai`.
+			...(process.env.DAYLOG_EVAL
+				? [
+						{
+							extends: './vite.config.ts',
+							test: {
+								name: 'eval',
+								environment: 'node',
+								include: ['src/lib/ai/evals/**/*.eval.ts'],
+								// One case at a time keeps the report in order and the rate limits happy.
+								fileParallelism: false
+							}
+						}
+					]
+				: [])
 		]
 	}
 }));

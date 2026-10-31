@@ -1,8 +1,15 @@
 # Assistant — evaluation cases
 
-Messages the assistant should handle, with the tool calls a correct answer makes. Step 7 turns
-these into a runnable eval (`npm run eval:ai`, run by hand against both providers — every run
-costs money). Until then, use them for a manual check after changing the prompt or tools.
+Messages the assistant should handle, with the tool calls a correct answer makes. Step 7 turned
+these into a runnable eval: `npm run eval:ai`, run by hand against both providers — every run
+costs money. The runnable cases and the sample week are in `src/lib/ai/evals/`.
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-… npm run eval:ai
+```
+
+It writes a report to `.eval-out/`. Only some cases at a time: `EVAL_ONLY=1,7,22`; Gemini:
+`EVAL_PROVIDER=gemini GEMINI_API_KEY=…`.
 
 Part of the assistant docs: [plan](../../assistant.md) · [decisions](./decisions.md) ·
 [progress](./progress.md).

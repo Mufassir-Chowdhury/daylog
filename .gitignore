@@ -32,3 +32,6 @@ worker-configuration.d.ts
 /desktop/dist
 /src-tauri/target
 /src-tauri/gen
+
+# Assistant eval reports (npm run eval:ai)
+.eval-out/
