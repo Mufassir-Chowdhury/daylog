@@ -110,6 +110,12 @@ const CHECKIN_FOCUS: Record<CheckinKind, string[]> = {
 		'Tomorrow: the first class or event with its time and room, and anything due tomorrow.',
 		'Spending, only if this month is clearly ahead of last month at the same day (a fifth or more); one line with both numbers.'
 	],
+	review: [
+		'Opening: the greeting and the week in one sentence.',
+		'This week: classes held and cancelled, tasks and deadlines done, what slipped (open tasks, lines left open), routines kept, and money if anything stands out.',
+		'Next week: the classes and events that matter, deadlines with days left, and the one or two things to protect time for.',
+		"Propose next week's plan as cards: open tasks worth carrying (move_task to a day next week), and 1–3 add_task blocks for near deadlines inside free time (free_time)."
+	],
 	wrapup: [
 		'What got done today, in a line or two (crossed-out lines, tasks and classes marked done). No list of everything.',
 		"What's left: for open lines worth doing, propose moving them to tomorrow (move_line); for open tasks, propose moving them to tomorrow or Later (move_task), or dropping ones that no longer matter (set_task_status dropped, with a reason).",
@@ -130,7 +136,11 @@ Cover, in this order:
 How:
 - Start from <facts>, looked up just now. Call tools only for what's missing there, or to get ids for a change.
 - Skip any part that turns out empty rather than saying "none". A quiet day can be a two-line brief.
-- Write it as a short status report: the opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.
+- ${
+		checkin.kind === 'review'
+			? 'Write it in two parts headed "This week:" and "Next week:", each a few "- " bullets, after the opening line. At most about 20 lines; it is also saved as a note.'
+			: 'Write it as a short status report: the opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.'
+	}
 - Propose changes only in the cases above, or for a clash or slip you notice. Each becomes a card the owner applies or dismisses; nothing is applied now. Mention each in a few words ("card: move to today").
 - Don't ask questions — nobody can answer.`;
 }

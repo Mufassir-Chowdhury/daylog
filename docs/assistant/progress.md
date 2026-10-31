@@ -14,7 +14,7 @@ that differs from the plan, and say what comes next.
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
-| 6    | Feature packs                   | 6.1–6.4 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.5** |
+| 6    | Feature packs                   | 6.1–6.5 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.6** |
 | 7    | Evaluation and tuning           | not started                                       |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
 
@@ -638,7 +638,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 - [x] **6.2 17:00 / 23:15 briefs** — first pass done 2026-10-31 (below); tune against real runs
 - [x] **6.3 Capture → structure** — done 2026-10-31 (below)
 - [x] **6.4 Deadline planner** — done 2026-10-31 (below)
-- [ ] **6.5 Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
+- [x] **6.5 Weekly review** — done 2026-10-31 (below)
 - [ ] **6.6 Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
 - [ ] **6.7 Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
 - [ ] **6.8 Focus coach** (desktop, opt-in) — at most one nudge an hour
@@ -714,3 +714,25 @@ min, today, nowMinutes)` — free blocks between 08:00 and 22:00, with classes a
   wording, facts reaching the run in `engine.spec.ts`. Totals: 39 files, 327 tests; lint, types,
   both builds, e2e OK.
 - Evals 28–29.
+
+### 6.5 — Weekly review (2026-10-31)
+
+- A fourth check-in kind, **`review`**, and check-ins can be limited to one weekday
+  (`Checkin.weekday`, 0 = Sunday, null = every day). Default: **"Weekly review", Thursday
+  20:00** (end of the Sun–Thu week). `dueCheckins` skips check-ins for other weekdays.
+- Config gained `version` (now 2): a config saved before the review existed gets it added once;
+  removing it afterwards sticks.
+- Facts: every page of the week so far (`read_day` from Sunday to today), `schedule_snapshot`
+  for this week and next, `routine_stats`, `finance_summary`. Instructions: "This week:" (held
+  and cancelled classes, done, slipped, routines, money if notable) and "Next week:" (what
+  matters, deadlines with days left, what to protect time for), up to ~20 lines; next week's
+  plan as cards (`move_task` for carried tasks, 1–3 `add_task` blocks in free time).
+- After the run the review is **saved as a note** "Weekly review · Sun 25 Oct–Thu 29 Oct"
+  (tag `review`) — at once when "Create notes" happens without asking (the default), otherwise
+  as a card. The brief card shows it in the Inbox as usual.
+- Settings: a "Days" picker per check-in (Every day / Sun … Sat); "Weekly review" in the kind
+  list. `saveProposal` in `background.ts` makes cards outside the model's tool calls.
+- Tests: config (defaults, the one-time addition, weekday), scheduler (Thursday only), facts
+  (the week's pages), `runCheckin` saving the note or proposing it. Totals: 39 files, 331 tests;
+  lint, types, both builds, e2e OK.
+- Eval 30.

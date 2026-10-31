@@ -7,6 +7,7 @@
 		DATA_AREAS,
 		DEFAULT_CONFIG,
 		permissionFor,
+		WEEKDAY_NAMES,
 		sortCheckins,
 		type AssistantConfig,
 		type Checkin
@@ -63,7 +64,14 @@
 	function addCheckin() {
 		config.checkins = sortCheckins([
 			...config.checkins,
-			{ id: `custom-${Date.now()}`, label: 'Check-in', time: '12:00', kind: 'brief', enabled: true }
+			{
+				id: `custom-${Date.now()}`,
+				label: 'Check-in',
+				time: '12:00',
+				kind: 'brief',
+				enabled: true,
+				weekday: null
+			}
 		]);
 		persist();
 	}
@@ -468,6 +476,21 @@
 						aria-label="Check-in name"
 						class="w-44 rounded-ctl border-line bg-card py-1 text-sm text-ink"
 					/>
+					<select
+						value={checkin.weekday ?? ''}
+						onchange={(e) => {
+							const v = e.currentTarget.value;
+							checkin.weekday = v === '' ? null : Number(v);
+							persist();
+						}}
+						aria-label="Check-in days"
+						class="rounded-ctl border-line bg-card py-1 text-sm text-ink"
+					>
+						<option value="">Every day</option>
+						{#each WEEKDAY_NAMES as day, i (day)}
+							<option value={i}>{day}</option>
+						{/each}
+					</select>
 					<select
 						bind:value={checkin.kind}
 						onchange={persist}

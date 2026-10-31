@@ -6,6 +6,7 @@
  *
  * Rules:
  * - A check-in is due once its time has passed today, until it has run.
+ * - A check-in for one weekday (the weekly review) is due only on that day.
  * - Only the latest due check-in runs; earlier ones missed today are skipped
  *   (a morning warm-up is no use at 6 PM). Nothing carries over past midnight.
  * - A run that failed is tried again after 15 minutes, at most 3 times.
@@ -70,7 +71,9 @@ export function dueCheckins(
 	const time = clock(now);
 	const byId = new Map(records.filter((r) => r.date === today).map((r) => [r.checkinId, r]));
 	const passed = config.checkins
-		.filter((c) => c.enabled && c.time <= time)
+		.filter(
+			(c) => c.enabled && c.time <= time && (c.weekday === null || c.weekday === now.getDay())
+		)
 		.sort((a, b) => a.time.localeCompare(b.time));
 	const latest = passed.at(-1);
 	if (!latest) return { run: null, skip: [] };

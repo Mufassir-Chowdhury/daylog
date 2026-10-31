@@ -135,3 +135,13 @@ describe('cardsLeftToday', () => {
 		expect(cardsLeftToday(c, items, now)).toBe(0);
 	});
 });
+
+describe('weekly check-ins', () => {
+	it('runs the weekly review only on its weekday', () => {
+		// 2026-10-29 is a Thursday, 2026-10-30 a Friday.
+		const thu = new Date('2026-10-29T20:05:00');
+		expect(dueCheckins(config(), thu, '2026-10-29', []).run?.id).toBe('review');
+		const fri = new Date('2026-10-30T20:05:00');
+		expect(dueCheckins(config(), fri, '2026-10-30', []).run?.id).toBe('evening');
+	});
+});

@@ -6,6 +6,7 @@
  * Tools of areas hidden in Settings are left out, as they would be for the model.
  */
 import { addDays } from '../date';
+import { weekStart } from '../schedule';
 import type { CheckinKind } from './config';
 import { runTool, type Tool, type ToolContext } from './tools/registry';
 
@@ -21,6 +22,22 @@ export function checkinFacts(kind: CheckinKind, today: string): FactSource[] {
 	const yesterday = addDays(today, -1);
 	const tomorrow = addDays(today, 1);
 	switch (kind) {
+		case 'review': {
+			const start = weekStart(today);
+			const pages: FactSource[] = [];
+			for (let d = start; d <= today; d = addDays(d, 1))
+				pages.push({ label: `The page for ${d}`, tool: 'read_day', input: { date: d } });
+			return [
+				...pages,
+				{
+					label: 'This week and next (classes, tasks, deadlines)',
+					tool: 'schedule_snapshot',
+					input: { from: start, to: addDays(start, 13) }
+				},
+				{ label: 'Routines', tool: 'routine_stats', input: { date: today } },
+				{ label: 'Money this month', tool: 'finance_summary', input: { month: null } }
+			];
+		}
 		case 'warmup':
 			return [
 				{
