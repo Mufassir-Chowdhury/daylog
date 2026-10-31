@@ -936,4 +936,21 @@ and Settings says voice is off.
   webviews (WebView2, WebKit) weren't tried. First real check: Settings → Voice → add a key →
   Test the voice; then the mic in the panel.
 - Different from the earlier sketch: batch Scribe after you finish speaking instead of realtime
-  over WebSocket (no token minting, simpler); no mic in the quick bar or desktop hotkey yet.
+  over WebSocket (no token minting, simpler); no desktop hotkey for voice yet.
+
+### Voice in the quick bar (2026-10-31)
+
+- `CommandPalette` takes `voiceInput`; the quick bar turns it on. With voice on, a 🎙 sits in the
+  box: tap, speak, pause (or tap again). What you said lands in the box, so Enter adds it to today
+  (or pick another result); type `?` first and it goes straight to the assistant as a spoken
+  question. Escape while listening cancels; closing or reopening the bar lets go of the mic.
+- Spoken questions hand over as `?ask=…&spoken=1`; the main window opens the assistant with
+  `openAssistant(question, spoken)` (`assistant.pendingSpoken`), so the reply is read aloud there.
+- Voice is now refreshed in every window (the quick bar included), and again each time the bar
+  opens, so a key added in Settings turns its mic on.
+- Tests: `CommandPalette.voice.svelte.spec.ts` (said text in the box ready to capture; `?` +
+  mic asks aloud; no mic without voice input) and a hand-over test in
+  `AssistantPanel.voice.svelte.spec.ts`. Totals: 50 files, 386 tests; lint, types, both builds,
+  e2e OK.
+- Not tried in the real desktop app: the quick window is its own webview, so the OS may ask for
+  the microphone there separately.

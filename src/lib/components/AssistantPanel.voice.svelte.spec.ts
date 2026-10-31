@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import { assistant } from '$lib/ai/assistant.svelte';
+import { assistant, newConversation, openAssistant } from '$lib/ai/assistant.svelte';
 import { DEFAULT_CONFIG } from '$lib/ai/config';
 import type { RunResult, SendRequest } from '$lib/ai/types';
 import AssistantPanel from './AssistantPanel.svelte';
@@ -56,5 +56,23 @@ describe('AssistantPanel with voice', () => {
 		expect(turn.kind === 'user' && turn.text).toContain("what's up today");
 		expect(voiceApi.speak).toHaveBeenCalledWith('Two classes and a meeting at nine.');
 		await expect.element(screen.getByRole('button', { name: 'Read aloud' })).toBeInTheDocument();
+	});
+
+	it('answers aloud a spoken question handed over from the quick bar', async () => {
+		newConversation();
+		voiceApi.speak.mockClear();
+		send.mockResolvedValueOnce({
+			text: 'Clear until noon.',
+			calls: [],
+			stop: 'done',
+			usage: { input: 1, output: 1, cacheRead: 0 },
+			model: 'm',
+			messages: ['u2', 'a2']
+		});
+		openAssistant('am I free this morning', true);
+		render(AssistantPanel);
+		await vi.waitFor(() => expect(voiceApi.speak).toHaveBeenCalledWith('Clear until noon.'));
+		const turn = send.mock.calls.at(-1)![0].turn;
+		expect(turn.kind === 'user' && turn.text).toContain('The owner spoke this message');
 	});
 });

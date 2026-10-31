@@ -343,6 +343,7 @@ export const TOPICS: HelpTopic[] = [
 			'Add an ElevenLabs API key in Settings → Assistant → Voice; without one, voice stays off.',
 			'Tap the mic in {name}’s panel and speak; pause (or tap again) when you’re done. What you said shows as your message.',
 			'Asked aloud, it answers in a few spoken sentences and reads them to you; "Read aloud" works on any reply or brief, and "Stop speaking" cuts it off.',
+			'In the desktop quick bar, tap its mic to say a line instead of typing (Enter adds it to today), or type `?` first and tap it to ask {name} out loud — the answer is read to you in the main window.',
 			'Pick the voice in Settings (a calm British voice is recommended), and choose fast or richer speech.',
 			'Your speech and the replies it reads go to ElevenLabs; the key stays on this device.'
 		],

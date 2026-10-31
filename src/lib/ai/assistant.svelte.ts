@@ -67,7 +67,9 @@ export const assistant = $state({
 	address: '',
 	entries: [] as ChatEntry[],
 	/** A question handed over to be sent once the panel is up. */
-	pending: ''
+	pending: '',
+	/** …and whether it was spoken (then the reply is read aloud). */
+	pendingSpoken: false
 });
 
 /**
@@ -78,9 +80,12 @@ export const assistant = $state({
 let thread: { id: string; provider: ProviderId; model: string; history: unknown[] } | null = null;
 let nextId = 1;
 
-export function openAssistant(question = ''): void {
+export function openAssistant(question = '', spoken = false): void {
 	assistant.open = true;
-	if (question.trim()) assistant.pending = question.trim();
+	if (question.trim()) {
+		assistant.pending = question.trim();
+		assistant.pendingSpoken = spoken;
+	}
 }
 
 export function closeAssistant(): void {
