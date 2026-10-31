@@ -61,6 +61,7 @@ pub fn run() {
             commands::quick_navigate,
             commands::quick_capture,
             commands::reminders_set,
+            commands::notify_show,
             commands::auth_google_start,
             commands::prefs_get,
             commands::prefs_set,

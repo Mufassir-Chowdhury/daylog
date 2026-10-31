@@ -4,8 +4,9 @@
  * 1. the scheduled check-in that's due (`checkin.ts`);
  * 2. follow-ups it scheduled for itself (`schedule_checkin`);
  * 3. every 30 minutes outside quiet hours, the detectors: each new signal
- *    gets a short background run, within the daily limit on unprompted cards.
- * Returns the cards worth a bubble.
+ *    gets a short background run, within the daily limit on unprompted cards,
+ *    except kinds you muted ("Don't suggest these again").
+ * Returns the new cards; `notifyAbout` turns them into a notification.
  */
 import { addDays, dateKey } from '../date';
 import {
@@ -16,6 +17,7 @@ import {
 	listSignalKeys,
 	listTasks,
 	loadAssistantConfig,
+	loadFeedback,
 	loadDay,
 	pruneSignals,
 	saveFollowup
@@ -25,7 +27,9 @@ import { withinBudget } from './budget';
 import { runDueCheckins } from './checkin';
 import { inQuietHours } from './config';
 import { detect, DETECTORS, type Detector, type Signal } from './detectors';
+import { desktop } from '../desktop';
 import { loadDevicePrefs } from './device';
+import { isMuted, noticeFor } from './feedback';
 import { isDue, isMissed, type FollowUp } from './followup';
 import type { InboxItem } from './inbox';
 import { inbox } from './inbox.svelte';
@@ -137,13 +141,14 @@ export async function runSignals(
 	if (left <= 0) return [];
 
 	const today = dateKey(now);
-	const [signals, seen] = await Promise.all([
+	const [signals, seen, feedback] = await Promise.all([
 		detectorInput(uid, today, config.areas).then((data) => detect(data, detectors)),
-		listSignalKeys(uid)
+		listSignalKeys(uid),
+		loadFeedback(uid).catch(() => ({}))
 	]);
 	pruneSignals(uid, ms - 30 * 86_400_000).catch(() => {});
 	const fresh = signals
-		.filter((s) => !seen.has(s.key))
+		.filter((s) => !seen.has(s.key) && !isMuted(feedback, s.type))
 		.sort((a, b) => b.priority - a.priority)
 		.slice(0, SIGNALS_PER_SCAN);
 
@@ -206,4 +211,29 @@ export async function runBackgroundWork(
 		busy = false;
 	}
 	return out;
+}
+
+/**
+ * Notifies about a round's new cards when they're worth it (check-in briefs,
+ * follow-ups, urgent cards) and it's not quiet hours: on the desktop always, in
+ * a browser only when it allowed notifications and the page isn't in view (in
+ * view, the bubble is enough). Off with "Notify me" in Settings.
+ */
+export async function notifyAbout(
+	uid: string,
+	cards: InboxItem[],
+	now = new Date()
+): Promise<void> {
+	if (!cards.length || !loadDevicePrefs().notify) return;
+	const notice = noticeFor(cards, await loadAssistantConfig(uid), now);
+	if (!notice) return;
+	const route = `/day/${dateKey(now)}`;
+	if (desktop) return desktop.notify(notice.title, notice.body, route);
+	if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+	if (document.visibilityState === 'visible') return;
+	const n = new Notification(notice.title, { body: notice.body, tag: 'daylog-assistant' });
+	n.onclick = () => {
+		focus();
+		n.close();
+	};
 }

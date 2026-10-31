@@ -20,7 +20,9 @@ const db = vi.hoisted(() => ({
 	newInboxId: vi.fn(() => 'card-1'),
 	saveInboxItem: vi.fn(async () => {}),
 	watchInbox: vi.fn(() => () => {}),
-	deleteInboxItem: vi.fn(async () => {})
+	deleteInboxItem: vi.fn(async () => {}),
+	countFeedback: vi.fn(async () => {}),
+	setMuted: vi.fn(async () => {})
 }));
 const writes = vi.hoisted(() => ({
 	commit: vi.fn<(uid: string, changes: unknown[]) => Promise<void>>(async () => {}),
@@ -316,5 +318,30 @@ describe('AssistantPanel', () => {
 		await screen.getByRole('button', { name: 'Apply' }).click();
 		await expect.element(screen.getByText('Applied')).toBeInTheDocument();
 		expect(writes.commit).toHaveBeenCalledTimes(1);
+	});
+
+	it("stops a kind of suggestion with “Don't suggest these again”", async () => {
+		inbox.items = [
+			{
+				id: 'sig',
+				kind: 'proposal',
+				source: 'checkin',
+				title: 'Add “Draft intro”',
+				body: '',
+				tool: 'add_task',
+				details: [],
+				changes: [],
+				status: 'pending',
+				signalKey: 'deadline:d1',
+				priority: 1,
+				createdAt: Date.now(),
+				expiresAt: Date.now() + 60_000
+			}
+		];
+		const screen = render(AssistantPanel);
+		await screen.getByRole('button', { name: "Don't suggest these again" }).click();
+		await expect.element(screen.getByText('Dismissed')).toBeInTheDocument();
+		expect(db.setMuted).toHaveBeenCalledWith('u1', 'deadline', true);
+		expect(db.countFeedback).toHaveBeenCalledWith('u1', 'deadline', 'dismissed');
 	});
 });

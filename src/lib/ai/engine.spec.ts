@@ -13,8 +13,11 @@ const db = vi.hoisted(() => ({
 	pruneSignals: vi.fn(async () => {}),
 	listFollowups: vi.fn(async () => [] as unknown[]),
 	claimFollowup: vi.fn(),
-	saveFollowup: vi.fn(async () => {})
+	saveFollowup: vi.fn(async () => {}),
+	loadFeedback: vi.fn(async () => ({}))
 }));
+const desktop = vi.hoisted(() => ({ notify: vi.fn() }));
+vi.mock('../desktop', () => ({ desktop }));
 const bg = vi.hoisted(() => ({
 	backgroundRun: vi.fn(),
 	saveBrief: vi.fn((_uid: string, b: Record<string, unknown>) => ({ ...b, kind: 'brief' }))
@@ -26,7 +29,8 @@ vi.mock('./inbox.svelte', () => ({ inbox }));
 vi.mock('./checkin', () => ({ runDueCheckins: vi.fn(async () => null) }));
 vi.mock('./transport', () => ({ keyStatus: async () => ({ anthropic: true, gemini: false }) }));
 
-const { resetEngine, runDueFollowups, runSignals, SCAN_EVERY } = await import('./engine');
+const { notifyAbout, resetEngine, runDueFollowups, runSignals, SCAN_EVERY } =
+	await import('./engine');
 
 const NOW = new Date(2026, 9, 31, 11, 0);
 const signal = (key: string, over: Partial<Signal> = {}): Signal => ({
@@ -50,6 +54,8 @@ beforeEach(() => {
 	db.saveFollowup.mockClear();
 	bg.backgroundRun.mockReset();
 	bg.saveBrief.mockClear();
+	db.loadFeedback.mockResolvedValue({});
+	desktop.notify.mockClear();
 });
 
 describe('runSignals', () => {
@@ -175,5 +181,33 @@ describe('runDueFollowups', () => {
 			expect.objectContaining({ id: 'old', status: 'missed' })
 		);
 		expect(db.claimFollowup).not.toHaveBeenCalled();
+	});
+});
+
+describe('muting and notifying', () => {
+	it("doesn't raise kinds you muted", async () => {
+		db.loadFeedback.mockResolvedValue({ deadline: { applied: 0, dismissed: 3, muted: true } });
+		bg.backgroundRun.mockResolvedValue({ text: 'NOTHING', truncated: false, proposals: [] });
+		await runSignals('u1', null, NOW, [() => [signal('deadline:x'), signal('carryover:y')]]);
+		expect(db.claimSignal).toHaveBeenCalledTimes(1);
+		expect(db.claimSignal).toHaveBeenCalledWith('u1', 'carryover:y', 'carryover');
+	});
+
+	it('notifies on the desktop about a check-in brief, opening today', async () => {
+		const brief = {
+			kind: 'brief',
+			title: 'Evening brief · Sat 31 Oct',
+			body: 'All quiet.',
+			signalKey: 'checkin:evening:2026-10-31',
+			priority: 1
+		} as InboxItem;
+		await notifyAbout('u1', [brief], new Date(2026, 9, 31, 17, 0));
+		expect(desktop.notify).toHaveBeenCalledWith(
+			'Jarvis · Evening brief · Sat 31 Oct',
+			'All quiet.',
+			'/day/2026-10-31'
+		);
+		await notifyAbout('u1', [proposal('x')], new Date(2026, 9, 31, 17, 0));
+		expect(desktop.notify).toHaveBeenCalledTimes(1);
 	});
 });

@@ -13,6 +13,7 @@
 	} from '$lib/ai/config';
 	import { runCheckin } from '$lib/ai/checkin';
 	import { holderId, lease } from '$lib/ai/lease.svelte';
+	import { SUGGESTION_TYPES, type Feedback } from '$lib/ai/feedback';
 	import { loadDevicePrefs, saveDevicePrefs } from '$lib/ai/device';
 	import { loadAdapter } from '$lib/ai';
 	import { ALL_TOOLS } from '$lib/ai/tools';
@@ -29,6 +30,8 @@
 		deleteMemory,
 		listMemory,
 		loadAssistantConfig,
+		loadFeedback,
+		setMuted,
 		newMemoryId,
 		saveAssistantConfig,
 		saveMemory
@@ -191,6 +194,25 @@
 	function setPermission(tool: string, auto: boolean) {
 		config.permissions[tool] = auto ? 'auto' : 'ask';
 		persist();
+	}
+
+	// ——— Suggestions it makes on its own (synced): muted kinds and how each was received.
+	let feedback: Feedback = $state({});
+	loadFeedback(uid)
+		.then((f) => (feedback = f))
+		.catch(() => {});
+
+	function setSuggesting(type: string, on: boolean) {
+		const f = feedback[type];
+		feedback[type] = { applied: f?.applied ?? 0, dismissed: f?.dismissed ?? 0, muted: !on };
+		setMuted(uid, type, !on).catch(saveFailed);
+	}
+
+	// ——— Notifications on this device.
+	const canAskBrowser = !desktop && typeof Notification !== 'undefined';
+	let browserPermission = $state(canAskBrowser ? Notification.permission : 'granted');
+	async function askBrowser() {
+		browserPermission = await Notification.requestPermission();
 	}
 
 	// ——— What it remembers (synced).
@@ -512,6 +534,55 @@
 		<p class="-mt-4 text-xs text-faint">
 			No notifications during quiet hours — suggestions still collect for later.
 		</p>
+
+		<!-- Notifications (this device) -->
+		<div class="space-y-1">
+			<label class="flex items-center gap-2 text-sm text-ink">
+				<input type="checkbox" bind:checked={prefs.notify} onchange={persistDevice} class={check} />
+				Notify me on this device
+			</label>
+			<p class="text-xs text-faint">
+				For check-ins, things it said it would check back on, and urgent suggestions — not in quiet
+				hours.
+				{#if canAskBrowser && browserPermission !== 'granted'}
+					{#if browserPermission === 'denied'}
+						This browser blocks notifications for daylog; allow them in its site settings.
+					{:else}
+						<button
+							type="button"
+							onclick={askBrowser}
+							class="font-medium text-accent hover:underline">Allow in this browser</button
+						>
+					{/if}
+				{/if}
+			</p>
+		</div>
+
+		<!-- Suggestions on its own (synced) -->
+		<div class="space-y-2">
+			<div>
+				<p class={subhead}>Suggestions it makes on its own</p>
+				<p class="text-xs text-faint">
+					Between check-ins it looks for these and leaves a card. Untick one to stop it, as “Don't
+					suggest these again” on a card does.
+				</p>
+			</div>
+			{#each SUGGESTION_TYPES as type (type.id)}
+				{@const f = feedback[type.id]}
+				<label class="flex items-center gap-2 text-sm text-ink">
+					<input
+						type="checkbox"
+						checked={!f?.muted}
+						onchange={(e) => setSuggesting(type.id, e.currentTarget.checked)}
+						class={check}
+					/>
+					{type.label}
+					{#if f && (f.applied || f.dismissed)}
+						<span class="text-xs text-faint">· applied {f.applied}, dismissed {f.dismissed}</span>
+					{/if}
+				</label>
+			{/each}
+		</div>
 
 		<!-- What it can see (synced) -->
 		<div class="space-y-2">
