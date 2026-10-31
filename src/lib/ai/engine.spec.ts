@@ -8,6 +8,8 @@ const db = vi.hoisted(() => ({
 	loadDay: vi.fn(async () => ''),
 	listDeadlines: vi.fn(async () => []),
 	listTasks: vi.fn(async () => []),
+	listSlots: vi.fn(async () => []),
+	listEvents: vi.fn(async () => [] as unknown[]),
 	listSignalKeys: vi.fn(async () => new Set<string>()),
 	claimSignal: vi.fn(async () => true),
 	pruneSignals: vi.fn(async () => {}),
@@ -29,7 +31,7 @@ vi.mock('./inbox.svelte', () => ({ inbox }));
 vi.mock('./checkin', () => ({ runDueCheckins: vi.fn(async () => null) }));
 vi.mock('./transport', () => ({ keyStatus: async () => ({ anthropic: true, gemini: false }) }));
 
-const { notifyAbout, resetEngine, runCapture, runDueFollowups, runSignals, SCAN_EVERY } =
+const { notifyAbout, resetEngine, runCapture, runDueFollowups, runPrep, runSignals, SCAN_EVERY } =
 	await import('./engine');
 
 const NOW = new Date(2026, 9, 31, 11, 0);
@@ -264,6 +266,57 @@ describe('runCapture', () => {
 
 		db.claimSignal.mockResolvedValue(false);
 		expect(await runCapture('u1', null, '2026-10-31', lines, NOW)).toEqual([]);
+		expect(bg.backgroundRun).not.toHaveBeenCalled();
+	});
+});
+
+describe('runPrep', () => {
+	const meeting = {
+		id: 'm1',
+		slotId: null,
+		date: '2026-10-31',
+		start: '11:30',
+		end: '12:30',
+		title: 'Meeting with @rahim',
+		kind: 'meeting',
+		room: '501',
+		status: 'planned',
+		note: ''
+	};
+
+	it('leaves a prep note half an hour before, once', async () => {
+		db.listEvents.mockResolvedValue([meeting]);
+		bg.backgroundRun.mockResolvedValue({
+			text: 'Rahim owes you ৳500.',
+			truncated: false,
+			proposals: []
+		});
+		const cards = await runPrep('u1', null, NOW); // 11:00
+		expect(db.claimSignal).toHaveBeenCalledWith('u1', 'prep:2026-10-31:m1', 'prep');
+		expect(bg.backgroundRun.mock.calls[0][0].facts).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ tool: 'get_person', input: { handle: 'rahim' } })
+			])
+		);
+		expect(cards).toEqual([
+			expect.objectContaining({ title: 'Before Meeting with @rahim', body: 'Rahim owes you ৳500.' })
+		]);
+		// The next minute: already handled here, no new claim.
+		await runPrep('u1', null, new Date(NOW.getTime() + 60_000));
+		expect(db.claimSignal).toHaveBeenCalledTimes(1);
+		// The schedule was read once for both minutes.
+		expect(db.listEvents).toHaveBeenCalledTimes(1);
+	});
+
+	it('stays quiet when muted, in quiet hours, or with nothing coming up', async () => {
+		db.listEvents.mockResolvedValue([meeting]);
+		db.loadFeedback.mockResolvedValueOnce({ prep: { applied: 0, dismissed: 0, muted: true } });
+		expect(await runPrep('u1', null, NOW)).toEqual([]);
+		resetEngine();
+		expect(await runPrep('u1', null, new Date(2026, 9, 31, 2, 0))).toEqual([]);
+		resetEngine();
+		db.listEvents.mockResolvedValue([]);
+		expect(await runPrep('u1', null, NOW)).toEqual([]);
 		expect(bg.backgroundRun).not.toHaveBeenCalled();
 	});
 });

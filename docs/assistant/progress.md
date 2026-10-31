@@ -14,7 +14,7 @@ that differs from the plan, and say what comes next.
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
-| 6    | Feature packs                   | 6.1–6.5 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.6** |
+| 6    | Feature packs                   | 6.1–6.6 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.7** |
 | 7    | Evaluation and tuning           | not started                                       |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
 
@@ -639,7 +639,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 - [x] **6.3 Capture → structure** — done 2026-10-31 (below)
 - [x] **6.4 Deadline planner** — done 2026-10-31 (below)
 - [x] **6.5 Weekly review** — done 2026-10-31 (below)
-- [ ] **6.6 Pre-event prep and person briefs** — 30 min before a class/meeting; `@person` briefs
+- [x] **6.6 Pre-event prep and person briefs** — done 2026-10-31 (below)
 - [ ] **6.7 Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
 - [ ] **6.8 Focus coach** (desktop, opt-in) — at most one nudge an hour
 
@@ -736,3 +736,24 @@ min, today, nowMinutes)` — free blocks between 08:00 and 22:00, with classes a
   (the week's pages), `runCheckin` saving the note or proposing it. Totals: 39 files, 331 tests;
   lint, types, both builds, e2e OK.
 - Eval 30.
+
+### 6.6 — Pre-event prep and person briefs (2026-10-31)
+
+- `src/lib/ai/detectors/prep.ts` (pure): `upcomingPrep(data)` — today's planned events starting
+  in **20–40 minutes** that are an exam, invigilation or meeting, or mention an `@person`, or
+  have an open task sharing a topic word (so plain classes only with something to prepare);
+  plus timed lines on today's page with an `@person` and a meeting word ("10:00AM meet @rahim").
+  Key `prep:<date>:<event id | line-hash>`, priority 2 (so it notifies), facts:
+  `schedule_snapshot` today, `search_notes` on the title's most telling word, `get_person` for
+  each person. The run writes a short prep note (where, related tasks and notes, a two-line
+  brief per person) or answers NOTHING.
+- `engine.runPrep` runs **every minute** (timing matters) as step 3 of `runBackgroundWork`:
+  schedule and today's page cached 10 minutes, each signal handled once per device and claimed
+  in `assistantSignals`, not in quiet hours, schedule area needed (day lines only with day pages),
+  within the daily card limit, mutable ("Prep notes before meetings…" in Settings).
+- `topicWords` now keeps 2-letter words (course codes like DM, OS) and drops little words and
+  numbers — also sharpens the deadline detector's "is there a task about it".
+- Tests: `prep.spec.ts` (window, which events, people and notes facts, timed lines), `runPrep`
+  in `engine.spec.ts` (once, cached schedule, muted, quiet hours, nothing coming). Totals: 40
+  files, 337 tests; lint, types, both builds, e2e OK.
+- Evals 31–32.
