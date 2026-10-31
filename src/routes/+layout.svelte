@@ -9,6 +9,7 @@
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
+	import { startFocusCoach } from '$lib/ai/focus-coach';
 	import { notifyAbout, runBackgroundWork, runCapture } from '$lib/ai/engine';
 	import { captureCandidates } from '$lib/ai/capture';
 	import { appendToDay } from '$lib/capture';
@@ -128,9 +129,15 @@
 					// Failed runs are recorded and retried.
 					.catch(() => {})
 		});
+		// The focus coach looks at this computer's activity, so it runs in the desktop app
+		// whether or not it holds the lease (and only when switched on there).
+		const stopCoach = desktop
+			? startFocusCoach(uid, () => assistant.name, desktop.onAssistantTick)
+			: () => {};
 		return () => {
 			stopInbox();
 			stopLease();
+			stopCoach();
 		};
 	});
 

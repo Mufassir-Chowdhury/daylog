@@ -236,7 +236,7 @@ detectors → notifications and feedback); see progress.md.
 - Web: run on open, on tab visible (≤ every 15 min), on lease takeover.
 - Desktop notifications for high-priority cards.
 
-### Step 6 — Feature packs
+### Step 6 — Feature packs ✅ (see progress.md)
 
 In order: 08:00 warm-up → 17:00 / 23:15 briefs → capture → structure → deadline planner →
 weekly review → pre-event prep and person briefs → money watch → focus coach.

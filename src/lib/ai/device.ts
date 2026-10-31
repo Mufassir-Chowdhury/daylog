@@ -23,13 +23,16 @@ export interface DevicePrefs {
 	dailyTokens: Record<ModelSlot, number>;
 	/** Notify on this device about check-ins and urgent suggestions (desktop, or a browser that allowed it). */
 	notify: boolean;
+	/** The focus coach (desktop only): nudges about limits and best focus hours. Off until you turn it on. */
+	focusCoach: boolean;
 }
 
 export const DEFAULT_DEVICE_PREFS: DevicePrefs = {
 	provider: 'anthropic',
 	models: DEFAULT_MODELS,
 	dailyTokens: { chat: 1_000_000, background: 300_000 },
-	notify: true
+	notify: true,
+	focusCoach: false
 };
 
 const KEY = 'daylog.ai.device';
@@ -55,7 +58,8 @@ export function normalizeDevicePrefs(raw: unknown): DevicePrefs {
 			chat: count(r.dailyTokens?.chat, d.dailyTokens.chat),
 			background: count(r.dailyTokens?.background, d.dailyTokens.background)
 		},
-		notify: typeof r.notify === 'boolean' ? r.notify : d.notify
+		notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
+		focusCoach: r.focusCoach === true
 	};
 }
 

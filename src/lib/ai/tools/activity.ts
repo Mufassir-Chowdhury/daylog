@@ -43,6 +43,30 @@ async function spansByDay(uid: string, date: string): Promise<Record<string, Act
 	return out;
 }
 
+/**
+ * One day's computer time with what it's measured against: the summary, the
+ * baseline of the days before, goal progress and the best focus window. Shared
+ * with the focus coach.
+ */
+export async function activityFor(uid: string, date: string) {
+	const [raw, config, goals] = await Promise.all([
+		spansByDay(uid, date),
+		loadActivityConfig(uid),
+		loadActivityGoals(uid, date)
+	]);
+	const history = dayRange(date, HISTORY + 1).map((k) =>
+		summarizeDay(k, raw[k] ?? [], config.categories)
+	);
+	const day = history[history.length - 1];
+	const base = baseline(history.slice(0, -1));
+	return {
+		day,
+		base,
+		goals: goals.map((g) => goalProgress(g, day)),
+		best: bestFocusWindow(base.focusByHour)
+	};
+}
+
 export const activityDay: Tool = {
 	area: 'activity',
 	kind: 'read',
@@ -57,18 +81,8 @@ export const activityDay: Tool = {
 	describe: () => 'Checking your computer time',
 	async run(ctx, input) {
 		const date = input.date ? dayKey(input.date) : ctx.today;
-		const [raw, config, goals] = await Promise.all([
-			spansByDay(ctx.uid, date),
-			loadActivityConfig(ctx.uid),
-			loadActivityGoals(ctx.uid, date)
-		]);
-		const history = dayRange(date, HISTORY + 1).map((k) =>
-			summarizeDay(k, raw[k] ?? [], config.categories)
-		);
-		const day = history[history.length - 1];
+		const { day, base, goals, best } = await activityFor(ctx.uid, date);
 		if (day.active === 0) return `No computer time recorded on ${date}.`;
-		const base = baseline(history.slice(0, -1));
-		const best = bestFocusWindow(base.focusByHour);
 		return {
 			date,
 			total: formatDuration(day.active),
@@ -88,10 +102,11 @@ export const activityDay: Tool = {
 				time: formatDuration(s.ms),
 				...(s.titles.length ? { titles: s.titles.slice(0, 3).map((t) => t.title) } : {})
 			})),
-			goals: goals.map((g) => {
-				const p = goalProgress(g, day);
-				return { goal: goalLabel(g), done: formatDuration(p.ms), met: p.met };
-			}),
+			goals: goals.map((p) => ({
+				goal: goalLabel(p.goal),
+				done: formatDuration(p.ms),
+				met: p.met
+			})),
 			observations: insights(day, base, date === ctx.today).map((i) => i.text),
 			...(best ? { bestFocusHours: `${hourLabel(best.hour)}–${hourLabel(best.hour + 2)}` } : {}),
 			averageDay: formatDuration(base.active)
