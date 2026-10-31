@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { assistant } from '$lib/ai/assistant.svelte';
-	import { pendingItems } from '$lib/ai/inbox';
+	import { pendingItems, type InboxItem } from '$lib/ai/inbox';
 	import { inbox } from '$lib/ai/inbox.svelte';
 	import InboxCard from './InboxCard.svelte';
 
 	let {
 		uid,
 		exclude = [],
+		match = () => true,
 		title = `From ${assistant.name}`
 	}: {
 		uid: string;
 		/** Cards already shown elsewhere (in the chat). */
 		exclude?: string[];
+		/** Only cards this accepts. */
+		match?: (item: InboxItem) => boolean;
 		title?: string;
 	} = $props();
 
@@ -23,7 +26,7 @@
 		const waiting = new Set(pendingItems(inbox.items, now).map((i) => i.id));
 		for (const id of waiting) seen.add(id);
 		return inbox.items
-			.filter((i) => seen.has(i.id) && !exclude.includes(i.id))
+			.filter((i) => seen.has(i.id) && !exclude.includes(i.id) && match(i))
 			.sort((a, b) => b.priority - a.priority || b.createdAt - a.createdAt);
 	});
 </script>

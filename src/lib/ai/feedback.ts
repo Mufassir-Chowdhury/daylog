@@ -15,7 +15,8 @@ import { clock } from './scheduler';
 /** The detector types, for Settings and for telling feedback apart from check-ins. */
 export const SUGGESTION_TYPES = [
 	{ id: 'carryover', label: 'Carry over lines left open yesterday' },
-	{ id: 'deadline', label: 'Plan tasks for a deadline coming up' }
+	{ id: 'deadline', label: 'Plan tasks for a deadline coming up' },
+	{ id: 'capture', label: 'Turn money, dates and cancellations you type into cards' }
 ] as const;
 
 export interface TypeFeedback {

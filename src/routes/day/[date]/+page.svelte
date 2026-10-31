@@ -9,6 +9,9 @@
 	import NewNotePanel from '$lib/components/NewNotePanel.svelte';
 	import PlanPanel from '$lib/components/PlanPanel.svelte';
 	import RoutinePanel from '$lib/components/RoutinePanel.svelte';
+	import InboxList from '$lib/components/InboxList.svelte';
+	import { captureCandidates, newLines } from '$lib/ai/capture';
+	import { runCapture } from '$lib/ai/engine';
 	import { registerDayEditor } from '$lib/capture';
 	import { saveDay, savePerson } from '$lib/db';
 	import { addDays, dateKey, humanDate, relativeLabel } from '$lib/date';
@@ -49,7 +52,28 @@
 		saveState = 'pending';
 		clearTimeout(saveTimer);
 		saveTimer = setTimeout(flush, 600);
+		clearTimeout(captureTimer);
+		captureTimer = setTimeout(captureNew, CAPTURE_AFTER);
 	}
+
+	// ——— Capture → structure: a few seconds after you stop typing, new lines that look like
+	// money, dates or cancellations go to the assistant, which offers cards for them below the
+	// editor. What was on the page when it opened (or came in from elsewhere) counts as seen.
+	const CAPTURE_AFTER = 5000;
+	let captureTimer: ReturnType<typeof setTimeout> | undefined;
+	let seen = $derived.by(() => {
+		void date;
+		return untrack(() => data.text);
+	});
+
+	function captureNew() {
+		const fresh = captureCandidates(newLines(seen, text));
+		seen = text;
+		if (fresh.length)
+			runCapture(uid, session.user?.displayName ?? null, date, fresh).catch(() => {});
+	}
+	const captureCards = (key: string) => (i: { signalKey: string }) =>
+		i.signalKey.startsWith(`capture:${key}:`);
 
 	function flush() {
 		clearTimeout(saveTimer);
@@ -91,12 +115,14 @@
 		registerDayEditor(date, {
 			append(line) {
 				text = joinLine(text, line);
+				seen = joinLine(seen, line);
 				for (const handle of extractMentions(line))
 					if (!people.some((p) => p.handle === handle)) addPerson(handle);
 				onInput();
 			},
 			replace(from, to) {
 				text = replaceLine(text, from, to);
+				seen = replaceLine(seen, from, to);
 				if (to)
 					for (const handle of extractMentions(to))
 						if (!people.some((p) => p.handle === handle)) addPerson(handle);
@@ -212,6 +238,9 @@
 ask @rahim about the invoice
 buy milk"
 			/>
+			<div class="mt-3 empty:hidden">
+				<InboxList {uid} match={captureCards(date)} title="From what you wrote" />
+			</div>
 			<p class="mt-2 text-xs text-faint">
 				Start a line with a time (<code>09:00PM</code>) to pin it to the schedule · type
 				<code>@</code> to mention someone — space or enter adds new people · wrap a line in

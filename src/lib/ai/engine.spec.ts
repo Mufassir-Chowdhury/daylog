@@ -29,7 +29,7 @@ vi.mock('./inbox.svelte', () => ({ inbox }));
 vi.mock('./checkin', () => ({ runDueCheckins: vi.fn(async () => null) }));
 vi.mock('./transport', () => ({ keyStatus: async () => ({ anthropic: true, gemini: false }) }));
 
-const { notifyAbout, resetEngine, runDueFollowups, runSignals, SCAN_EVERY } =
+const { notifyAbout, resetEngine, runCapture, runDueFollowups, runSignals, SCAN_EVERY } =
 	await import('./engine');
 
 const NOW = new Date(2026, 9, 31, 11, 0);
@@ -209,5 +209,54 @@ describe('muting and notifying', () => {
 		);
 		await notifyAbout('u1', [proposal('x')], new Date(2026, 9, 31, 17, 0));
 		expect(desktop.notify).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('runCapture', () => {
+	const lines = [
+		{ line: 'gave @rahim 500', kind: 'money' as const },
+		{ line: 'exam on nov 12', kind: 'deadline' as const }
+	];
+
+	it('claims each line once and returns the cards from one run', async () => {
+		db.claimSignal.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+		bg.backgroundRun.mockResolvedValue({
+			text: 'NOTHING',
+			truncated: false,
+			proposals: [proposal('Record a lend of ৳500 to @rahim')]
+		});
+		const cards = await runCapture('u1', null, '2026-10-31', lines, NOW);
+		expect(db.claimSignal).toHaveBeenCalledWith(
+			'u1',
+			expect.stringMatching(/^capture:2026-10-31:/),
+			'capture'
+		);
+		const job = bg.backgroundRun.mock.calls[0][0];
+		// The second line was claimed elsewhere: only the first is asked about.
+		expect(job.message).toContain('- gave @rahim 500');
+		expect(job.message).not.toContain('exam on nov 12');
+		expect(job.signalKey).toMatch(/^capture:2026-10-31:/);
+		expect(job.facts).toEqual([
+			expect.objectContaining({
+				tool: 'schedule_snapshot',
+				input: { from: '2026-10-30', to: '2026-11-14' }
+			})
+		]);
+		expect(cards.map((c) => c.title)).toEqual(['Record a lend of ৳500 to @rahim']);
+		expect(bg.saveBrief).not.toHaveBeenCalled();
+	});
+
+	it('does nothing when muted, when day pages are hidden, or when every line was seen', async () => {
+		db.loadFeedback.mockResolvedValueOnce({ capture: { applied: 0, dismissed: 0, muted: true } });
+		expect(await runCapture('u1', null, '2026-10-31', lines, NOW)).toEqual([]);
+
+		const hidden = structuredClone(DEFAULT_CONFIG);
+		hidden.areas.days = false;
+		db.loadAssistantConfig.mockResolvedValueOnce(hidden);
+		expect(await runCapture('u1', null, '2026-10-31', lines, NOW)).toEqual([]);
+
+		db.claimSignal.mockResolvedValue(false);
+		expect(await runCapture('u1', null, '2026-10-31', lines, NOW)).toEqual([]);
+		expect(bg.backgroundRun).not.toHaveBeenCalled();
 	});
 });

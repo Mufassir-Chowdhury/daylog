@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                               |
-| ---- | ------------------------------- | ------------------------------------ |
-| 0    | Ops layer                       | ✅ done 2026-10-30                   |
-| 1    | Providers and settings          | ✅ done 2026-10-30                   |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30                   |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                   |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30                   |
-| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                   |
-| 6    | Feature packs                   | 6.1–6.2 first pass · ⏭ **next: 6.3** |
-| 7    | Evaluation and tuning           | not started                          |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled                |
+| Step | What                            | Status                                            |
+| ---- | ------------------------------- | ------------------------------------------------- |
+| 0    | Ops layer                       | ✅ done 2026-10-30                                |
+| 1    | Providers and settings          | ✅ done 2026-10-30                                |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30                                |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
+| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
+| 6    | Feature packs                   | 6.1–6.3 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.4** |
+| 7    | Evaluation and tuning           | not started                                       |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
 
 ---
 
@@ -636,8 +636,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 
 - [x] **6.1 08:00 warm-up** — first pass done 2026-10-31 (below); tune against real runs
 - [x] **6.2 17:00 / 23:15 briefs** — first pass done 2026-10-31 (below); tune against real runs
-- [ ] **6.3 Capture → structure** — a detector over today's newly typed lines (money, dates,
-      cancellations, deadlines) → chips/cards like "add as deadline ✓"
+- [x] **6.3 Capture → structure** — done 2026-10-31 (below)
 - [ ] **6.4 Deadline planner** — grow `unplannedDeadline` into planning around the timetable and
       focus hours
 - [ ] **6.5 Weekly review** — end of the Sun–Thu week, saved as a note, with next week's plan
@@ -668,3 +667,31 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
   `checkin.spec.ts`. Totals: 37 files, 314 tests; lint, types, both builds, e2e OK.
 - **Still to do:** run each kind against real days on both providers and tune wording and
   length (evals 22–24).
+
+### 6.3 — Capture → structure (2026-10-31)
+
+- `src/lib/ai/capture.ts` (pure): `captureCandidates(text)` — open lines that look like **money**
+  (spent/paid/gave/lent/borrowed/received… with a number, or ৳/$/tk amounts), a
+  **cancellation** (cancelled, postponed, no class, shifted, moved to…) or a **deadline word
+  with a date** (exam/quiz/due/submit… plus nov 12, 14/11, a weekday, tomorrow). `newLines`,
+  `captureKey(date, line)` (`capture:<date>:<hash>`).
+- `engine.runCapture(uid, name, date, candidates)`: one at a time; needs a key, day pages
+  visible and the kind not muted; each line claimed once in `assistantSignals` (another device or
+  a later edit won't ask again); up to 5 lines per run with `schedule_snapshot` (the day before →
+  two weeks on) as facts; `captureMessage` asks for `add_transaction` / `add_deadline` /
+  `set_event_status` / `move_event` / `add_task` and never to edit the lines. Returns only the
+  cards (no notes). These cards don't count against the daily limit.
+- **Day page**: 5 seconds after you stop typing, lines new since the page opened go through the
+  detector; lines that arrive from the assistant or a capture count as seen. The cards show
+  under the editor as "From what you wrote" (`InboxList` gained `match`); today's Plan panel
+  leaves them out.
+- **Quick bar and palette**: a captured line is checked too; a bubble says what was suggested
+  and on which day's page.
+- Settings → "Suggestions it makes on its own" has "Turn money, dates and cancellations you
+  type into cards" (mute it there or from a card).
+- Different from the plan: cards rather than chips inside the editor (the editor stays plain
+  text; the cards sit right below it).
+- Tests: `capture.spec.ts` (what's picked and what isn't, new lines, keys), `runCapture` in
+  `engine.spec.ts` (claims, facts, cards only; muted, hidden area, already seen). Totals: 38
+  files, 321 tests; lint, types, both builds, e2e OK.
+- Evals 25–27.
