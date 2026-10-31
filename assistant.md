@@ -5,14 +5,15 @@ on Grok Bot and OpenAI's dots. It can read and change every part of the app (day
 long-term tasks, routines, schedule, finance, activity), and it brings things up on its own at set
 times and when something needs attention, so you don't have to keep asking it.
 
-| File                                                       | What's in it                                                                                                                     |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **assistant.md** (this file)                               | What we're building, the architecture and the step-by-step plan                                                                  |
-| [docs/assistant/decisions.md](docs/assistant/decisions.md) | The owner's choices (name, provider, check-in times, auto-apply rules…). **These win over this plan.**                           |
-| [docs/assistant/progress.md](docs/assistant/progress.md)   | Which step is done, what was built, and exactly where to pick up next                                                            |
-| [docs/assistant/evals.md](docs/assistant/evals.md)         | Messages it should handle and the tool calls expected (for Step 7 and manual checks)                                             |
-| [docs/assistant/research.md](docs/assistant/research.md)   | How Grok Bot and dots work, facts about daylog's code, provider and ElevenLabs API notes, sources                                |
-| [schedule-chat.md](schedule-chat.md)                       | Older plan for a Schedule-page chat. Its tool list (§5) and test messages (§9) are reused; its server route is replaced (see §3) |
+| File                                                         | What's in it                                                                                                                     |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **assistant.md** (this file)                                 | What we're building, the architecture and the step-by-step plan                                                                  |
+| [docs/assistant/decisions.md](docs/assistant/decisions.md)   | The owner's choices (name, provider, check-in times, auto-apply rules…). **These win over this plan.**                           |
+| [docs/assistant/progress.md](docs/assistant/progress.md)     | Which step is done, what was built, and exactly where to pick up next                                                            |
+| [docs/assistant/evals.md](docs/assistant/evals.md)           | Messages it should handle and the tool calls expected (for Step 7 and manual checks)                                             |
+| [docs/assistant/claude-mcp.md](docs/assistant/claude-mcp.md) | Using daylog from Claude Desktop / Claude Code (MCP server in the desktop app): how to connect, how it works                     |
+| [docs/assistant/research.md](docs/assistant/research.md)     | How Grok Bot and dots work, facts about daylog's code, provider and ElevenLabs API notes, sources                                |
+| [schedule-chat.md](schedule-chat.md)                         | Older plan for a Schedule-page chat. Its tool list (§5) and test messages (§9) are reused; its server route is replaced (see §3) |
 
 **To continue in a new chat:** read this file, then `decisions.md`, then `progress.md`, and start
 the first step `progress.md` marks as not done. Update `progress.md` at the end of every step.
@@ -258,6 +259,14 @@ storage, straight to ElevenLabs. Desktop: key in the OS keychain, audio through 
 (`voice.rs`).
 
 Notes: [research.md §4](docs/assistant/research.md#4-elevenlabs-future-voice-mode).
+
+### Claude (MCP server) ✅ (see progress.md)
+
+For a Claude subscription without an API key: the desktop app is an MCP server, so Claude
+Desktop and Claude Code use the same tools under the same rules (small additions with Undo, the
+rest as Inbox cards). Claude starts `daylog --mcp`, which relays to the running, signed-in app.
+Off until switched on in Settings → Use daylog from Claude. Setup and design:
+[claude-mcp.md](docs/assistant/claude-mcp.md).
 
 ---
 

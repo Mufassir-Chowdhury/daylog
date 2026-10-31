@@ -3,7 +3,8 @@
 //! checked before use.
 
 use crate::{
-    activity, ai, auth, hotkeys, notify, prefs, reminders, tray, updater, voice, windows, AppState,
+    activity, ai, auth, hotkeys, mcp, notify, prefs, reminders, tray, updater, voice, windows,
+    AppState,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -257,4 +258,34 @@ pub async fn voice_transcribe(request: tauri::ipc::Request<'_>) -> Result<String
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+// ——— Claude Desktop / Claude Code (mcp.rs). Only the main window answers.
+
+#[tauri::command]
+pub fn mcp_status(app: AppHandle) -> Value {
+    mcp::status(&app)
+}
+
+#[tauri::command]
+pub fn mcp_set(app: AppHandle, window: WebviewWindow, enabled: bool) -> Value {
+    if window.label() == windows::MAIN {
+        mcp::set(&app, enabled)
+    } else {
+        mcp::status(&app)
+    }
+}
+
+#[tauri::command]
+pub fn mcp_ready(window: WebviewWindow, ready: bool) {
+    if window.label() == windows::MAIN {
+        mcp::set_ready(ready);
+    }
+}
+
+#[tauri::command]
+pub fn mcp_reply(window: WebviewWindow, id: u64, body: Option<String>) {
+    if window.label() == windows::MAIN {
+        mcp::reply(id, body);
+    }
 }

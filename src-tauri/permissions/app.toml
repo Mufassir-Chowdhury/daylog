@@ -28,4 +28,8 @@ permissions = [
   "allow-ai-key-set",
   "allow-voice-speak",
   "allow-voice-transcribe",
+  "allow-mcp-status",
+  "allow-mcp-set",
+  "allow-mcp-ready",
+  "allow-mcp-reply",
 ]

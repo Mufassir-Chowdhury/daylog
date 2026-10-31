@@ -10,6 +10,7 @@
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
 	import { startFocusCoach } from '$lib/ai/focus-coach';
+	import { startMcpHost } from '$lib/ai/mcp-host';
 	import { refreshVoice } from '$lib/ai/voice.svelte';
 	import { notifyAbout, runBackgroundWork, runCapture } from '$lib/ai/engine';
 	import { captureCandidates } from '$lib/ai/capture';
@@ -135,10 +136,13 @@
 		const stopCoach = desktop
 			? startFocusCoach(uid, () => assistant.name, desktop.onAssistantTick)
 			: () => {};
+		// Claude Desktop / Claude Code reach daylog through the desktop app (mcp.ts).
+		const stopMcp = desktop ? startMcpHost(desktop, uid, displayName) : () => {};
 		return () => {
 			stopInbox();
 			stopLease();
 			stopCoach();
+			stopMcp();
 		};
 	});
 
