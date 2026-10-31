@@ -15,6 +15,7 @@ import type {
 	Transaction,
 	WeekNote
 } from '../db';
+import type { FollowUp } from '../ai/followup';
 import type { MemoryItem } from '../ai/memory';
 
 /** One routine's value on one day. */
@@ -47,6 +48,8 @@ export interface DocTypes {
 	dayLine: DayLine;
 	/** Something the assistant remembers. */
 	memory: MemoryItem;
+	/** A check-in the assistant scheduled for itself. */
+	followup: FollowUp;
 }
 
 export type Kind = keyof DocTypes;

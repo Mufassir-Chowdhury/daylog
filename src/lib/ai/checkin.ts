@@ -10,31 +10,15 @@
  * directly.
  */
 import { dateKey } from '../date';
-import {
-	claimCheckin,
-	listCheckinRecords,
-	listMemory,
-	loadAssistantConfig,
-	newInboxId,
-	saveCheckinRecord
-} from '../db';
-import { describeChange } from '../ops/describe';
-import { runAgent } from './agent';
-import { addressName, type Checkin } from './config';
+import { claimCheckin, listCheckinRecords, loadAssistantConfig, saveCheckinRecord } from '../db';
+import { backgroundRun, saveBrief } from './background';
 import { withinBudget } from './budget';
+import type { Checkin } from './config';
 import { deviceId, loadDevicePrefs } from './device';
-import { PROPOSAL_LIFETIME, type InboxItem } from './inbox';
-import { putItem } from './inbox.svelte';
-import { loadAdapter } from './index';
-import { memoryBlock } from './memory';
-import { checkinMessage, contextBlock } from './prompt';
+import type { InboxItem } from './inbox';
+import { checkinMessage } from './prompt';
 import { dueCheckins, type CheckinRecord } from './scheduler';
 import { keyStatus } from './transport';
-import { ALL_TOOLS } from './tools';
-import { toolsFor, type Proposal } from './tools/registry';
-
-/** A brief stays in view this long. */
-const BRIEF_LIFETIME = 18 * 3_600_000;
 
 export interface CheckinResult {
 	brief: InboxItem | null;
@@ -56,84 +40,23 @@ export async function runCheckin(
 	displayName: string | null,
 	now: Date = new Date()
 ): Promise<CheckinResult> {
-	const prefs = loadDevicePrefs();
-	const config = await loadAssistantConfig(uid);
-	const adapter = await loadAdapter(prefs.provider);
-	const today = dateKey(now);
-	const signalKey = checkinKey(checkin, today);
-	const proposals: InboxItem[] = [];
-
-	// Changes are collected as cards, never applied.
-	const propose = async ({ tool, summary, changes }: Proposal): Promise<string> => {
-		const at = Date.now();
-		const item: InboxItem = {
-			id: newInboxId(uid),
-			kind: 'proposal',
-			source: 'checkin',
-			title: summary,
-			body: '',
-			tool: tool.def.name,
-			details: changes.flatMap(describeChange),
-			changes,
-			status: 'pending',
-			signalKey,
-			priority: 0,
-			createdAt: at,
-			expiresAt: at + PROPOSAL_LIFETIME
-		};
-		proposals.push(item);
-		putItem(uid, item);
-		return `Saved as a card in the owner's Inbox: “${summary}”. Mention it in a few words in your brief.`;
-	};
-
-	const memory = memoryBlock(await listMemory(uid).catch(() => []));
-	const result = await runAgent({
-		adapter,
-		model: prefs.models[prefs.provider].background,
-		slot: 'background',
-		prefs,
-		// No opening pages (nobody is looking) and no memory changes (nobody to confirm them).
-		tools: toolsFor(config, ALL_TOOLS).filter((t) => t.kind !== 'ui' && t.area !== 'assistant'),
-		ctx: {
-			uid,
-			today,
-			cache: new Map(),
-			navigate: () => {},
-			propose
-		},
-		history: [],
-		message: [
-			contextBlock({
-				now,
-				config,
-				address: addressName(config, displayName),
-				view: 'Nothing — this is a scheduled check-in; the owner reads it later in the Inbox'
-			}),
-			memory,
-			checkinMessage(checkin)
-		].join('\n\n')
+	const signalKey = checkinKey(checkin, dateKey(now));
+	const { text, truncated, proposals } = await backgroundRun({
+		uid,
+		displayName,
+		now,
+		message: checkinMessage(checkin),
+		signalKey,
+		priority: 0
 	});
-
-	const text = result.text.trim();
-	if (!text || result.stop === 'refusal') return { brief: null, proposals };
-	const at = Date.now();
-	const brief: InboxItem = {
-		id: newInboxId(uid),
-		kind: 'brief',
-		source: 'checkin',
+	if (!text) return { brief: null, proposals };
+	const brief = saveBrief(uid, {
 		title: `${checkin.label} · ${SHORT_DATE.format(now)}`,
-		body: result.stop === 'max_tokens' ? `${text}…` : text,
-		tool: '',
-		details: [],
-		changes: [],
-		status: 'pending',
+		body: truncated ? `${text}…` : text,
 		signalKey,
 		// Above its own proposals, which it introduces.
-		priority: 1,
-		createdAt: at,
-		expiresAt: at + BRIEF_LIFETIME
-	};
-	putItem(uid, brief);
+		priority: 1
+	});
 	return { brief, proposals };
 }
 

@@ -42,6 +42,9 @@ You are modelled on JARVIS: a composed, capable aide who is always a step ahead.
 - Don't remember what the app already stores (tasks, events, money, notes), passing moods, one-off plans, or anything the owner asks you not to keep.
 - If a memory turns out wrong or outdated, remember the correction with replaces, or forget it. When the owner asks what you remember, list it.
 
+# Following up
+- With schedule_checkin you can look into something again later on your own, e.g. after a class to see whether it was marked done, or the evening before a deadline. Use it when the owner asks you to ("remind me to check…", "look again after lunch") or says something will change later. Tell them when you'll look again. The result lands in their Inbox.
+
 # Writing
 Plain text. Short lines; use "- " bullets for lists of three or more. No headings, tables, bold or emoji. Times like 9:00 AM, dates like Thu 12 Nov.`;
 
@@ -126,4 +129,28 @@ How:
 - Write the brief as a short status report: an opening line addressed to the owner, then "- " bullets, most important first. At most about 10 lines.
 - Propose changes only when they clearly help (the cases above, or a clash or slip you notice). Each one becomes a card the owner applies or dismisses; nothing is applied now. Mention each in a few words in the brief.
 - Don't ask questions — nobody can answer.`;
+}
+
+/** The answer a background run gives when there's nothing worth the owner's time. */
+export const NOTHING = 'NOTHING';
+
+/** The message for a detector's signal: something noticed between check-ins. */
+export function signalMessage(about: string): string {
+	return `# Something noticed
+Nobody is in the chat: you're working on your own between check-ins. Something came up:
+${about}
+
+How:
+- Look it up with the tools first; it may already be handled.
+- Propose changes only when they clearly help. Each becomes a card the owner applies or dismisses; nothing is applied now.
+- Your final answer is shown with the cards: one or two plain sentences on what you noticed and what you proposed. If on a closer look nothing needs the owner's attention, answer exactly ${NOTHING}.
+- Don't ask questions — nobody can answer.`;
+}
+
+/** The message for a follow-up the assistant scheduled for itself. */
+export function followupMessage(why: string, scheduledFor: Date): string {
+	return `# Follow-up
+Nobody is in the chat. Earlier you scheduled yourself to look again at ${CLOCK.format(scheduledFor)}: ${why}
+
+Look into it now with the tools. Propose changes only when they clearly help (they become cards; nothing is applied now). Your final answer becomes a short card in the owner's Inbox: two or three plain sentences on what you found. If nothing needs the owner's attention, answer exactly ${NOTHING}.`;
 }

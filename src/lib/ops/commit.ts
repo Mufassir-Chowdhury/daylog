@@ -6,6 +6,7 @@
 import { editDayLines, type LineEdit } from '../capture';
 import {
 	deleteDeadline,
+	deleteFollowup,
 	deleteEvent,
 	deleteMemory,
 	deleteLongTermTask,
@@ -14,6 +15,7 @@ import {
 	deleteTask,
 	deleteTransaction,
 	saveDeadline,
+	saveFollowup,
 	saveEvent,
 	saveLongTermTask,
 	saveMemory,
@@ -66,6 +68,8 @@ function write(uid: string, c: Change): Promise<void> {
 			const { date, routineId } = (c.after ?? c.before)!;
 			return saveRoutineValue(uid, date, routineId, c.after?.value ?? null);
 		}
+		case 'followup':
+			return c.after ? saveFollowup(uid, c.after) : deleteFollowup(uid, c.id);
 		case 'memory':
 			return c.after ? saveMemory(uid, c.after) : deleteMemory(uid, c.id);
 		case 'dayLine':

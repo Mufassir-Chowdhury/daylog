@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleSlot, Transaction } from '../../db';
 import { moveLine, readDay, recentDays, searchDays, setLineDone } from './days';
 import { addTransactionTool, financeSummary, findTransactions } from './finance';
+import { scheduleCheckin } from './followup';
 import { forget, recall, remember } from './memory';
 import { logRoutineValueTool } from './routines';
 import { addTask, moveEvent, scheduleSnapshot, setEventStatus, updateDeadline } from './schedule';
@@ -23,6 +24,7 @@ const db = vi.hoisted(() => ({
 	loadRoutineLog: vi.fn(),
 	listMemory: vi.fn(),
 	newMemoryId: () => 'new-memory',
+	newFollowupId: () => 'new-followup',
 	newScheduleId: () => 'new-id',
 	newTransactionId: () => 'new-txn'
 }));
@@ -499,5 +501,40 @@ describe('memory tools', () => {
 			{ id: 'm2', kind: 'fact', text: 'DM is taught in room 304' }
 		]);
 		expect(await recall.run!(ctx(), { query: null })).toHaveLength(2);
+	});
+});
+
+describe('schedule_checkin', () => {
+	beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 9, 31, 10, 0) }));
+	afterEach(() => vi.useRealTimers());
+
+	it('schedules a follow-up at a local time, as a small addition', async () => {
+		const plan = await scheduleCheckin.plan!(ctx(), {
+			when: '2026-10-31T15:00',
+			why: 'Check whether the DBMS lab was marked done'
+		});
+		expect(scheduleCheckin.small).toBe(true);
+		expect(plan.changes).toEqual([
+			{
+				kind: 'followup',
+				id: 'new-followup',
+				before: null,
+				after: {
+					id: 'new-followup',
+					at: new Date(2026, 9, 31, 15, 0).getTime(),
+					why: 'Check whether the DBMS lab was marked done',
+					status: 'pending',
+					claimedAt: 0
+				}
+			}
+		]);
+		expect(plan.summary).toMatch(/^Check back Sat 31 Oct.*15:00.*: Check whether the DBMS lab/);
+	});
+
+	it('refuses past, far-off and malformed times', async () => {
+		const plan = (when: string) => scheduleCheckin.plan!(ctx(), { when, why: 'x' });
+		await expect(plan('2026-10-31T09:00')).rejects.toThrow('passed');
+		await expect(plan('2026-11-09T09:00')).rejects.toThrow('7 days');
+		await expect(plan('tomorrow 3pm')).rejects.toThrow('2026-10-31T15:00');
 	});
 });

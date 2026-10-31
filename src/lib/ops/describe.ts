@@ -15,7 +15,8 @@ const NOUN: Record<Kind, string> = {
 	person: 'Profile',
 	routineValue: 'Routine',
 	dayLine: 'Line',
-	memory: 'Memory'
+	memory: 'Memory',
+	followup: 'Follow-up'
 };
 
 /** Fields that only order or identify things. */
@@ -23,6 +24,7 @@ const HIDDEN = new Set([
 	'id',
 	'createdAt',
 	'updatedAt',
+	'claimedAt',
 	'order',
 	'slotId',
 	'handle',

@@ -13,7 +13,7 @@ that differs from the plan, and say what comes next.
 | 2    | Tool registry and chat          | ✅ done 2026-10-30           |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30           |
-| 5    | Proactive engine (5.1–5.7)      | 5.1–5.5 ✅ · ⏭ **next: 5.6** |
+| 5    | Proactive engine (5.1–5.7)      | 5.1–5.6 ✅ · ⏭ **next: 5.7** |
 | 6    | Feature packs                   | not started                  |
 | 7    | Evaluation and tuning           | not started                  |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled        |
@@ -412,7 +412,7 @@ engine and two detectors that prove it.
 | 5.3 ✅ | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
 | 5.4 ✅ | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
 | 5.5 ✅ | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
-| 5.6    | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
+| 5.6 ✅ | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
 | 5.7    | Notifications + feedback          | a muted suggestion stops coming back; a card in quiet hours shows in the Inbox with no notification |
 
 ### 5.1 — Background runs
@@ -560,6 +560,40 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
   First two: lines carried over from yesterday, a deadline ≤ 5 days away with no tasks.
 - New signals (not already in the Inbox) start a short background run between check-ins.
 - `schedule_checkin` tool + `assistantCheckins` entries it creates.
+
+**Done 2026-10-31.** Built:
+
+- `src/lib/ai/background.ts` — the shared background run (`backgroundRun`, `saveBrief`), taken
+  out of `runCheckin`; check-ins, signals and follow-ups all use it.
+- `src/lib/ai/detectors/index.ts` — `Signal { key, type, title, about, priority, coveredBy? }`,
+  `detect(data)`. `carryOver` (yesterday's open lines, key `carryover:<date>`, covered by
+  `move_line` cards made today — so it stays quiet after a warm-up offered them) and
+  `unplannedDeadline` (due in 0–5 days, no open task sharing a topic word; key
+  `deadline:<id>`; priority 2 if hard or ≤ 2 days).
+- `src/lib/ai/engine.ts` — `runBackgroundWork` is what the lease holder runs every minute (the
+  layout now calls it instead of `runDueCheckins`): the due check-in, then due follow-ups, then
+  `runSignals` **every 30 minutes outside quiet hours**: new signals (not in `assistantSignals`),
+  highest priority first, at most 2 per scan, each claimed in a transaction, then a background
+  run. Proposal cards carry the signal's key; a note card only when it proposed nothing and
+  didn't answer `NOTHING`. Stops at `maxCardsPerDay` (`cardsLeftToday`).
+- **Signals are remembered in `assistantSignals/{key}`** (not by looking in the Inbox as
+  sketched), so a signal is raised once even if its run made no card; pruned after 30 days.
+- **Follow-ups**: `schedule_checkin(when, why)` (small, area `assistant`, so chat only) makes a
+  `followup` change (new ops kind) in **`assistantFollowups`** — a collection of its own rather
+  than `assistantCheckins`, whose records are per day and check-in. Due from their time for 6
+  hours (then `missed`), claimed in a transaction, re-read every 5 minutes (so they run within 5
+  minutes of their time), a stalled run is taken over after 10 minutes. The result is a card
+  "Checked back at 3:00 PM" (or nothing for `NOTHING`). Follow-up and check-in cards don't count
+  against the daily limit.
+- `prompt.ts` — `signalMessage`, `followupMessage`, `NOTHING`; a "Following up" section in the
+  chat prompt.
+- The bubble after background work says "Evening brief … is waiting on today's page." or "3 new
+  in your Inbox on today's page."
+- Tests: `detectors.spec.ts`, `followup.spec.ts`, `engine.spec.ts` (new signal once, note vs
+  `NOTHING`, 30-minute throttle, quiet hours, daily limit, claimed elsewhere, covered; follow-up
+  run once, missed), `schedule_checkin` in `tools.spec.ts`. Totals: 35 files, 301 tests; lint,
+  types, both builds, e2e OK.
+- Evals: case 21 (schedule_checkin).
 
 ### 5.7 — Notifications and feedback
 
