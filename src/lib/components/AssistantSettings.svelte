@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { session } from '$lib/auth.svelte';
-	import { spentToday } from '$lib/ai/budget';
+	import { RUN_KINDS, spentToday, usageLog } from '$lib/ai/budget';
 	import {
 		addressName,
 		CHECKIN_KINDS,
@@ -128,6 +128,9 @@
 	const persistDevice = () => saveDevicePrefs($state.snapshot(prefs));
 	const provider = $derived(PROVIDERS.find((p) => p.id === prefs.provider)!);
 	const spent = spentToday();
+	/** The last week of use on this device, by kind of run. */
+	const usage = usageLog().slice(0, 7);
+	const thousands = (n: number) => (n < 1000 ? `${n}` : `${Math.round(n / 1000)}k`);
 
 	let keys: Record<ProviderId, boolean> = $state({ anthropic: false, gemini: false });
 	keyStatus().then((k) => (keys = k));
@@ -434,6 +437,48 @@
 					</label>
 				{/each}
 			</div>
+
+			{#if usage.length}
+				<details class="text-sm">
+					<summary class="cursor-pointer text-mute hover:text-ink">
+						Use on this device, last {usage.length} day{usage.length === 1 ? '' : 's'}
+					</summary>
+					<div class="mt-2 overflow-x-auto">
+						<table class="w-full text-xs">
+							<thead class="text-faint">
+								<tr>
+									<th class="py-1 pr-3 text-left font-normal">Day</th>
+									{#each RUN_KINDS as kind (kind.id)}
+										<th class="py-1 pr-3 text-right font-normal">{kind.label}</th>
+									{/each}
+									<th class="py-1 text-right font-normal">Tokens</th>
+								</tr>
+							</thead>
+							<tbody class="text-ink tabular-nums">
+								{#each usage as day (day.date)}
+									<tr class="border-t border-line">
+										<td class="py-1 pr-3">{day.date}</td>
+										{#each RUN_KINDS as kind (kind.id)}
+											{@const use = day.byKind[kind.id]}
+											<td
+												class="py-1 pr-3 text-right"
+												title={use ? `${use.calls} model call${use.calls === 1 ? '' : 's'}` : ''}
+											>
+												{use ? thousands(use.tokens) : '—'}
+											</td>
+										{/each}
+										<td class="py-1 text-right font-medium">{thousands(day.total)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					<p class="mt-1 text-xs text-faint">
+						Tokens as the limits count them (cache reads at a tenth). Hover a number for the model
+						calls behind it.
+					</p>
+				</details>
+			{/if}
 		</div>
 
 		<!-- Check-ins (synced) -->

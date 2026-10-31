@@ -60,6 +60,7 @@ const options = (adapter: Adapter, over = {}) => ({
 	adapter,
 	model: 'm',
 	slot: 'chat' as const,
+	kind: 'chat' as const,
 	prefs: DEFAULT_DEVICE_PREFS,
 	tools: [echo],
 	ctx: ctx(),

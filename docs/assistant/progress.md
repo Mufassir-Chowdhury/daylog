@@ -15,7 +15,7 @@ that differs from the plan, and say what comes next.
 | 4    | Memory and Inbox                | ✅ done 2026-10-30                               |
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                               |
 | 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune) |
-| 7    | Evaluation and tuning           | ⏭ **next**                                       |
+| 7    | Evaluation and tuning           | usage log + backup ✅ · ⏭ **next: eval runner**  |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled                            |
 
 ---
@@ -812,9 +812,26 @@ Everything is built; this step needs real use. Checklist:
 - [ ] `npm run eval:ai` — a script that runs the eval cases against a fake data set on a chosen
       provider and prints the tool calls and replies for grading by reading (never in CI; costs
       money)
-- [ ] Usage log per device in Settings: tokens per day and per kind of run (chat, check-in,
-      signal, capture, prep), from `budget.ts`
+- [x] Usage log per device in Settings — done 2026-10-31 (below)
 - [ ] After two weeks: use `assistant/feedback` (applied / dismissed per kind) to retune or drop
       suggestion kinds people mostly dismiss
-- [ ] Still open from earlier steps: assistant data in the backup export; Svelte MCP autofixer
+- [x] Assistant data in the backup export — done 2026-10-31 (below)
+- [ ] Still open from earlier steps: Svelte MCP autofixer
       pass once the server is reachable; a signed-in click-through of the whole flow
+
+### 7 — Usage log and backup (2026-10-31)
+
+- **Usage log** (`budget.ts`): `RunKind` (chat, checkin, followup, signal, capture, prep);
+  `logUsage(kind, usage)` after every model call (from `runAgent`, which now takes `kind`;
+  `backgroundRun` jobs carry one), `usageLog()` — tokens and calls per kind per day, last 30
+  days, on this device. Settings → Assistant → "Use on this device, last 7 days": a table per
+  day and kind (hover for model calls). The daily budget is unchanged.
+- **Backup** (`db.ts`, `backup.ts`): `UserData.assistant` — config, memory, feedback (mutes and
+  counts) and pending follow-ups; exported, parsed with the same repairs as the app
+  (`normalizeConfig`, `cleanMemoryText`, `normalizeFeedback`; past or broken follow-ups
+  dropped) and imported. Inbox, conversations, run records, signals and the lease stay out.
+  Older backups without it still import. The import summary mentions it.
+- `DEFAULT_CHECKINS` are now in time order (the review sat last), as stored configs are.
+- Tests: the usage log (per kind, per day, 30 days kept), backup round trip with the assistant,
+  repairs, old backups, summary; Settings check-ins with the review. Totals: 43 files, 353
+  tests; lint, types, both builds, e2e OK.

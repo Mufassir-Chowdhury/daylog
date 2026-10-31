@@ -16,6 +16,9 @@ import type {
 	TransactionKind,
 	UserData
 } from './db';
+import { normalizeConfig } from './ai/config';
+import { normalizeFeedback } from './ai/feedback';
+import { cleanMemoryText, type MemoryItem } from './ai/memory';
 import { EVENT_KINDS, type EventKind, type EventStatus, type TaskStatus } from './schedule';
 import { THEMES, type AppSettings, type Theme } from './settings.svelte';
 
@@ -50,7 +53,10 @@ export function backupSummary(data: UserData): string {
 		`${data.slots.length} timetable slots`,
 		`${data.events.length} events`,
 		`${data.tasks.length} plan tasks`,
-		`${data.deadlines.length} deadlines`
+		`${data.deadlines.length} deadlines`,
+		...(data.assistant
+			? [`the assistant's settings and ${data.assistant.memory.length} memories`]
+			: [])
 	].join(', ');
 }
 
@@ -235,6 +241,32 @@ export function parseBackup(json: string): UserData {
 			})),
 		weekNotes: arr(backup.weekNotes)
 			.filter((w) => isValidKey(str(w.week)))
-			.map((w): WeekNote => ({ week: str(w.week), text: str(w.text) }))
+			.map((w): WeekNote => ({ week: str(w.week), text: str(w.text) })),
+		...(backup.assistant ? { assistant: parseAssistant(rec(backup.assistant)) } : {})
+	};
+}
+
+function parseAssistant(a: Record<string, unknown>): NonNullable<UserData['assistant']> {
+	return {
+		config: normalizeConfig(a.config),
+		memory: arr(a.memory)
+			.filter((m) => str(m.id) !== '' && cleanMemoryText(str(m.text)) !== '')
+			.map((m): MemoryItem => ({
+				id: str(m.id),
+				text: cleanMemoryText(str(m.text)),
+				kind: m.kind === 'preference' ? 'preference' : 'fact',
+				updatedAt: num(m.updatedAt)
+			})),
+		feedback: normalizeFeedback(a.feedback),
+		// Only follow-ups still to come; a past one would just be marked missed.
+		followups: arr(a.followups)
+			.filter((f) => str(f.id) !== '' && num(f.at) > 0 && str(f.why) !== '')
+			.map((f) => ({
+				id: str(f.id),
+				at: num(f.at),
+				why: str(f.why),
+				status: 'pending' as const,
+				claimedAt: 0
+			}))
 	};
 }

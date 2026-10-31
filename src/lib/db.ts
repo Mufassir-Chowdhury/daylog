@@ -1000,6 +1000,20 @@ export interface UserData {
 	tasks: PlanTask[];
 	deadlines: Deadline[];
 	weekNotes: WeekNote[];
+	/** The assistant's lasting state; absent in backups made before it existed. */
+	assistant?: AssistantBackup;
+}
+
+/**
+ * What of the assistant is worth keeping: its settings, what it remembers,
+ * the suggestions you muted, and follow-ups still to come. The Inbox,
+ * conversations and run records are short-lived and stay out.
+ */
+export interface AssistantBackup {
+	config: AssistantConfig;
+	memory: MemoryItem[];
+	feedback: Feedback;
+	followups: FollowUp[];
 }
 
 export async function exportUserData(uid: string): Promise<UserData> {
@@ -1017,7 +1031,11 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		events,
 		tasks,
 		deadlines,
-		weekNotes
+		weekNotes,
+		assistantConfig,
+		memory,
+		feedback,
+		followups
 	] = await Promise.all([
 		loadSettings(uid),
 		listDays(uid),
@@ -1032,7 +1050,11 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		listEvents(uid),
 		listTasks(uid),
 		listDeadlines(uid),
-		listWeekNotes(uid)
+		listWeekNotes(uid),
+		loadAssistantConfig(uid),
+		listMemory(uid),
+		loadFeedback(uid),
+		listFollowups(uid)
 	]);
 	return {
 		settings,
@@ -1048,7 +1070,13 @@ export async function exportUserData(uid: string): Promise<UserData> {
 		events,
 		tasks,
 		deadlines,
-		weekNotes
+		weekNotes,
+		assistant: {
+			config: assistantConfig,
+			memory,
+			feedback,
+			followups: followups.filter((f) => f.status === 'pending')
+		}
 	};
 }
 
@@ -1121,6 +1149,19 @@ export async function importUserData(uid: string, data: UserData): Promise<void>
 		ops.push((b) =>
 			b.set(doc(weekNotesCol(uid), note.week), { text: note.text, updatedAt: serverTimestamp() })
 		);
+	if (data.assistant) {
+		const { config, memory, feedback, followups } = data.assistant;
+		ops.push((b) => b.set(assistantConfigDoc(uid), { ...config, updatedAt: serverTimestamp() }));
+		if (Object.keys(feedback).length) ops.push((b) => b.set(feedbackDoc(uid), feedback));
+		for (const item of memory) {
+			const { id, ...rest } = item;
+			ops.push((b) => b.set(doc(memoryCol(uid), id), rest));
+		}
+		for (const f of followups) {
+			const { id, ...rest } = f;
+			ops.push((b) => b.set(doc(followupsCol(uid), id), rest));
+		}
+	}
 	// Firestore caps a batch at 500 writes, so commit in chunks.
 	for (let i = 0; i < ops.length; i += 450) {
 		const batch = writeBatch(db);

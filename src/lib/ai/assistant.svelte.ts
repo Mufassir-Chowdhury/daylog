@@ -256,6 +256,7 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 			adapter,
 			model,
 			slot: 'chat',
+			kind: 'chat',
 			prefs,
 			tools: toolsFor(config, ALL_TOOLS),
 			ctx: {

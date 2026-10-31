@@ -16,6 +16,7 @@ import { PROPOSAL_LIFETIME, type InboxItem } from './inbox';
 import { putItem } from './inbox.svelte';
 import { loadAdapter } from './index';
 import { memoryBlock } from './memory';
+import type { RunKind } from './budget';
 import { gatherFacts, type FactSource } from './facts';
 import { contextBlock } from './prompt';
 import { ALL_TOOLS } from './tools';
@@ -36,6 +37,8 @@ export interface BackgroundJob {
 	priority: number;
 	/** Looked up before the model starts and put in front of the message (`facts.ts`). */
 	facts?: FactSource[];
+	/** For the usage log. */
+	kind: RunKind;
 }
 
 export interface BackgroundResult {
@@ -81,6 +84,7 @@ export async function backgroundRun(job: BackgroundJob): Promise<BackgroundResul
 		adapter,
 		model: prefs.models[prefs.provider].background,
 		slot: 'background',
+		kind: job.kind,
 		prefs,
 		tools,
 		ctx,
