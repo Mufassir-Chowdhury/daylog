@@ -36,6 +36,9 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 22  | (Run now: Morning warm-up) on a day with two classes, an open line from yesterday      | brief: shape of the day, classes with rooms, deadlines; one `move_line` card; few or no tool calls (facts)    | brief + card  |
 | 23  | (Run now: Evening brief) with an unfinished task and a 9 AM class tomorrow             | brief names the open task and tomorrow's 9 AM class with room; spending only if well ahead                    | brief         |
 | 24  | (Run now: Night wrap-up) with "lunch 250" on the page and nothing recorded today       | `add_transaction` card for 250 lunch; open lines → `move_line` cards; unlogged routines mentioned             | brief + cards |
+| 25  | (typed on today's page, then a pause) "gave @rahim 500"                                | `add_transaction` card (lend, 500, rahim) under the editor; the line unchanged                                | card          |
+| 26  | (typed) "DBMS exam on nov 12"                                                          | `add_deadline` card (DBMS exam, 2026-11-12)                                                                   | card          |
+| 27  | (typed) "thursday's SWE class is cancelled"                                            | `set_event_status` card (that Thursday's SWE → cancelled), id from the facts                                  | card          |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.

@@ -157,3 +157,17 @@ Nobody is in the chat. Earlier you scheduled yourself to look again at ${CLOCK.f
 
 Look into it now with the tools. Propose changes only when they clearly help (they become cards; nothing is applied now). Your final answer becomes a short card in the owner's Inbox: two or three plain sentences on what you found. If nothing needs the owner's attention, answer exactly ${NOTHING}.`;
 }
+
+/** The message for lines the owner just wrote that look like money, dates or cancellations. */
+export function captureMessage(date: string, lines: string[]): string {
+	return `# Just written
+The owner just wrote these lines on the page for ${date}:
+${lines.map((l) => `- ${l}`).join('\n')}
+
+Some may record something the app keeps elsewhere. For each line that clearly does, propose it:
+- money spent, received, lent or borrowed → add_transaction (the date is ${date} unless the line says otherwise; ask nobody — skip it if the amount or account is unclear and there are several accounts);
+- an exam, deadline or submission with a date → add_deadline;
+- a class or event cancelled, postponed or moved → set_event_status or move_event on it (ids from <facts>);
+- something to do on a given day → add_task.
+Don't change the day's lines — the owner's words stay as written. Skip lines that don't clearly mean one of these, and anything already recorded (check first). Nobody is in the chat; when you're done answer ${NOTHING}.`;
+}

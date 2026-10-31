@@ -83,7 +83,10 @@
 	</h2>
 
 	{#if date === dateKey()}
-		<div class="mb-4 empty:hidden"><InboxList {uid} /></div>
+		<!-- Cards from what you typed show under the editor instead. -->
+		<div class="mb-4 empty:hidden">
+			<InboxList {uid} match={(i) => !i.signalKey.startsWith(`capture:${date}:`)} />
+		</div>
 	{/if}
 
 	{#if items.length === 0 && dayTasks.length === 0 && soon.length === 0}

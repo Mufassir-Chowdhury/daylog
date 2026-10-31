@@ -9,7 +9,8 @@
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
-	import { notifyAbout, runBackgroundWork } from '$lib/ai/engine';
+	import { notifyAbout, runBackgroundWork, runCapture } from '$lib/ai/engine';
+	import { captureCandidates } from '$lib/ai/capture';
 	import { appendToDay } from '$lib/capture';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
@@ -87,6 +88,7 @@
 				.then(() => {
 					toast(`Added to ${relativeLabel(entry.date) || humanDate(entry.date)}`);
 					sync();
+					structure(uid, entry);
 				})
 				.catch(saveFailed);
 		});
@@ -155,6 +157,22 @@
 			throw e;
 		});
 		if (desktop) syncReminders(session.user!.uid).catch(() => {});
+		structure(session.user!.uid, entry);
+	}
+
+	/** A captured line that looks like money, a date or a cancellation becomes a card (capture.ts). */
+	function structure(uid: string, entry: { date: string; line: string }) {
+		const candidates = captureCandidates(entry.line);
+		if (!candidates.length) return;
+		runCapture(uid, session.user?.displayName ?? null, entry.date, candidates)
+			.then((cards) => {
+				if (cards.length)
+					toast(
+						`${cards.length === 1 ? cards[0].title : `${cards.length} suggestions`} — on ${relativeLabel(entry.date) || humanDate(entry.date)}'s page.`,
+						{ from: assistant.name, duration: 8000 }
+					);
+			})
+			.catch(() => {});
 	}
 
 	function toggleTheme() {

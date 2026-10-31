@@ -33,7 +33,8 @@ import { isMuted, noticeFor } from './feedback';
 import { isDue, isMissed, type FollowUp } from './followup';
 import type { InboxItem } from './inbox';
 import { inbox } from './inbox.svelte';
-import { followupMessage, NOTHING, signalMessage } from './prompt';
+import { captureKey, type Candidate } from './capture';
+import { captureMessage, followupMessage, NOTHING, signalMessage } from './prompt';
 import { cardsLeftToday, clock } from './scheduler';
 import { keyStatus } from './transport';
 
@@ -236,4 +237,60 @@ export async function notifyAbout(
 		focus();
 		n.close();
 	};
+}
+
+/** Lines looked at per run, at most. */
+const CAPTURE_BATCH = 5;
+let capturing: Promise<unknown> = Promise.resolve();
+
+/**
+ * Lines just typed that look like money, dates or cancellations (`capture.ts`)
+ * get one short background run that proposes the matching records as cards.
+ * Each line is claimed once (`assistantSignals`), so editing elsewhere on the
+ * page or another device doesn't ask again. Runs one at a time. Returns the cards.
+ */
+export function runCapture(
+	uid: string,
+	displayName: string | null,
+	date: string,
+	candidates: Candidate[],
+	now: Date = new Date()
+): Promise<InboxItem[]> {
+	const run = capturing.then(() => capture(uid, displayName, date, candidates, now));
+	capturing = run.catch(() => {});
+	return run;
+}
+
+async function capture(
+	uid: string,
+	displayName: string | null,
+	date: string,
+	candidates: Candidate[],
+	now: Date
+): Promise<InboxItem[]> {
+	if (!candidates.length || !(await canRun())) return [];
+	const config = await loadAssistantConfig(uid);
+	if (!config.areas.days) return [];
+	if (isMuted(await loadFeedback(uid).catch(() => ({})), 'capture')) return [];
+	const lines: string[] = [];
+	for (const c of candidates.slice(0, CAPTURE_BATCH))
+		if (await claimSignal(uid, captureKey(date, c.line), 'capture')) lines.push(c.line);
+	if (!lines.length) return [];
+	const run = await backgroundRun({
+		uid,
+		displayName,
+		now,
+		message: captureMessage(date, lines),
+		signalKey: captureKey(date, lines[0]),
+		priority: 1,
+		facts: [
+			{
+				label: 'Around that day (for event ids)',
+				tool: 'schedule_snapshot',
+				input: { from: addDays(date, -1), to: addDays(date, 14) }
+			}
+		]
+	});
+	// Cards only; a note about typing would just be noise.
+	return run.proposals;
 }
