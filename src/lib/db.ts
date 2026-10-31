@@ -20,6 +20,7 @@ import type { ActivityCategory, ActivityGoal, ActivitySpan } from './activity';
 import { normalizeConfig, type AssistantConfig } from './ai/config';
 import type { InboxItem } from './ai/inbox';
 import type { MemoryItem } from './ai/memory';
+import { isDue, type FollowUp } from './ai/followup';
 import { nextAttempt, recordId, type CheckinRecord } from './ai/scheduler';
 import type { Checkin } from './ai/config';
 import { LEASE_FOR, mayTake, type HolderKind, type Lease } from './ai/lease';
@@ -233,6 +234,8 @@ const inboxCol = (uid: string) => collection(db, 'users', uid, 'assistantInbox')
 const threadsCol = (uid: string) => collection(db, 'users', uid, 'assistantThreads');
 const checkinsCol = (uid: string) => collection(db, 'users', uid, 'assistantCheckins');
 const leaseDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'lease');
+const followupsCol = (uid: string) => collection(db, 'users', uid, 'assistantFollowups');
+const signalsCol = (uid: string) => collection(db, 'users', uid, 'assistantSignals');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -453,6 +456,76 @@ export function watchLease(uid: string, callback: (lease: Lease | null) => void)
 		(snap) => callback(toLease(snap.data())),
 		() => callback(null)
 	);
+}
+
+// Follow-ups the assistant scheduled for itself.
+
+export function newFollowupId(uid: string): string {
+	return doc(followupsCol(uid)).id;
+}
+
+function toFollowup(id: string, data: Record<string, unknown>): FollowUp {
+	return {
+		id,
+		at: Number(data.at ?? 0),
+		why: String(data.why ?? ''),
+		status: (data.status as FollowUp['status']) ?? 'pending',
+		claimedAt: Number(data.claimedAt ?? 0)
+	};
+}
+
+export async function listFollowups(uid: string): Promise<FollowUp[]> {
+	const snap = await getDocs(followupsCol(uid));
+	return snap.docs.map((d) => toFollowup(d.id, d.data()));
+}
+
+export async function saveFollowup(uid: string, followup: FollowUp): Promise<void> {
+	const { id, ...rest } = followup;
+	await setDoc(doc(followupsCol(uid), id), rest);
+}
+
+export async function deleteFollowup(uid: string, id: string): Promise<void> {
+	await deleteDoc(doc(followupsCol(uid), id));
+}
+
+/** Marks a due follow-up as running on this device; false when another device has it. */
+export async function claimFollowup(uid: string, id: string): Promise<FollowUp | null> {
+	const ref = doc(followupsCol(uid), id);
+	return runTransaction(db, async (tx) => {
+		const snap = await tx.get(ref);
+		if (!snap.exists()) return null;
+		const now = Date.now();
+		const current = toFollowup(id, snap.data());
+		if (!isDue(current, now)) return null;
+		const next: FollowUp = { ...current, status: 'running', claimedAt: now };
+		tx.set(ref, { at: next.at, why: next.why, status: next.status, claimedAt: now });
+		return next;
+	});
+}
+
+// Signals from the detectors that have been dealt with, so each is raised once.
+
+/** Keys of every signal raised so far. */
+export async function listSignalKeys(uid: string): Promise<Set<string>> {
+	const snap = await getDocs(signalsCol(uid));
+	return new Set(snap.docs.map((d) => String(d.data().key ?? '')));
+}
+
+/** Notes a signal as raised; false when another device already did. A transaction. */
+export async function claimSignal(uid: string, key: string, type: string): Promise<boolean> {
+	// Keys can hold any character; a doc id can't hold `/`.
+	const ref = doc(signalsCol(uid), encodeURIComponent(key));
+	return runTransaction(db, async (tx) => {
+		if ((await tx.get(ref)).exists()) return false;
+		tx.set(ref, { key, type, at: Date.now() });
+		return true;
+	});
+}
+
+/** Forgets signals raised before `before`, so the collection stays small. */
+export async function pruneSignals(uid: string, before: number): Promise<void> {
+	const snap = await getDocs(query(signalsCol(uid), where('at', '<', before)));
+	await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
 }
 
 /** Deletes all but the newest `keep` conversations. */

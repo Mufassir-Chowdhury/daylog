@@ -103,12 +103,15 @@ export function nextAttempt(
 
 /**
  * How many more unprompted cards may be made today (`maxCardsPerDay`).
- * Scheduled check-ins don't count; cards from detectors (Step 5.6) do.
+ * Scheduled check-ins and follow-ups it said it would do don't count; cards
+ * from detectors (Step 5.6) do.
  */
 export function cardsLeftToday(config: AssistantConfig, items: InboxItem[], today: number): number {
 	const unprompted = items.filter(
 		(i) =>
-			i.source === 'checkin' && !i.signalKey.startsWith('checkin:') && sameDay(i.createdAt, today)
+			i.source === 'checkin' &&
+			!/^(checkin|followup):/.test(i.signalKey) &&
+			sameDay(i.createdAt, today)
 	).length;
 	return Math.max(0, config.maxCardsPerDay - unprompted);
 }

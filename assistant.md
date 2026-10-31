@@ -163,16 +163,18 @@ API details: [research.md §3](docs/assistant/research.md#3-llm-providers).
 
 ### Data (Firestore, under `users/{uid}/`)
 
-| Doc / collection         | Contents                                                                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `assistant/config`       | name, how it addresses you, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
-| `assistantMemory/{id}`   | `{ text, kind: preference / fact, updatedAt }`, editable in Settings                                                                         |
-| `assistantInbox/{id}`    | `{ kind, source, title, body, tool, details[], changes (JSON), signalKey, priority, status, expiresAt, createdAt }`                          |
-| `assistantThreads/{id}`  | `{ provider, model, history (JSON, dropped past 600 KB), entries (JSON), updatedAt }`; newest 20 kept                                        |
-| `assistantCheckins/{id}` | `{ at, why, done }` from `schedule_checkin`                                                                                                  |
-| `assistant/lease`        | `{ deviceId, until }`                                                                                                                        |
-| `assistant/feedback`     | applied / dismissed / muted counts per signal type                                                                                           |
-| _(per device)_           | API key, provider, model slots, today's token usage                                                                                          |
+| Doc / collection          | Contents                                                                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assistant/config`        | name, how it addresses you, check-ins (time + on/off + kind), quiet hours, caps, permission per change kind, data areas sent to the provider |
+| `assistantMemory/{id}`    | `{ text, kind: preference / fact, updatedAt }`, editable in Settings                                                                         |
+| `assistantInbox/{id}`     | `{ kind, source, title, body, tool, details[], changes (JSON), signalKey, priority, status, expiresAt, createdAt }`                          |
+| `assistantThreads/{id}`   | `{ provider, model, history (JSON, dropped past 600 KB), entries (JSON), updatedAt }`; newest 20 kept                                        |
+| `assistantCheckins/{id}`  | `{date}_{checkinId}`: `{ status, at, attempts, device }` — each check-in's run that day                                                      |
+| `assistantFollowups/{id}` | `{ at, why, status, claimedAt }` from `schedule_checkin`                                                                                     |
+| `assistantSignals/{key}`  | `{ key, type, at }` — detector signals already raised                                                                                        |
+| `assistant/lease`         | `{ deviceId, until }`                                                                                                                        |
+| `assistant/feedback`      | applied / dismissed / muted counts per signal type                                                                                           |
+| _(per device)_            | API key, provider, model slots, today's token usage                                                                                          |
 
 ---
 

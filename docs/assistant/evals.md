@@ -32,6 +32,7 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 18  | "the DBMS lab is in room 304 now, not 210" (a memory says 210)                         | `remember` with `replaces` = that memory's id                                                                 | at once, Undo |
 | 19  | "forget that I like short answers"                                                     | `forget` (that memory's id)                                                                                   | card          |
 | 20  | "add grading DM to later"                                                              | `add_task` only — no `remember` (the app stores tasks)                                                        | at once, Undo |
+| 21  | "check after my 2 PM class whether the lab got marked done"                            | `schedule_checkin` (today ~15:30, why mentions the lab)                                                       | at once, Undo |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.

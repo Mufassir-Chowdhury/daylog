@@ -6,6 +6,7 @@
 import {
 	listDeadlines,
 	listEvents,
+	listFollowups,
 	listLongTermTasks,
 	listMemory,
 	listSlots,
@@ -36,6 +37,8 @@ async function current(uid: string, c: Change): Promise<unknown> {
 			return byId(listTransactions(uid));
 		case 'longterm':
 			return byId(listLongTermTasks(uid));
+		case 'followup':
+			return byId(listFollowups(uid));
 		case 'memory':
 			return byId(listMemory(uid));
 		case 'weekNote':
