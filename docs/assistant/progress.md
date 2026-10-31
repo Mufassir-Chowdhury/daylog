@@ -618,10 +618,10 @@ onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, a
 - Device prefs: `notify` (default on). Settings: "Notify me on this device", "Allow in this
   browser" (asks the browser) or a note when it's blocked; "Suggestions it makes on its own" —
   a tick per type (unticking mutes) with applied/dismissed counts.
-- **Fix:** `deviceId()` (5.2) used the same localStorage key as the device prefs, so the id and
-  the prefs overwrote each other. It now has its own key (`daylog.ai.deviceId`). Existing
-  installs get a fresh id once; the prefs survive only if saved after the id was made — check
-  Settings → Assistant (provider, models, limits) once after updating.
+- **Fix:** `deviceId()` (5.2) used the same localStorage key as the device prefs. With saved
+  prefs the "id" was the prefs' JSON (so lease holders and "another tab in this browser" in
+  Settings were garbled); without, a stray id sat where prefs go. Saved prefs were never lost.
+  The id now has its own key (`daylog.ai.deviceId`); each browser gets a fresh id once.
 - Not done: the plan's automatic retuning (drop types with low apply rates) — the counts are
   there for Step 7.
 - Tests: `feedback.spec.ts`, mute + notify in `engine.spec.ts`, `deviceId` in `config.spec.ts`,
