@@ -15,6 +15,7 @@ import { PROPOSAL_LIFETIME, type InboxItem } from './inbox';
 import { putItem } from './inbox.svelte';
 import { loadAdapter } from './index';
 import { memoryBlock } from './memory';
+import { gatherFacts, type FactSource } from './facts';
 import { contextBlock } from './prompt';
 import { ALL_TOOLS } from './tools';
 import { toolsFor, type Proposal } from './tools/registry';
@@ -32,6 +33,8 @@ export interface BackgroundJob {
 	signalKey: string;
 	/** Of the proposal cards. */
 	priority: number;
+	/** Looked up before the model starts and put in front of the message (`facts.ts`). */
+	facts?: FactSource[];
 }
 
 export interface BackgroundResult {
@@ -71,15 +74,24 @@ export async function backgroundRun(job: BackgroundJob): Promise<BackgroundResul
 		return `Saved as a card in the owner's Inbox: “${summary}”. Mention it in a few words in your answer.`;
 	};
 
-	const memory = memoryBlock(await listMemory(uid).catch(() => []));
+	// No opening pages (nobody is looking) and no memory changes (nobody to confirm them).
+	const tools = toolsFor(config, ALL_TOOLS).filter(
+		(t) => t.kind !== 'ui' && t.area !== 'assistant'
+	);
+	const ctx = { uid, today: dateKey(now), cache: new Map(), navigate: () => {}, propose };
+	const [memory, facts] = await Promise.all([
+		listMemory(uid)
+			.catch(() => [])
+			.then(memoryBlock),
+		job.facts ? gatherFacts(ctx, tools, job.facts) : Promise.resolve('')
+	]);
 	const result = await runAgent({
 		adapter,
 		model: prefs.models[prefs.provider].background,
 		slot: 'background',
 		prefs,
-		// No opening pages (nobody is looking) and no memory changes (nobody to confirm them).
-		tools: toolsFor(config, ALL_TOOLS).filter((t) => t.kind !== 'ui' && t.area !== 'assistant'),
-		ctx: { uid, today: dateKey(now), cache: new Map(), navigate: () => {}, propose },
+		tools,
+		ctx,
 		history: [],
 		message: [
 			contextBlock({
@@ -89,6 +101,7 @@ export async function backgroundRun(job: BackgroundJob): Promise<BackgroundResul
 				view: 'Nothing — you are working on your own; the owner reads the result later in the Inbox'
 			}),
 			memory,
+			...(facts ? [facts] : []),
 			job.message
 		].join('\n\n')
 	});

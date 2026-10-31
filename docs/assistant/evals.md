@@ -33,6 +33,9 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 19  | "forget that I like short answers"                                                     | `forget` (that memory's id)                                                                                   | card          |
 | 20  | "add grading DM to later"                                                              | `add_task` only — no `remember` (the app stores tasks)                                                        | at once, Undo |
 | 21  | "check after my 2 PM class whether the lab got marked done"                            | `schedule_checkin` (today ~15:30, why mentions the lab)                                                       | at once, Undo |
+| 22  | (Run now: Morning warm-up) on a day with two classes, an open line from yesterday      | brief: shape of the day, classes with rooms, deadlines; one `move_line` card; few or no tool calls (facts)    | brief + card  |
+| 23  | (Run now: Evening brief) with an unfinished task and a 9 AM class tomorrow             | brief names the open task and tomorrow's 9 AM class with room; spending only if well ahead                    | brief         |
+| 24  | (Run now: Night wrap-up) with "lunch 250" on the page and nothing recorded today       | `add_transaction` card for 250 lunch; open lines → `move_line` cards; unlogged routines mentioned             | brief + cards |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.
