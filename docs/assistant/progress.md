@@ -835,3 +835,21 @@ Everything is built; this step needs real use. Checklist:
 - Tests: the usage log (per kind, per day, 30 days kept), backup round trip with the assistant,
   repairs, old backups, summary; Settings check-ins with the review. Totals: 43 files, 353
   tests; lint, types, both builds, e2e OK.
+
+### Help page (2026-10-31)
+
+- `/help` — the in-app guide: every feature, what the assistant can do, and best practices.
+  Content lives in `src/lib/help.ts` (sections, topics with points and "Try it" actions,
+  `{name}` for the assistant's name, `code` in backticks), so it's searchable and tested.
+- Interactive: a search box across all topics; section chips (the URL's `#section` opens one);
+  "Try it" buttons that open a page, open the palette with text ("next mon"), or ask the
+  assistant a sample question; a **line demo** (`HelpLineDemo.svelte`) that shows how the day
+  page reads what you type — schedule time, `@people`, done, and which card the assistant would
+  offer (the real `parseDay` and `captureCandidates`); a getting-started checklist kept in this
+  browser; "ask {name}" when a search finds nothing.
+- Ways in: palette "Help and guide", "The full guide →" in the shortcuts dialog, and "what I can
+  do" in the assistant panel's empty state.
+- Tests: `help.spec.ts` (sections, links only to real pages, search, name, code) and
+  `help.svelte.spec.ts` (sections, search and section filters, try buttons, line demo,
+  checklist). Totals: 45 files, 362 tests; lint, types, both builds, e2e OK.
+- Keep it current: when a feature changes, update its topic in `help.ts`.
