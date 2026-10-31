@@ -99,7 +99,7 @@ export interface GoogleTokens {
 
 /** A provider request for the desktop shell to send with the key it keeps (src-tauri/src/ai.rs). */
 export interface AiHttpRequest {
-	provider: 'anthropic' | 'gemini';
+	provider: 'anthropic' | 'gemini' | 'elevenlabs';
 	url: string;
 	method: string;
 	headers: Record<string, string>;
@@ -158,6 +158,17 @@ export interface DesktopBridge {
 		provider: AiHttpRequest['provider'],
 		key: string | null
 	): Promise<{ ok: boolean; error?: string }>;
+	/** Voice: text to speech through ElevenLabs with the stored key; MP3 bytes. */
+	voiceSpeak(request: {
+		voice_id: string;
+		output_format: string;
+		body: string;
+	}): Promise<ArrayBuffer>;
+	/** Voice: speech to text; ElevenLabs' JSON, or rejects with `HTTP <status>: …`. */
+	voiceTranscribe(
+		audio: Uint8Array,
+		opts: { mime: string; model: string; language?: string }
+	): Promise<string>;
 }
 
 export const desktop: DesktopBridge | null =

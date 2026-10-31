@@ -3,6 +3,7 @@
 	import { SUGGESTION_TYPES, suggestionType } from '$lib/ai/feedback';
 	import { applyItem, applying, dismissItem, muteItem, undoItem } from '$lib/ai/inbox.svelte';
 	import { toast } from '$lib/toast.svelte';
+	import { speak, voice } from '$lib/ai/voice.svelte';
 	import type { InboxItem } from '$lib/ai/inbox';
 	import Icon from './Icon.svelte';
 
@@ -33,6 +34,13 @@
 	<p class="text-sm font-medium text-ink">{item.title}</p>
 	{#if item.body}
 		<p class="mt-1 text-sm whitespace-pre-wrap text-mute">{item.body}</p>
+		{#if voice.available}
+			<button
+				type="button"
+				onclick={() => speak(`${item.title}. ${item.body}`)}
+				class="mt-1 text-xs text-faint hover:text-ink">Read aloud</button
+			>
+		{/if}
 	{/if}
 	{#if item.details.length}
 		<ul class="mt-1 space-y-0.5 text-xs text-faint">

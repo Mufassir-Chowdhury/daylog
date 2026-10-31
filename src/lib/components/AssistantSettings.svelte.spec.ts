@@ -78,7 +78,7 @@ describe('AssistantSettings', () => {
 			{ id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' }
 		]);
 		const screen = render(AssistantSettings);
-		await screen.getByLabelText('API key').fill('sk-ant-test');
+		await screen.getByLabelText('API key', { exact: true }).fill('sk-ant-test');
 		await screen.getByRole('button', { name: 'Save key' }).click();
 
 		await expect.element(screen.getByText('Connected — 2 models available.')).toBeInTheDocument();
@@ -86,14 +86,14 @@ describe('AssistantSettings', () => {
 		await expect.element(screen.getByLabelText(/^Chat model/)).toHaveValue('claude-opus-5-5');
 
 		await screen.getByRole('button', { name: 'Remove key' }).click();
-		await expect.element(screen.getByLabelText('API key')).toBeInTheDocument();
+		await expect.element(screen.getByLabelText('API key', { exact: true })).toBeInTheDocument();
 		expect(localStorage.getItem('daylog.ai.key.anthropic')).toBeNull();
 	});
 
 	it('shows a failed test in plain words', async () => {
 		listModels.mockRejectedValue(new Error('The API key was rejected — check it in Settings.'));
 		const screen = render(AssistantSettings);
-		await screen.getByLabelText('API key').fill('bad');
+		await screen.getByLabelText('API key', { exact: true }).fill('bad');
 		await screen.getByRole('button', { name: 'Save key' }).click();
 		await expect.element(screen.getByText(/The API key was rejected/)).toBeInTheDocument();
 	});
@@ -171,5 +171,14 @@ describe('AssistantSettings', () => {
 		await screen.getByRole('button', { name: 'Resume' }).click();
 		expect(db.resumeSuggestions).toHaveBeenCalledWith('u1', 'deadline');
 		await expect.element(screen.getByText(/Paused — you dismissed/)).not.toBeInTheDocument();
+	});
+
+	it('keeps voice off until an ElevenLabs key is added', async () => {
+		const screen = render(AssistantSettings);
+		await expect
+			.element(screen.getByText(/Off until you add an ElevenLabs API key for this device/))
+			.toBeInTheDocument();
+		await expect.element(screen.getByLabelText('ElevenLabs API key')).toBeInTheDocument();
+		await expect.element(screen.getByRole('button', { name: 'Turn on voice' })).toBeDisabled();
 	});
 });

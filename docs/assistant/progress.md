@@ -16,7 +16,7 @@ that differs from the plan, and say what comes next.
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                       |
 | 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune)         |
 | 7    | Evaluation and tuning           | usage log, backup, eval runner ✅ · ⏭ **needs real use** |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled                                    |
+| —    | Voice mode (ElevenLabs)         | ✅ built 2026-10-31 · needs a real-key check             |
 
 ---
 
@@ -886,3 +886,54 @@ Everything is built; this step needs real use. Checklist:
 - Tests: the rule and `isOff`, the engine skipping a paused kind, Resume in Settings. Totals:
   46 files, 368 tests; lint, types, both builds, e2e OK.
 - The thresholds are a first guess; tune them from real counts.
+
+## Voice mode (2026-10-31)
+
+On **only while an ElevenLabs key is saved on the device**; with none, no mic, no "Read aloud",
+and Settings says voice is off.
+
+- **Ears** (`recorder.ts`, `voice.ts`): tap the mic in the panel; the microphone runs with echo
+  cancellation, noise suppression and auto gain; `SilenceDetector` ends it 1.4 s after you stop
+  (quietest level in the first 300 ms is the room, capped so talking at once still counts; gives
+  up after 8 s of nothing, stops at 60 s), or tap again. The recording (webm/opus, or mp4 on
+  Safari) goes to `POST /v1/speech-to-text` with **`scribe_v2`**, falling back to `scribe_v1`
+  when the model is refused (not on auth, quota or network errors); sound tags like "(laughs)"
+  are dropped. The text is sent as your message, marked 🎙.
+- **Brain**: unchanged. A spoken message adds a context line asking for one to three natural
+  spoken sentences, no lists or ids, with more on screen if needed.
+- **Voice** (`voice.ts`, `voice.svelte.ts`): `POST /v1/text-to-speech/{voice}/stream`
+  (`mp3_44100_128`), model **`eleven_flash_v2_5`** (fast) or `eleven_multilingual_v2`
+  (richer), voice settings stability 0.55, similarity 0.75, style 0.2, speaker boost, speed 1 —
+  composed, a touch of warmth. On the web it **streams** through MediaSource so speech starts
+  while the rest arrives (whole-file fallback). `speechText` makes replies sound right: bullets
+  become sentences, links and markdown go, `@rahim` → "rahim", `৳1,250` → "1,250 taka", `9:00–
+10:30` → "9:00 to 10:30", long replies stop at a sentence with "The rest is on screen."
+- **Voice choice**: `pickAssistantVoice` prefers ElevenLabs' stock George, then Daniel, Brian,
+  Charlie, then any British male voice described as calm/warm/deep — a friendly JARVIS. Picked
+  from your account's own voice list (`GET /v1/voices`), so no hard-coded ids; changeable in
+  Settings with a Preview.
+- One thing at a time: listening stops speech; a new reply cuts off the last; closing the panel
+  stops both. "Stop speaking" in the panel header. "Read aloud" on every reply and on brief cards
+  (e.g. the 08:00 warm-up).
+- **Keys**: web — `daylog.ai.key.elevenlabs` in this browser, sent as `xi-api-key` straight to
+  ElevenLabs. Desktop — `elevenlabs` is a third provider in the OS keychain (`ai.rs`; its own
+  host only, the page can't set `xi-api-key`); audio goes through new commands `voice_speak`
+  (MP3 back as raw bytes) and `voice_transcribe` (raw audio in, multipart built in Rust) in
+  `src-tauri/src/voice.rs`, which validates ids and types before sending. `Info.plist` adds the
+  macOS microphone prompt text.
+- **Settings → Assistant → Voice**: key (Turn on voice / Remove key and turn voice off), voice
+  with Preview and "(recommended)", model, language hint (auto by default), "Read replies aloud
+  when I ask by voice", Test the voice. The help page has a "Talk to it" topic.
+- Tests: `voice.spec.ts` (speech text, voice choice, errors, model fallback, no retry on a bad
+  key), `recorder.spec.ts` (pauses, short pauses, nothing said, noisy room, a minute),
+  device prefs, a panel test (mic → spoken question → reply read aloud), Settings off without a
+  key; Rust `voice::tests` (ids, multipart body, refusing odd inputs) and ElevenLabs in the key
+  header and host tests. Totals: 49 files, 382 tests; lint, types, both builds, e2e; Rust fmt,
+  clippy (old `updater.rs` warning only), 17 tests.
+- **Not verified here**: docs.elevenlabs.io and the API weren't reachable from this
+  environment, so request and response fields follow published examples; no real key was
+  used; the browser's CORS to `api.elevenlabs.io` and microphone access inside the desktop
+  webviews (WebView2, WebKit) weren't tried. First real check: Settings → Voice → add a key →
+  Test the voice; then the mic in the panel.
+- Different from the earlier sketch: batch Scribe after you finish speaking instead of realtime
+  over WebSocket (no token minting, simpler); no mic in the quick bar or desktop hotkey yet.

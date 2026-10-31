@@ -26,4 +26,6 @@ permissions = [
   "allow-ai-fetch",
   "allow-ai-keys",
   "allow-ai-key-set",
+  "allow-voice-speak",
+  "allow-voice-transcribe",
 ]

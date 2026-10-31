@@ -38,7 +38,7 @@ No forms, no checkboxes — you type lines, and the app makes the text useful:
   recorded by the desktop app, viewable everywhere.
 - **Anywhere.** Data lives in Firestore with offline persistence — log in from any device
   (works fine from a phone), edits sync when you're online.
-- 🎤 Voice input — _coming soon_.
+- 🎤 Voice — talk to the assistant and hear replies (ElevenLabs; on when you add a key in Settings).
 
 Stack: SvelteKit (Svelte 5) + Tailwind, Firebase Auth + Firestore, all client-side —
 there is no app server to run or maintain.

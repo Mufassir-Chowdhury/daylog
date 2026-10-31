@@ -22,6 +22,8 @@ const COMMANDS: &[&str] = &[
     "ai_fetch",
     "ai_keys",
     "ai_key_set",
+    "voice_speak",
+    "voice_transcribe",
 ];
 
 fn main() {

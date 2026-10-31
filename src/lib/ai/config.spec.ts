@@ -198,3 +198,19 @@ describe('usageLog', () => {
 		expect(log.at(-1)?.date).toBe('2026-12-02');
 	});
 });
+
+describe('voice prefs', () => {
+	it('default to a fast voice that reads replies, and repair bad values', () => {
+		expect(normalizeDevicePrefs(null).voice).toEqual({
+			voiceId: '',
+			model: 'eleven_flash_v2_5',
+			speakReplies: true,
+			language: ''
+		});
+		expect(
+			normalizeDevicePrefs({
+				voice: { voiceId: 'abc', model: 'nope', speakReplies: false, language: 'english' }
+			}).voice
+		).toEqual({ voiceId: 'abc', model: 'eleven_flash_v2_5', speakReplies: false, language: '' });
+	});
+});

@@ -335,6 +335,21 @@ export const TOPICS: HelpTopic[] = [
 		keywords: 'suggestion detector deadline prep money capture focus coach proactive'
 	},
 	{
+		id: 'ai-voice',
+		section: 'assistant',
+		title: 'Talk to it',
+		summary: 'Ask out loud and hear the answer — on when an ElevenLabs key is saved.',
+		points: [
+			'Add an ElevenLabs API key in Settings → Assistant → Voice; without one, voice stays off.',
+			'Tap the mic in {name}’s panel and speak; pause (or tap again) when you’re done. What you said shows as your message.',
+			'Asked aloud, it answers in a few spoken sentences and reads them to you; "Read aloud" works on any reply or brief, and "Stop speaking" cuts it off.',
+			'Pick the voice in Settings (a calm British voice is recommended), and choose fast or richer speech.',
+			'Your speech and the replies it reads go to ElevenLabs; the key stays on this device.'
+		],
+		tries: [{ label: 'Voice settings', kind: 'go', value: '/settings' }],
+		keywords: 'voice speak talk microphone mic audio elevenlabs listen read aloud tts stt'
+	},
+	{
 		id: 'ai-memory',
 		section: 'assistant',
 		title: 'Memory and follow-ups',

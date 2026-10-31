@@ -1,4 +1,5 @@
-//! The assistant's calls to AI providers (Claude, Gemini). Each API key lives in
+//! The assistant's calls to AI providers (Claude, Gemini, and ElevenLabs for
+//! voice). Each API key lives in
 //! the OS credential store — Windows Credential Manager, the macOS Keychain or
 //! the Secret Service on Linux — and never reaches the web page: the page sends
 //! its request without a key, and this module adds the key, only for that
@@ -15,15 +16,18 @@ const SERVICE: &str = "daylog";
 pub enum Provider {
     Anthropic,
     Gemini,
+    /// Voice: speech to text and text to speech (voice.rs sends the audio).
+    Elevenlabs,
 }
 
 impl Provider {
-    pub const ALL: [Provider; 2] = [Provider::Anthropic, Provider::Gemini];
+    pub const ALL: [Provider; 3] = [Provider::Anthropic, Provider::Gemini, Provider::Elevenlabs];
 
     pub fn id(self) -> &'static str {
         match self {
             Provider::Anthropic => "anthropic",
             Provider::Gemini => "gemini",
+            Provider::Elevenlabs => "elevenlabs",
         }
     }
 
@@ -31,13 +35,15 @@ impl Provider {
         match self {
             Provider::Anthropic => "api.anthropic.com",
             Provider::Gemini => "generativelanguage.googleapis.com",
+            Provider::Elevenlabs => "api.elevenlabs.io",
         }
     }
 
-    fn key_header(self) -> &'static str {
+    pub(crate) fn key_header(self) -> &'static str {
         match self {
             Provider::Anthropic => "x-api-key",
             Provider::Gemini => "x-goog-api-key",
+            Provider::Elevenlabs => "xi-api-key",
         }
     }
 }
@@ -64,7 +70,7 @@ pub fn set_key(provider: Provider, key: Option<&str>) -> Result<(), String> {
     }
 }
 
-fn get_key(provider: Provider) -> Result<String, String> {
+pub(crate) fn get_key(provider: Provider) -> Result<String, String> {
     match entry(provider)?.get_password() {
         Ok(key) if !key.is_empty() => Ok(key),
         Ok(_) | Err(keyring::Error::NoEntry) => Err("No API key saved on this computer".into()),
@@ -89,7 +95,7 @@ pub struct HttpResponse {
     body: String,
 }
 
-fn agent() -> ureq::Agent {
+pub(crate) fn agent() -> ureq::Agent {
     // The OS's TLS and certificate store, like the updater.
     let tls = ureq::tls::TlsConfig::builder()
         .provider(ureq::tls::TlsProvider::NativeTls)
@@ -117,6 +123,7 @@ fn passes(name: &str, provider: Provider) -> bool {
                 | "authorization"
                 | "x-api-key"
                 | "x-goog-api-key"
+                | "xi-api-key"
         )
 }
 
@@ -208,6 +215,11 @@ mod tests {
             "https://api.anthropic.com/v1/messages"
         ))
         .is_err());
+        assert!(fetch(request(
+            Provider::Elevenlabs,
+            "https://api.anthropic.com/v1/messages"
+        ))
+        .is_err());
     }
 
     #[test]
@@ -217,5 +229,7 @@ mod tests {
         assert!(!passes("Authorization", Provider::Gemini));
         assert!(passes("anthropic-version", Provider::Anthropic));
         assert!(passes("content-type", Provider::Gemini));
+        assert!(!passes("xi-api-key", Provider::Anthropic));
+        assert!(!passes("XI-API-KEY", Provider::Elevenlabs));
     }
 }
