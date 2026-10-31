@@ -4,7 +4,8 @@
 //! signs in with Google through the system browser, keeps the assistant's
 //! check-ins on time while hidden (assistant.rs), tracks which apps you use
 //! (opt-in, see activity/), keeps itself up to date (updater.rs), and
-//! remembers its window size. docs/tauri-migration.md tells how it replaced the
+//! remembers its window size, and lets Claude Desktop / Claude Code use
+//! daylog's tools (mcp.rs). docs/tauri-migration.md tells how it replaced the
 //! Electron app.
 
 mod activity;
@@ -13,6 +14,7 @@ mod assistant;
 mod auth;
 mod commands;
 mod hotkeys;
+mod mcp;
 mod migrate;
 mod notify;
 mod prefs;
@@ -38,6 +40,11 @@ pub struct AppState {
     pub quitting: AtomicBool,
     /// Hotkeys the OS refused at the last registration, shown in Settings.
     pub hotkey_failures: Mutex<Vec<String>>,
+}
+
+/// `daylog --mcp`: the stdio bridge Claude Desktop / Claude Code start (mcp.rs).
+pub fn mcp_bridge() -> i32 {
+    mcp::bridge()
 }
 
 pub fn run() {
@@ -78,6 +85,10 @@ pub fn run() {
             commands::ai_key_set,
             commands::voice_speak,
             commands::voice_transcribe,
+            commands::mcp_status,
+            commands::mcp_set,
+            commands::mcp_ready,
+            commands::mcp_reply,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

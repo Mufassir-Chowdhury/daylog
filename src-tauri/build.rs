@@ -24,6 +24,10 @@ const COMMANDS: &[&str] = &[
     "ai_key_set",
     "voice_speak",
     "voice_transcribe",
+    "mcp_status",
+    "mcp_set",
+    "mcp_ready",
+    "mcp_reply",
 ];
 
 fn main() {

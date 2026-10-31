@@ -17,6 +17,7 @@ that differs from the plan, and say what comes next.
 | 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune)         |
 | 7    | Evaluation and tuning           | usage log, backup, eval runner ✅ · ⏭ **needs real use** |
 | —    | Voice mode (ElevenLabs)         | ✅ built 2026-10-31 · needs a real-key check             |
+| —    | Claude (MCP server)             | ✅ built 2026-10-31 · needs a check with real Claude     |
 
 ---
 
@@ -954,3 +955,53 @@ and Settings says voice is off.
   e2e OK.
 - Not tried in the real desktop app: the quick window is its own webview, so the OS may ask for
   the microphone there separately.
+
+---
+
+## Claude (MCP server) (2026-10-31)
+
+The owner has a Claude Pro subscription and wanted to use it with daylog. A subscription has no
+API key (and its login can't be used inside our own app), so daylog became an **MCP server**
+that Claude Desktop and Claude Code connect to. Jarvis is unchanged. How to connect:
+[claude-mcp.md](./claude-mcp.md).
+
+- **`src/lib/ai/mcp.ts`** (pure, `handleMcp(message, deps)`): JSON-RPC for `initialize`
+  (protocol versions 2025-11-25 back to 2024-11-05; capabilities: tools only; `instructions`
+  = a tool-use guide drawn from Jarvis's prompt, without the persona), `ping`, `tools/list`,
+  `tools/call`, batches; notifications and responses get no reply. Tools are `toolsFor(config)`
+  minus `ui` tools, plus `daylog_context` (date and time on this computer, form of address,
+  areas switched off, the `<memory>` block). Annotations: `readOnlyHint` for read tools,
+  `destructiveHint: false`. A tool from an area switched off says so; an unknown tool is
+  error -32602.
+- **`src/lib/ai/mcp-host.ts`**: the main window answers relayed requests while signed in
+  (`startMcpHost`, from the layout, desktop only, not the quick bar). Write tools follow
+  `permissionFor`: auto → `applyChanges` and a bubble "from Claude" with Undo; otherwise an Inbox
+  card (`source: 'chat'`, body "From Claude.") and a toast.
+- **`src-tauri/src/mcp.rs`**:
+  - `POST /mcp` on the local server, handled on its own thread. Refused when switched off
+    (403), on a wrong or missing bearer token (401), or when there's any `Origin` header
+    (web pages). Non-POST gets 405 (no SSE stream).
+  - Requests are relayed to the main window (`mcp:request`, answered by the `mcp_reply`
+    command) with a 90 s timeout. When the window isn't ready (`mcp_ready`), Claude gets a
+    JSON-RPC error saying daylog isn't signed in.
+  - `daylog --mcp` (`main.rs`, before Tauri starts, so there's no window and no single-instance
+    handoff) is the stdio bridge. It reads the token fresh from `desktop-prefs.json` for each
+    message, tries the ports in `server::PORTS`, and turns "not running", "switched off" and so
+    on into JSON-RPC errors.
+  - Prefs: `mcp { enabled, token }`. A new 32-byte token each time it's switched on.
+  - Commands `mcp_status`, `mcp_set`, `mcp_ready`, `mcp_reply`; only the main window may set or
+    answer.
+- **Settings → Use daylog from Claude** (`ClaudeSettings.svelte`): the switch (desktop only),
+  then the Claude Desktop config snippet (this app's real exe path) and the Claude Code command,
+  each with Copy. Linux shows Claude Code only. On the web there's a pointer to the desktop app.
+- **Checks**: `mcp.spec.ts` (13 tests), `ClaudeSettings.svelte.spec.ts` (2), Rust `mcp::tests`
+  (4). The real `daylog --mcp` binary was driven over stdio against a stand-in server: switched
+  off, not running, running (initialize, a notification, tools/list, replies kept to one line),
+  and a wrong token. Totals: 52 files, 401 tests; types, lint, both builds; Rust fmt, clippy (old
+  `updater.rs` warning only).
+- **Not verified here**: the relay through a real signed-in window, and Claude Desktop / Claude
+  Code themselves (neither runs in this environment). First real check: switch it on, add the
+  snippet to Claude Desktop, restart it, and ask "what's on today?".
+- **Later, maybe**: a hosted (remote) MCP server on the Worker with OAuth sign-in, so claude.ai
+  on the web and phone can use it too. It would need the tools to run against Firestore from
+  the server.

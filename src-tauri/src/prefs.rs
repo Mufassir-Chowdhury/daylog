@@ -35,6 +35,9 @@ pub struct Prefs {
     /// Names this computer's synced activity.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_id: Option<String>,
+    /// Claude Desktop / Claude Code access (mcp.rs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<crate::mcp::Settings>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -51,6 +54,7 @@ impl Default for Prefs {
             electron_migrated: false,
             activity: None,
             device_id: None,
+            mcp: None,
             extra: Map::new(),
         }
     }
@@ -65,6 +69,14 @@ pub fn data_dir() -> PathBuf {
 }
 
 static STORE: OnceLock<Store> = OnceLock::new();
+
+/// The prefs as saved right now, for another process (the `--mcp` bridge).
+pub fn read_from_disk() -> Prefs {
+    std::fs::read_to_string(data_dir().join("desktop-prefs.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
 
 /// The app-wide prefs, loaded on first use.
 pub fn store() -> &'static Store {

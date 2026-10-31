@@ -45,6 +45,10 @@ fn handle(app: &AppHandle, request: Request) {
         receive_google_credential(app, request);
         return;
     }
+    if path == "/mcp" {
+        crate::mcp::handle(app, request);
+        return;
+    }
     let resolver = app.asset_resolver();
     let rel = percent_decode(path.trim_start_matches('/'));
     if rel.split('/').any(|part| part == "..") {

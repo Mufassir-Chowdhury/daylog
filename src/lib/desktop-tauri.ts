@@ -111,6 +111,11 @@ export function tauriBridge(): DesktopBridge {
 		aiFetch: (request) => invoke('ai_fetch', { request }),
 		aiKeys: () => invoke('ai_keys'),
 		setAiKey: (provider, key) => invoke('ai_key_set', { provider, key }),
+		mcpStatus: () => invoke('mcp_status'),
+		setMcp: (enabled) => invoke('mcp_set', { enabled }),
+		onMcpRequest: (callback) => listen('mcp:request', callback),
+		mcpReply: (id, body) => send('mcp_reply', { id, body }),
+		mcpReady: (ready) => send('mcp_ready', { ready }),
 		voiceSpeak: (request) => invoke<ArrayBuffer>('voice_speak', { request }),
 		voiceTranscribe: (audio, { mime, model, language }) =>
 			invoke<string>('voice_transcribe', audio, {

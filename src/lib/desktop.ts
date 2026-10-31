@@ -112,6 +112,23 @@ export interface AiHttpResponse {
 	body: string;
 }
 
+/** Claude Desktop / Claude Code access to daylog (src-tauri/src/mcp.rs). */
+export interface McpStatus {
+	enabled: boolean;
+	/** This app's executable: Claude starts it with `--mcp` as the bridge. */
+	exe: string;
+	/** The local server's MCP endpoint, for clients that speak HTTP. */
+	url: string;
+	/** A dev build: the path points at a debug binary that may move. */
+	dev: boolean;
+}
+
+/** A JSON-RPC message from Claude, relayed to the main window. */
+export interface McpRequest {
+	id: number;
+	body: string;
+}
+
 export interface DesktopBridge {
 	platform: string;
 	/** The app draws its own minimize/maximize/close buttons (everywhere but macOS). */
@@ -158,6 +175,13 @@ export interface DesktopBridge {
 		provider: AiHttpRequest['provider'],
 		key: string | null
 	): Promise<{ ok: boolean; error?: string }>;
+	mcpStatus(): Promise<McpStatus>;
+	setMcp(enabled: boolean): Promise<McpStatus>;
+	/** Requests from Claude; answer each with `mcpReply` (null when nothing is owed). */
+	onMcpRequest(callback: (request: McpRequest) => void): () => void;
+	mcpReply(id: number, body: string | null): void;
+	/** Whether this window is signed in and answering. */
+	mcpReady(ready: boolean): void;
 	/** Voice: text to speech through ElevenLabs with the stored key; MP3 bytes. */
 	voiceSpeak(request: {
 		voice_id: string;
