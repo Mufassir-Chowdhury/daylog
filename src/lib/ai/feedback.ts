@@ -7,6 +7,8 @@
  * - How each kind of suggestion (detector type) is received: applied and
  *   dismissed counts, and whether you said "don't suggest these again".
  *   Stored at `assistant/feedback`; muted types aren't raised any more.
+ * - Kinds you mostly dismiss pause themselves (`isPaused`) until you resume
+ *   them in Settings, which starts their counts afresh.
  */
 import { inQuietHours, type AssistantConfig } from './config';
 import type { InboxItem } from './inbox';
@@ -50,6 +52,22 @@ export function normalizeFeedback(raw: unknown): Feedback {
 }
 
 export const isMuted = (feedback: Feedback, type: string) => feedback[type]?.muted === true;
+
+/** A kind pauses once this many of its cards were applied or dismissed… */
+export const PAUSE_AFTER = 8;
+/** …and fewer than this share of them were applied. */
+export const PAUSE_RATE = 0.15;
+
+/** Mostly dismissed: not raised until resumed. Muted kinds aren't "paused" — they're off. */
+export function isPaused(f: TypeFeedback | undefined): boolean {
+	if (!f || f.muted) return false;
+	const total = f.applied + f.dismissed;
+	return total >= PAUSE_AFTER && f.applied / total < PAUSE_RATE;
+}
+
+/** Whether a kind of suggestion is off for now: muted by you, or paused by its record. */
+export const isOff = (feedback: Feedback, type: string) =>
+	isMuted(feedback, type) || isPaused(feedback[type]);
 
 export interface Notice {
 	title: string;

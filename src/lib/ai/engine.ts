@@ -7,7 +7,8 @@
  *    every minute since timing matters;
  * 4. every 30 minutes outside quiet hours, the detectors: each new signal
  *    gets a short background run, within the daily limit on unprompted cards,
- *    except kinds you muted ("Don't suggest these again").
+ *    except kinds you muted ("Don't suggest these again") or mostly dismiss
+ *    (paused until you resume them).
  * Returns the new cards; `notifyAbout` turns them into a notification.
  */
 import { addDays, dateKey } from '../date';
@@ -36,7 +37,7 @@ import { upcomingPrep } from './detectors/prep';
 import { occurrences } from '../schedule';
 import { desktop } from '../desktop';
 import { loadDevicePrefs } from './device';
-import { isMuted, noticeFor } from './feedback';
+import { isOff, noticeFor } from './feedback';
 import { isDue, isMissed, type FollowUp } from './followup';
 import type { InboxItem } from './inbox';
 import { inbox } from './inbox.svelte';
@@ -170,7 +171,7 @@ export async function runSignals(
 	]);
 	pruneSignals(uid, ms - 30 * 86_400_000).catch(() => {});
 	const fresh = signals
-		.filter((s) => !seen.has(s.key) && !isMuted(feedback, s.type))
+		.filter((s) => !seen.has(s.key) && !isOff(feedback, s.type))
 		.sort((a, b) => b.priority - a.priority)
 		.slice(0, SIGNALS_PER_SCAN);
 
@@ -250,7 +251,7 @@ export async function runPrep(
 		dayText: config.areas.days ? prepData.data.dayText : ''
 	}).filter((s) => !prepDone.has(s.key));
 	if (!signals.length) return [];
-	if (isMuted(await loadFeedback(uid).catch(() => ({})), 'prep')) return [];
+	if (isOff(await loadFeedback(uid).catch(() => ({})), 'prep')) return [];
 	const out: InboxItem[] = [];
 	for (const signal of signals) {
 		prepDone.add(signal.key);
@@ -359,7 +360,7 @@ async function capture(
 	if (!candidates.length || !(await canRun())) return [];
 	const config = await loadAssistantConfig(uid);
 	if (!config.areas.days) return [];
-	if (isMuted(await loadFeedback(uid).catch(() => ({})), 'capture')) return [];
+	if (isOff(await loadFeedback(uid).catch(() => ({})), 'capture')) return [];
 	const lines: string[] = [];
 	for (const c of candidates.slice(0, CAPTURE_BATCH))
 		if (await claimSignal(uid, captureKey(date, c.line), 'capture')) lines.push(c.line);

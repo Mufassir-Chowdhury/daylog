@@ -14,7 +14,7 @@
 	} from '$lib/ai/config';
 	import { runCheckin } from '$lib/ai/checkin';
 	import { holderId, lease } from '$lib/ai/lease.svelte';
-	import { SUGGESTION_TYPES, type Feedback } from '$lib/ai/feedback';
+	import { isPaused, SUGGESTION_TYPES, type Feedback } from '$lib/ai/feedback';
 	import { loadDevicePrefs, saveDevicePrefs } from '$lib/ai/device';
 	import { loadAdapter } from '$lib/ai';
 	import { ALL_TOOLS } from '$lib/ai/tools';
@@ -32,6 +32,7 @@
 		listMemory,
 		loadAssistantConfig,
 		loadFeedback,
+		resumeSuggestions,
 		setMuted,
 		newMemoryId,
 		saveAssistantConfig,
@@ -217,6 +218,12 @@
 		const f = feedback[type];
 		feedback[type] = { applied: f?.applied ?? 0, dismissed: f?.dismissed ?? 0, muted: !on };
 		setMuted(uid, type, !on).catch(saveFailed);
+	}
+
+	/** Back on with a fresh record (a paused kind starts counting again). */
+	function resume(type: string) {
+		feedback[type] = { applied: 0, dismissed: 0, muted: false };
+		resumeSuggestions(uid, type).catch(saveFailed);
 	}
 
 	// ——— Notifications on this device.
@@ -652,23 +659,36 @@
 				<p class={subhead}>Suggestions it makes on its own</p>
 				<p class="text-xs text-faint">
 					Between check-ins it looks for these and leaves a card. Untick one to stop it, as “Don't
-					suggest these again” on a card does.
+					suggest these again” on a card does. A kind you mostly dismiss pauses itself until you
+					resume it.
 				</p>
 			</div>
 			{#each SUGGESTION_TYPES as type (type.id)}
 				{@const f = feedback[type.id]}
-				<label class="flex items-center gap-2 text-sm text-ink">
-					<input
-						type="checkbox"
-						checked={!f?.muted}
-						onchange={(e) => setSuggesting(type.id, e.currentTarget.checked)}
-						class={check}
-					/>
-					{type.label}
-					{#if f && (f.applied || f.dismissed)}
-						<span class="text-xs text-faint">· applied {f.applied}, dismissed {f.dismissed}</span>
+				<div>
+					<label class="flex items-center gap-2 text-sm text-ink">
+						<input
+							type="checkbox"
+							checked={!f?.muted}
+							onchange={(e) => setSuggesting(type.id, e.currentTarget.checked)}
+							class={check}
+						/>
+						{type.label}
+						{#if f && (f.applied || f.dismissed)}
+							<span class="text-xs text-faint">· applied {f.applied}, dismissed {f.dismissed}</span>
+						{/if}
+					</label>
+					{#if isPaused(f)}
+						<p class="ml-6 text-xs text-amber-600 dark:text-amber-400">
+							Paused — you dismissed most of these.
+							<button
+								type="button"
+								onclick={() => resume(type.id)}
+								class="font-medium text-accent hover:underline">Resume</button
+							>
+						</p>
 					{/if}
-				</label>
+				</div>
 			{/each}
 		</div>
 

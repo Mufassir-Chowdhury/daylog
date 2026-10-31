@@ -374,7 +374,8 @@ export const TOPICS: HelpTopic[] = [
 			'Read the lines on a card ("Status: open → dropped") before you apply.',
 			'Dismiss what you don’t want; it won’t propose the same thing again in the conversation.',
 			'Once you trust a kind of change, tick "Always do this without asking" — Undo still works.',
-			'Not useful? "Don’t suggest these again" switches that kind of suggestion off (back on in Settings).'
+			'Not useful? "Don’t suggest these again" switches that kind of suggestion off (back on in Settings).',
+			'A kind you keep dismissing pauses itself; Settings → Assistant shows it with a Resume button.'
 		],
 		keywords: 'tips apply dismiss always undo mute'
 	},

@@ -525,6 +525,15 @@ export async function setMuted(uid: string, type: string, muted: boolean): Promi
 	await setDoc(feedbackDoc(uid), { [type]: { muted } }, { merge: true });
 }
 
+/** Switches a kind back on with a clean record, so a paused one gets a fresh start. */
+export async function resumeSuggestions(uid: string, type: string): Promise<void> {
+	await setDoc(
+		feedbackDoc(uid),
+		{ [type]: { applied: 0, dismissed: 0, muted: false } },
+		{ merge: true }
+	);
+}
+
 // Signals from the detectors that have been dealt with, so each is raised once.
 
 /** Keys of every signal raised so far. */
