@@ -11,7 +11,8 @@ const db = vi.hoisted(() => ({
 	deleteMemory: vi.fn(async () => {}),
 	newMemoryId: () => 'new-memory',
 	loadFeedback: vi.fn(async () => ({ deadline: { applied: 2, dismissed: 1, muted: false } })),
-	setMuted: vi.fn(async () => {})
+	setMuted: vi.fn(async () => {}),
+	resumeSuggestions: vi.fn(async () => {})
 }));
 const listModels = vi.hoisted(() => vi.fn());
 const runCheckin = vi.hoisted(() => vi.fn());
@@ -159,5 +160,16 @@ describe('AssistantSettings', () => {
 		await screen.getByLabelText('Plan tasks for a deadline coming up').click();
 		expect(db.setMuted).toHaveBeenCalledWith('u1', 'deadline', true);
 		await expect.element(screen.getByLabelText('Notify me on this device')).toBeChecked();
+	});
+
+	it('shows a kind that paused itself, with Resume', async () => {
+		db.loadFeedback.mockResolvedValueOnce({ deadline: { applied: 0, dismissed: 9, muted: false } });
+		const screen = render(AssistantSettings);
+		await expect
+			.element(screen.getByText(/Paused — you dismissed most of these/))
+			.toBeInTheDocument();
+		await screen.getByRole('button', { name: 'Resume' }).click();
+		expect(db.resumeSuggestions).toHaveBeenCalledWith('u1', 'deadline');
+		await expect.element(screen.getByText(/Paused — you dismissed/)).not.toBeInTheDocument();
 	});
 });

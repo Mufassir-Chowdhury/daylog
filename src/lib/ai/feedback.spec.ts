@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG } from './config';
-import { isMuted, noticeFor, normalizeFeedback, suggestionType } from './feedback';
+import { isMuted, isOff, isPaused, noticeFor, normalizeFeedback, suggestionType } from './feedback';
 import type { InboxItem } from './inbox';
 
 const card = (over: Partial<InboxItem>): InboxItem => ({
@@ -70,5 +70,26 @@ describe('noticeFor', () => {
 
 	it('stays silent in quiet hours', () => {
 		expect(noticeFor([brief], DEFAULT_CONFIG, at('02:00'))).toBeNull();
+	});
+});
+
+describe('pausing what you mostly dismiss', () => {
+	const f = (applied: number, dismissed: number, muted = false) => ({ applied, dismissed, muted });
+
+	it('pauses a kind after 8 or more with under 15% applied', () => {
+		expect(isPaused(f(0, 7))).toBe(false); // not enough yet
+		expect(isPaused(f(1, 7))).toBe(true); // 1 of 8
+		expect(isPaused(f(2, 8))).toBe(false); // 20% applied
+		expect(isPaused(undefined)).toBe(false);
+		// Muted is off already, not "paused".
+		expect(isPaused(f(0, 10, true))).toBe(false);
+	});
+
+	it('counts muted or paused kinds as off', () => {
+		const feedback = { deadline: f(0, 9), money: f(0, 0, true), prep: f(5, 5) };
+		expect(isOff(feedback, 'deadline')).toBe(true);
+		expect(isOff(feedback, 'money')).toBe(true);
+		expect(isOff(feedback, 'prep')).toBe(false);
+		expect(isOff(feedback, 'capture')).toBe(false);
 	});
 });

@@ -2,7 +2,8 @@
  * Detectors: cheap, local checks that notice something worth the assistant's
  * attention between check-ins. Each is pure — `(data, today) → Signal[]` — and
  * gives every signal a stable `key`, so the same thing is only raised once
- * (see `signals.ts`). Only a signal that's new starts a background run.
+ * (`assistantSignals`, see engine.ts). Only a signal that's new starts a
+ * background run.
  *
  * Money watch (6.7) is in `money.ts`; pre-event prep, which runs every
  * minute, in `prep.ts`.

@@ -195,6 +195,14 @@ describe('runDueFollowups', () => {
 });
 
 describe('muting and notifying', () => {
+	it("doesn't raise kinds you mostly dismiss", async () => {
+		db.loadFeedback.mockResolvedValue({ deadline: { applied: 0, dismissed: 9, muted: false } });
+		bg.backgroundRun.mockResolvedValue({ text: 'NOTHING', truncated: false, proposals: [] });
+		await runSignals('u1', null, NOW, [() => [signal('deadline:x'), signal('carryover:y')]]);
+		expect(db.claimSignal).toHaveBeenCalledTimes(1);
+		expect(db.claimSignal).toHaveBeenCalledWith('u1', 'carryover:y', 'carryover');
+	});
+
 	it("doesn't raise kinds you muted", async () => {
 		db.loadFeedback.mockResolvedValue({ deadline: { applied: 0, dismissed: 3, muted: true } });
 		bg.backgroundRun.mockResolvedValue({ text: 'NOTHING', truncated: false, proposals: [] });

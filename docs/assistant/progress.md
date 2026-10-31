@@ -811,8 +811,8 @@ Everything is built; this step needs real use. Checklist:
       that
 - [x] `npm run eval:ai` — done 2026-10-31 (below)
 - [x] Usage log per device in Settings — done 2026-10-31 (below)
-- [ ] After two weeks: use `assistant/feedback` (applied / dismissed per kind) to retune or drop
-      suggestion kinds people mostly dismiss
+- [x] Kinds mostly dismissed pause themselves — done 2026-10-31 (below); after two weeks of use,
+      retune the thresholds and detectors from the counts
 - [x] Assistant data in the backup export — done 2026-10-31 (below)
 - [ ] Still open from earlier steps: Svelte MCP autofixer
       pass once the server is reachable; a signed-in click-through of the whole flow
@@ -874,3 +874,15 @@ Everything is built; this step needs real use. Checklist:
   cleanly against the fixture.
 - Checked here: no key → skips; a fake key → reaches Anthropic, which rejects it, and the
   report says so. **Not run with a real key** (none in this environment).
+
+### 7 — Suggestions pause themselves (2026-10-31)
+
+- `feedback.ts`: `isPaused(f)` — a kind with **8 or more** applied + dismissed and **under
+  15%** applied pauses itself (muted kinds are simply off); `isOff` = muted or paused. The
+  engine skips kinds that are off (detector scan, prep, capture).
+- `db.resumeSuggestions(uid, type)` — back on with the counts reset, so a resumed kind gets a
+  fresh start. Settings → "Suggestions it makes on its own": a paused kind says "Paused — you
+  dismissed most of these" with **Resume**. The help page mentions it.
+- Tests: the rule and `isOff`, the engine skipping a paused kind, Resume in Settings. Totals:
+  46 files, 368 tests; lint, types, both builds, e2e OK.
+- The thresholds are a first guess; tune them from real counts.
