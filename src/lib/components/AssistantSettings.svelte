@@ -581,6 +581,26 @@
 			</p>
 		</div>
 
+		{#if desktop}
+			<!-- Focus coach (this computer) -->
+			<div class="space-y-1">
+				<label class="flex items-center gap-2 text-sm text-ink">
+					<input
+						type="checkbox"
+						bind:checked={prefs.focusCoach}
+						onchange={persistDevice}
+						class={check}
+					/>
+					Focus coach on this computer
+				</label>
+				<p class="text-xs text-faint">
+					From this computer's activity: a nudge when a limit you set on the Activity page is nearly
+					used up or passed, and when your best focus hours start with nothing planned. At most one
+					an hour, none in quiet hours. Needs activity tracking on.
+				</p>
+			</div>
+		{/if}
+
 		<!-- Suggestions on its own (synced) -->
 		<div class="space-y-2">
 			<div>

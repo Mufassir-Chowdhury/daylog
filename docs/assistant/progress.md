@@ -6,17 +6,17 @@ and [decisions](./decisions.md) first. Research notes: [research.md](./research.
 **Update this file at the end of every step**: tick the step, list what was built, note anything
 that differs from the plan, and say what comes next.
 
-| Step | What                            | Status                                            |
-| ---- | ------------------------------- | ------------------------------------------------- |
-| 0    | Ops layer                       | ✅ done 2026-10-30                                |
-| 1    | Providers and settings          | ✅ done 2026-10-30                                |
-| 2    | Tool registry and chat          | ✅ done 2026-10-30                                |
-| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
-| 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
-| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
-| 6    | Feature packs                   | 6.1–6.7 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.8** |
-| 7    | Evaluation and tuning           | not started                                       |
-| —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
+| Step | What                            | Status                                           |
+| ---- | ------------------------------- | ------------------------------------------------ |
+| 0    | Ops layer                       | ✅ done 2026-10-30                               |
+| 1    | Providers and settings          | ✅ done 2026-10-30                               |
+| 2    | Tool registry and chat          | ✅ done 2026-10-30                               |
+| 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                               |
+| 4    | Memory and Inbox                | ✅ done 2026-10-30                               |
+| 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                               |
+| 6    | Feature packs                   | ✅ done 2026-10-31 (6.1–6.2 first pass, to tune) |
+| 7    | Evaluation and tuning           | ⏭ **next**                                       |
+| —    | Voice mode (ElevenLabs)         | future, not scheduled                            |
 
 ---
 
@@ -641,7 +641,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 - [x] **6.5 Weekly review** — done 2026-10-31 (below)
 - [x] **6.6 Pre-event prep and person briefs** — done 2026-10-31 (below)
 - [x] **6.7 Money watch** — done 2026-10-31 (below)
-- [ ] **6.8 Focus coach** (desktop, opt-in) — at most one nudge an hour
+- [x] **6.8 Focus coach** — done 2026-10-31 (below)
 
 ### 6.1–6.2 — Warm-up and briefs, first pass (2026-10-31)
 
@@ -778,3 +778,43 @@ min, today, nowMinutes)` — free blocks between 08:00 and 22:00, with classes a
   last two days; open-since with settling, monthly reminders, both directions). Totals: 41 files,
   344 tests; lint, types, both builds, e2e OK.
 - Evals 33–34.
+
+### 6.8 — Focus coach (2026-10-31)
+
+- `src/lib/ai/focus.ts` (pure): `focusNudge(input)` — a **limit** you set on the Activity page
+  at 80% ("YouTube: 5m left") or passed ("limit passed"), or your **best focus hours** starting
+  (first 20 minutes) with the whole two hours free ("…a good moment for “Thesis chapter 2”",
+  from `topTask`: highlighted, then today's, then overdue). At most **one nudge an hour**, each
+  kind once a day, none in quiet hours. **No model call** — made locally, so instant and free.
+- `src/lib/ai/focus-coach.ts`: `startFocusCoach(uid, name, ticks)` on the desktop's minute tick,
+  **whether or not it holds the lease** (it's about this computer's activity); activity re-read
+  every 5 minutes, schedule every 10; needs the Activity area visible; what was sent today kept
+  in this computer's storage. Delivered as a desktop notification (if "Notify me" is on) that
+  opens the Activity page, plus a bubble.
+- `tools/activity.ts`: `activityFor(uid, date)` (raw summary, baseline, goal progress, best
+  window) taken out of `activity_day`, shared by both.
+- Device prefs: `focusCoach` (**off by default**). Settings (desktop only): "Focus coach on this
+  computer".
+- Tests: `focus.spec.ts` (limits, focus window, hourly gap, once a day, quiet hours, top task),
+  `focus-coach.spec.ts` (nudges once by notification and bubble, nothing while off). Totals: 43
+  files, 350 tests; lint, types, both builds, e2e OK.
+
+---
+
+## Next: Step 7 — Evaluation and tuning
+
+Everything is built; this step needs real use. Checklist:
+
+- [ ] Use it for real on both providers: add a key, run each check-in with Run now, chat through
+      `docs/assistant/evals.md` (34 cases), and note what reads wrong or too long
+- [ ] Tune the check-in instructions (6.1–6.2 are a first pass) and detector thresholds from
+      that
+- [ ] `npm run eval:ai` — a script that runs the eval cases against a fake data set on a chosen
+      provider and prints the tool calls and replies for grading by reading (never in CI; costs
+      money)
+- [ ] Usage log per device in Settings: tokens per day and per kind of run (chat, check-in,
+      signal, capture, prep), from `budget.ts`
+- [ ] After two weeks: use `assistant/feedback` (applied / dismissed per kind) to retune or drop
+      suggestion kinds people mostly dismiss
+- [ ] Still open from earlier steps: assistant data in the backup export; Svelte MCP autofixer
+      pass once the server is reachable; a signed-in click-through of the whole flow
