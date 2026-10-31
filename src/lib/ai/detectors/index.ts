@@ -65,13 +65,18 @@ export const carryOver: Detector = ({ today, days }) => {
 };
 
 /** Words that say what a deadline is about ("DBMS", "thesis"), for matching tasks to it. */
-function topicWords(text: string): string[] {
+export function topicWords(text: string): string[] {
 	return text
 		.toLowerCase()
 		.split(/[^\p{L}\p{N}]+/u)
-		.filter((w) => w.length >= 3 && !STOP.has(w));
+		.filter((w) => w.length >= 2 && !/^\d+$/.test(w) && !STOP.has(w));
 }
-const STOP = new Set(['the', 'and', 'for', 'due', 'submit', 'submission', 'deadline', 'with']);
+// Short course codes (DM, OS) count; little words don't.
+const STOP = new Set([
+	...['a', 'an', 'the', 'and', 'or', 'for', 'of', 'to', 'in', 'on', 'at', 'by', 'with', 'my'],
+	...['is', 'it', 'up', 'do', 'be', 'am', 'pm', 'vs', 're'],
+	...['due', 'submit', 'submission', 'deadline']
+]);
 
 /** A deadline within 5 days with no open task about it: offer a plan. */
 export const unplannedDeadline: Detector = ({ today, deadlines, tasks }) => {

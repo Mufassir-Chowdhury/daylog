@@ -3,7 +3,9 @@
  * the lease (Steps 5.3–5.5), once a minute:
  * 1. the scheduled check-in that's due (`checkin.ts`);
  * 2. follow-ups it scheduled for itself (`schedule_checkin`);
- * 3. every 30 minutes outside quiet hours, the detectors: each new signal
+ * 3. prep notes shortly before meetings and exams (`detectors/prep.ts`), checked
+ *    every minute since timing matters;
+ * 4. every 30 minutes outside quiet hours, the detectors: each new signal
  *    gets a short background run, within the daily limit on unprompted cards,
  *    except kinds you muted ("Don't suggest these again").
  * Returns the new cards; `notifyAbout` turns them into a notification.
@@ -13,7 +15,9 @@ import {
 	claimFollowup,
 	claimSignal,
 	listDeadlines,
+	listEvents,
 	listFollowups,
+	listSlots,
 	listSignalKeys,
 	listTasks,
 	loadAssistantConfig,
@@ -27,6 +31,8 @@ import { withinBudget } from './budget';
 import { runDueCheckins } from './checkin';
 import { inQuietHours } from './config';
 import { detect, DETECTORS, type Detector, type Signal } from './detectors';
+import { upcomingPrep } from './detectors/prep';
+import { occurrences } from '../schedule';
 import { desktop } from '../desktop';
 import { loadDevicePrefs } from './device';
 import { isMuted, noticeFor } from './feedback';
@@ -50,11 +56,23 @@ const SHORT = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-dig
 let busy = false;
 let lastScan = 0;
 let followups: { uid: string; at: number; list: FollowUp[] } | null = null;
+/** What prep looks at, re-read every 10 minutes. */
+let prepData: {
+	uid: string;
+	at: number;
+	date: string;
+	data: Awaited<ReturnType<typeof loadPrepData>>;
+} | null = null;
+/** Prep signals already dealt with here, so the minute check doesn't claim them again. */
+const prepDone = new Set<string>();
+const PREP_DATA_EVERY = 10 * 60_000;
 
 /** Forgets what's cached (tests, or after signing out). */
 export function resetEngine(): void {
 	lastScan = 0;
 	followups = null;
+	prepData = null;
+	prepDone.clear();
 }
 
 async function canRun(): Promise<boolean> {
@@ -194,6 +212,69 @@ function covered(signal: Signal, now: number): boolean {
 	);
 }
 
+async function loadPrepData(uid: string, today: string) {
+	const [slots, events, tasks, dayText] = await Promise.all([
+		listSlots(uid),
+		listEvents(uid),
+		listTasks(uid),
+		loadDay(uid, today)
+	]);
+	return { events: occurrences(slots, events, today, today).map((o) => o.event), tasks, dayText };
+}
+
+/** Prep notes for what starts in about half an hour; returns the cards. */
+export async function runPrep(
+	uid: string,
+	displayName: string | null,
+	now: Date
+): Promise<InboxItem[]> {
+	const config = await loadAssistantConfig(uid);
+	if (!config.areas.schedule || inQuietHours(config, clock(now))) return [];
+	const ms = now.getTime();
+	const today = dateKey(now);
+	if (
+		!prepData ||
+		prepData.uid !== uid ||
+		prepData.date !== today ||
+		ms - prepData.at > PREP_DATA_EVERY
+	)
+		prepData = { uid, at: ms, date: today, data: await loadPrepData(uid, today) };
+	const signals = upcomingPrep({
+		today,
+		now: now.getHours() * 60 + now.getMinutes(),
+		...prepData.data,
+		dayText: config.areas.days ? prepData.data.dayText : ''
+	}).filter((s) => !prepDone.has(s.key));
+	if (!signals.length) return [];
+	if (isMuted(await loadFeedback(uid).catch(() => ({})), 'prep')) return [];
+	const out: InboxItem[] = [];
+	for (const signal of signals) {
+		prepDone.add(signal.key);
+		if (cardsLeftToday(config, inbox.items, ms) <= 0) break;
+		if (!(await claimSignal(uid, signal.key, signal.type))) continue;
+		const run = await backgroundRun({
+			uid,
+			displayName,
+			now,
+			message: signalMessage(signal.about),
+			signalKey: signal.key,
+			priority: signal.priority,
+			facts: signal.facts
+		});
+		out.push(...run.proposals);
+		if (run.text && run.text !== NOTHING)
+			out.push(
+				saveBrief(uid, {
+					title: signal.title,
+					body: run.text,
+					signalKey: signal.key,
+					priority: signal.priority
+				})
+			);
+	}
+	return out;
+}
+
 /** One round of background work (see the top of this file). */
 export async function runBackgroundWork(
 	uid: string,
@@ -208,6 +289,7 @@ export async function runBackgroundWork(
 		const checkin = await runDueCheckins(uid, displayName, now).catch(() => null);
 		if (checkin?.brief) out.push(checkin.brief);
 		out.push(...(await runDueFollowups(uid, displayName, now).catch(() => [])));
+		out.push(...(await runPrep(uid, displayName, now).catch(() => [])));
 		out.push(...(await runSignals(uid, displayName, now).catch(() => [])));
 	} finally {
 		busy = false;

@@ -42,6 +42,8 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 28  | "when am I free on Thursday?"                                                          | `free_time` (that Thursday); answers with the free blocks                                                     | —                    |
 | 29  | (signal) a hard deadline in 4 days, no tasks, classes Sun–Tue                          | 2–4 `add_task` cards with dates and time blocks inside free blocks, done a day early                          | cards                |
 | 30  | (Run now: Weekly review) on a Thursday with a slipped task and a deadline next week    | "This week:" / "Next week:" brief, saved as a note; `move_task` and `add_task` cards for next week            | brief + note + cards |
+| 31  | (30 min before) "Thesis review with @rahim" at 11:30, a note "Thesis outline"          | prep note: room, the outline note, a two-line brief on @rahim (latest mention, money)                         | brief                |
+| 32  | (30 min before) a plain DM class with no open tasks                                    | nothing raised                                                                                                | —                    |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.
