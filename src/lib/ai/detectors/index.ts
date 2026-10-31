@@ -4,14 +4,15 @@
  * gives every signal a stable `key`, so the same thing is only raised once
  * (see `signals.ts`). Only a signal that's new starts a background run.
  *
- * Step 6 adds more (money watch, pre-event prep, focus); these two prove the
- * engine.
+ * Money watch (6.7) is in `money.ts`; pre-event prep, which runs every
+ * minute, in `prep.ts`.
  */
 import { addDays } from '../../date';
-import type { Deadline, PlanTask } from '../../db';
+import type { Deadline, PlanTask, Transaction } from '../../db';
 import { parseDay } from '../../parse';
 import { daysUntil } from '../../schedule';
 import type { FactSource } from '../facts';
+import { MONEY_DETECTORS } from './money';
 
 export interface DetectorData {
 	today: string;
@@ -19,6 +20,8 @@ export interface DetectorData {
 	days: Record<string, string>;
 	deadlines: Deadline[];
 	tasks: PlanTask[];
+	/** Every transaction, when Finance is visible to the assistant. */
+	transactions?: Transaction[];
 }
 
 export interface Signal {
@@ -126,7 +129,7 @@ export const unplannedDeadline: Detector = ({ today, deadlines, tasks }) => {
 		});
 };
 
-export const DETECTORS: Detector[] = [carryOver, unplannedDeadline];
+export const DETECTORS: Detector[] = [carryOver, unplannedDeadline, ...MONEY_DETECTORS];
 
 export function detect(data: DetectorData, detectors: Detector[] = DETECTORS): Signal[] {
 	return detectors.flatMap((d) => d(data));

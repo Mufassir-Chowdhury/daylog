@@ -44,6 +44,8 @@ with a grading task, invigilation on Monday, and DBMS evaluations 1 and 2 as tas
 | 30  | (Run now: Weekly review) on a Thursday with a slipped task and a deadline next week    | "This week:" / "Next week:" brief, saved as a note; `move_task` and `add_task` cards for next week            | brief + note + cards |
 | 31  | (30 min before) "Thesis review with @rahim" at 11:30, a note "Thesis outline"          | prep note: room, the outline note, a two-line brief on @rahim (latest mention, money)                         | brief                |
 | 32  | (30 min before) a plain DM class with no open tasks                                    | nothing raised                                                                                                | —                    |
+| 33  | (signal) food spending 60% ahead of last month by the 15th                             | a note with both totals and the categories behind it; no cards                                                | brief                |
+| 34  | (signal) an expense of 12000 for "lunch" where lunch is usually 120                    | a note asking whether it's 1200 or 120; `update_transaction` only if the page says the amount                 | brief / card         |
 
 Grading: the right tools with the right ids and fields (exact), plus a short reply that says what
 happened. Replies are judged by reading, not string matching.

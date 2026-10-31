@@ -20,6 +20,7 @@ import {
 	listSlots,
 	listSignalKeys,
 	listTasks,
+	listTransactions,
 	loadAssistantConfig,
 	loadFeedback,
 	loadDay,
@@ -136,12 +137,13 @@ export async function runDueFollowups(
 /** What the detectors look at, from the areas the assistant may see. */
 async function detectorInput(uid: string, today: string, areas: Record<string, boolean>) {
 	const yesterday = addDays(today, -1);
-	const [day, deadlines, tasks] = await Promise.all([
+	const [day, deadlines, tasks, transactions] = await Promise.all([
 		areas.days ? loadDay(uid, yesterday) : Promise.resolve(''),
 		areas.schedule ? listDeadlines(uid) : Promise.resolve([]),
-		areas.schedule ? listTasks(uid) : Promise.resolve([])
+		areas.schedule ? listTasks(uid) : Promise.resolve([]),
+		areas.finance ? listTransactions(uid) : Promise.resolve([])
 	]);
-	return { today, days: { [yesterday]: day }, deadlines, tasks };
+	return { today, days: { [yesterday]: day }, deadlines, tasks, transactions };
 }
 
 /** Looks for new signals and runs the most important ones; returns the cards they left. */
