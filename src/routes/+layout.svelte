@@ -9,6 +9,7 @@
 	import { assistant, closeAssistant, openAssistant } from '$lib/ai/assistant.svelte';
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
+	import { runDueCheckins } from '$lib/ai/checkin';
 	import { appendToDay } from '$lib/capture';
 	import AssistantPanel from '$lib/components/AssistantPanel.svelte';
 	import CaptionButtons from '$lib/components/CaptionButtons.svelte';
@@ -98,12 +99,29 @@
 	});
 
 	// ——— Assistant: the Inbox stays live while signed in (not in the quick bar), and this
-	// window competes for the lease to look after check-ins (the desktop app wins).
+	// window competes for the lease to look after check-ins (the desktop app wins). While it
+	// holds the lease it runs whatever check-in is due, checking every minute.
 	$effect(() => {
 		const uid = session.user?.uid;
 		if (!uid || isQuick) return;
+		const displayName = session.user?.displayName ?? null;
 		const stopInbox = startInbox(uid);
-		const stopLease = startLease(uid, { kind: desktop ? 'desktop' : 'web' });
+		const stopLease = startLease(uid, {
+			kind: desktop ? 'desktop' : 'web',
+			// The desktop app wakes the window every minute, even hidden in the tray.
+			ticks: desktop?.onAssistantTick,
+			onHeld: () =>
+				runDueCheckins(uid, displayName)
+					.then((result) => {
+						if (result?.brief)
+							toast(`${result.brief.title} is waiting on today's page.`, {
+								from: assistant.name,
+								duration: 8000
+							});
+					})
+					// A failed run is recorded and retried in 15 minutes.
+					.catch(() => {})
+		});
 		return () => {
 			stopInbox();
 			stopLease();

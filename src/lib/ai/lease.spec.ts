@@ -82,4 +82,44 @@ describe('startLease', () => {
 		expect(lease.held).toBe(false);
 		stop();
 	});
+
+	it('checks again on coming back to the tab after a while', async () => {
+		const listeners: Record<string, () => void> = {};
+		vi.stubGlobal('addEventListener', (name: string, fn: () => void) => (listeners[name] = fn));
+		vi.stubGlobal('document', { visibilityState: 'visible' });
+		const onHeld = vi.fn();
+		const stop = startLease('u1', { kind: 'web', onHeld, eligible: async () => true });
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(1));
+		listeners.visibilitychange();
+		await Promise.resolve();
+		expect(db.takeLease).toHaveBeenCalledTimes(1); // too soon
+		vi.setSystemTime(Date.now() + 40_000);
+		listeners.visibilitychange();
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(2));
+		stop();
+	});
+
+	it("also checks on the desktop app's minute ticks", async () => {
+		let fire = () => {};
+		const off = vi.fn();
+		const onHeld = vi.fn();
+		const stop = startLease('u1', {
+			kind: 'desktop',
+			onHeld,
+			eligible: async () => true,
+			ticks: (cb) => {
+				fire = cb;
+				return off;
+			}
+		});
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(1));
+		fire(); // straight after its own check: nothing new
+		await Promise.resolve();
+		expect(db.takeLease).toHaveBeenCalledTimes(1);
+		vi.setSystemTime(Date.now() + 10_000);
+		fire();
+		await vi.waitFor(() => expect(onHeld).toHaveBeenCalledTimes(2));
+		stop();
+		expect(off).toHaveBeenCalled();
+	});
 });

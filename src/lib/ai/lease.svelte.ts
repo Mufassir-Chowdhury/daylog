@@ -28,18 +28,25 @@ export async function canRunCheckins(): Promise<boolean> {
 
 export interface LeaseOptions {
 	kind: HolderKind;
-	/** Called after each minute the lease is held (Step 5.4 runs what's due). */
+	/** Called after each minute the lease is held, and on coming back to the tab. */
 	onHeld?: () => void;
 	eligible?: () => Promise<boolean>;
+	/**
+	 * Extra wake-ups from outside the page (the desktop app's minute tick), for
+	 * when the page's own timer is throttled. Returns an unsubscribe function.
+	 */
+	ticks?: (callback: () => void) => () => void;
 }
 
 /** Competes for the lease until the returned function is called. */
 export function startLease(uid: string, opts: LeaseOptions): () => void {
 	const eligible = opts.eligible ?? canRunCheckins;
 	let stopped = false;
+	let last = 0;
 
 	async function tick() {
 		if (stopped) return;
+		last = Date.now();
 		const can = await eligible().catch(() => false);
 		if (!can) {
 			if (lease.held) releaseLease(uid, holderId).catch(() => {});
@@ -59,14 +66,25 @@ export function startLease(uid: string, opts: LeaseOptions): () => void {
 		if (lease.held) releaseLease(uid, holderId).catch(() => {});
 		lease.held = false;
 	};
+	// Hidden tabs' timers are slowed down; check again on coming back.
+	const onVisible = () => {
+		if (document.visibilityState === 'visible' && Date.now() - last > 30_000) tick();
+	};
 	tick();
 	const timer = setInterval(tick, RENEW_EVERY);
+	// A tick right after the page's own one would only repeat it.
+	const offTicks = opts.ticks?.(() => {
+		if (Date.now() - last > 5_000) tick();
+	});
 	addEventListener('pagehide', release);
+	addEventListener('visibilitychange', onVisible);
 
 	return () => {
 		stopped = true;
 		clearInterval(timer);
+		offTicks?.();
 		removeEventListener('pagehide', release);
+		removeEventListener('visibilitychange', onVisible);
 		unwatch();
 		release();
 	};
