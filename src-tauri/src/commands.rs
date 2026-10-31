@@ -3,7 +3,7 @@
 //! checked before use.
 
 use crate::{
-    activity, ai, auth, hotkeys, notify, prefs, reminders, tray, updater, windows, AppState,
+    activity, ai, auth, hotkeys, notify, prefs, reminders, tray, updater, voice, windows, AppState,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -223,4 +223,38 @@ pub async fn ai_key_set(provider: ai::Provider, key: Option<String>) -> Value {
         Ok(Err(error)) => json!({ "ok": false, "error": error }),
         Err(error) => json!({ "ok": false, "error": error.to_string() }),
     }
+}
+
+/// Voice: text to speech. Returns the MP3 as raw bytes (an ArrayBuffer in the page).
+#[tauri::command]
+pub async fn voice_speak(request: voice::SpeakRequest) -> Result<tauri::ipc::Response, String> {
+    let audio = tauri::async_runtime::spawn_blocking(move || voice::speak(request))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(tauri::ipc::Response::new(audio))
+}
+
+/// Voice: speech to text. The audio comes as the raw body; its type, the model and an
+/// optional language in the `x-mime`, `x-model` and `x-language` headers.
+#[tauri::command]
+pub async fn voice_transcribe(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(audio) = request.body() else {
+        return Err("Expected the audio as raw bytes".into());
+    };
+    let header = |name: &str| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    };
+    let mime = header("x-mime").unwrap_or_else(|| "audio/webm".into());
+    let model = header("x-model").unwrap_or_else(|| "scribe_v2".into());
+    let language = header("x-language");
+    let audio = audio.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        voice::transcribe(audio, &mime, &model, language.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

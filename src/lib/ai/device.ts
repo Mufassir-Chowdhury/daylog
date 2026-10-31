@@ -25,14 +25,36 @@ export interface DevicePrefs {
 	notify: boolean;
 	/** The focus coach (desktop only): nudges about limits and best focus hours. Off until you turn it on. */
 	focusCoach: boolean;
+	/** Voice mode (ElevenLabs): on only while a key is saved on this device. */
+	voice: VoicePrefs;
 }
+
+export type TtsModel = 'eleven_flash_v2_5' | 'eleven_multilingual_v2';
+
+export interface VoicePrefs {
+	/** An ElevenLabs voice id; empty = pick a calm British voice from your list. */
+	voiceId: string;
+	model: TtsModel;
+	/** Answer aloud when you asked by voice. */
+	speakReplies: boolean;
+	/** A language hint for transcription (`en`), or empty to detect it. */
+	language: string;
+}
+
+export const DEFAULT_VOICE: VoicePrefs = {
+	voiceId: '',
+	model: 'eleven_flash_v2_5',
+	speakReplies: true,
+	language: ''
+};
 
 export const DEFAULT_DEVICE_PREFS: DevicePrefs = {
 	provider: 'anthropic',
 	models: DEFAULT_MODELS,
 	dailyTokens: { chat: 1_000_000, background: 300_000 },
 	notify: true,
-	focusCoach: false
+	focusCoach: false,
+	voice: DEFAULT_VOICE
 };
 
 const KEY = 'daylog.ai.device';
@@ -59,7 +81,13 @@ export function normalizeDevicePrefs(raw: unknown): DevicePrefs {
 			background: count(r.dailyTokens?.background, d.dailyTokens.background)
 		},
 		notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
-		focusCoach: r.focusCoach === true
+		focusCoach: r.focusCoach === true,
+		voice: {
+			voiceId: typeof r.voice?.voiceId === 'string' ? r.voice.voiceId.slice(0, 64) : '',
+			model: r.voice?.model === 'eleven_multilingual_v2' ? r.voice.model : DEFAULT_VOICE.model,
+			speakReplies: r.voice?.speakReplies !== false,
+			language: /^[a-z]{2,3}$/.test(r.voice?.language ?? '') ? r.voice!.language : ''
+		}
 	};
 }
 

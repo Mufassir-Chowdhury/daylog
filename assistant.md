@@ -247,20 +247,15 @@ weekly review → pre-event prep and person briefs → money watch → focus coa
 - Usage log per device, shown in Settings.
 - After two weeks, retune or drop detectors with low apply rates.
 
-### Future — Voice mode (ElevenLabs)
+### Voice mode (ElevenLabs) ✅ (see progress.md)
 
-Not scheduled yet. When added:
-
-- **Ears**: ElevenLabs realtime speech-to-text (Scribe) over WebSocket, from a mic button in the
-  drawer and the quick bar (and a hotkey on desktop).
-- **Voice**: ElevenLabs text-to-speech, streamed, for replies and optionally for the briefs ("read
-  my 08:00 warm-up").
-- **Same brain**: the transcript goes into the normal agent loop, so tools, memory, bubbles and
-  approvals work the same; ElevenLabs is only input and output.
-- **Key**: a third BYOK key in Settings. Desktop: key in the keychain, Rust mints the short-lived
-  tokens ElevenLabs expects for browser connections. Web: either the key in local storage or a tiny
-  Worker route that mints tokens — decide then.
-- Replaces the README's "🎤 Voice input — coming soon".
+On only while an ElevenLabs key is saved on the device; off otherwise. Tap the mic in the panel,
+speak, pause (or tap again); the transcript goes into the normal agent loop, so tools, memory and
+approvals work the same, and the reply is read aloud in a calm British voice. "Read aloud" on any
+reply or brief. Batch speech-to-text (Scribe) after you finish speaking rather than a realtime
+WebSocket — simpler, no token minting, and fast enough for short questions. Web: key in local
+storage, straight to ElevenLabs. Desktop: key in the OS keychain, audio through Rust
+(`voice.rs`).
 
 Notes: [research.md §4](docs/assistant/research.md#4-elevenlabs-future-voice-mode).
 

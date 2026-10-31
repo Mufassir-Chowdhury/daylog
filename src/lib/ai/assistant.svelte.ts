@@ -47,6 +47,8 @@ export interface ChatEntry {
 	id: number;
 	role: 'user' | 'assistant' | 'error';
 	text: string;
+	/** Asked by voice. */
+	spoken?: boolean;
 	/** What it looked at on the way. */
 	steps?: string[];
 	done?: DoneAction[];
@@ -176,6 +178,8 @@ export interface AskEnv {
 	/** The page being looked at, from `describeView`. */
 	view: string;
 	navigate: (path: string) => void;
+	/** Asked by voice: the reply is kept short enough to be read aloud. */
+	spoken?: boolean;
 }
 
 /** Applies small changes at once and turns the rest into Inbox cards; tells the model which. */
@@ -225,7 +229,7 @@ function proposer(env: AskEnv, config: AssistantConfig, done: DoneAction[], card
 export async function ask(question: string, env: AskEnv): Promise<void> {
 	const text = question.trim();
 	if (!text || assistant.busy) return;
-	assistant.entries.push({ id: nextId++, role: 'user', text });
+	assistant.entries.push({ id: nextId++, role: 'user', text, spoken: env.spoken });
 	assistant.busy = true;
 	assistant.step = '';
 	const done: DoneAction[] = [];
@@ -268,7 +272,7 @@ export async function ask(question: string, env: AskEnv): Promise<void> {
 				propose: proposer(env, config, done, cards)
 			},
 			history: thread.history,
-			message: `${contextBlock({ now, config, address, view: env.view })}\n\n${memory}${told}${text}`,
+			message: `${contextBlock({ now, config, address, view: env.view, spoken: env.spoken })}\n\n${memory}${told}${text}`,
 			onStep: (step) => (assistant.step = step)
 		});
 		forgetOutcomes(outcomes.length);

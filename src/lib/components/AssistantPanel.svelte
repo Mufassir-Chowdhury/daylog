@@ -19,6 +19,16 @@
 	import Icon from './Icon.svelte';
 	import InboxCard from './InboxCard.svelte';
 	import InboxList from './InboxList.svelte';
+	import { loadDevicePrefs } from '$lib/ai/device';
+	import {
+		cancelListening,
+		listen,
+		speak,
+		stopListening,
+		stopSpeaking,
+		voice
+	} from '$lib/ai/voice.svelte';
+	import { onDestroy } from 'svelte';
 
 	const uid = session.user!.uid;
 	const displayName = session.user!.displayName;
@@ -32,16 +42,34 @@
 	let input: HTMLTextAreaElement | undefined = $state();
 	let list: HTMLElement | undefined = $state();
 
-	function send(text = draft) {
+	async function send(text = draft, spoken = false) {
 		if (!text.trim() || assistant.busy) return;
 		draft = '';
-		ask(text, {
+		await ask(text, {
 			uid,
 			displayName,
 			view: describeView(page.url),
-			navigate: (path) => go(path)
+			navigate: (path) => go(path),
+			spoken
 		});
+		// Asked aloud, answered aloud (Settings → Voice can turn that off).
+		const last = assistant.entries.at(-1);
+		if (spoken && last?.role === 'assistant' && last.text && loadDevicePrefs().voice.speakReplies)
+			speak(last.text);
 	}
+
+	// ——— Voice: tap to talk, tap again (or pause) to finish.
+	async function talk() {
+		if (voice.phase === 'listening') return stopListening();
+		if (voice.phase !== 'idle' || assistant.busy) return;
+		const said = await listen();
+		if (said) send(said, true);
+	}
+
+	onDestroy(() => {
+		cancelListening();
+		stopSpeaking();
+	});
 
 	// A question handed over from the palette or the quick bar.
 	$effect(() => {
@@ -128,6 +156,13 @@
 					{assistant.busy ? assistant.step || 'Thinking…' : 'At your service.'}
 				</p>
 			</div>
+			{#if voice.speaking}
+				<button
+					type="button"
+					onclick={stopSpeaking}
+					class="rounded-ctl px-2.5 py-1.5 text-sm text-accent hover:bg-tint">Stop speaking</button
+				>
+			{/if}
 			{#if assistant.entries.length}
 				<button
 					type="button"
@@ -156,12 +191,23 @@
 					<p
 						class="ml-auto w-fit max-w-[85%] rounded-card bg-accent/10 px-3 py-2 text-sm whitespace-pre-wrap text-ink"
 					>
+						{#if entry.spoken}<span class="sr-only">Said aloud: </span><span
+								aria-hidden="true"
+								title="Said aloud">🎙</span
+							>{/if}
 						{entry.text}
 					</p>
 				{:else if entry.role === 'assistant'}
 					<div class="max-w-[95%] space-y-2">
 						{#if entry.text}
 							<p class="text-sm leading-relaxed whitespace-pre-wrap text-ink">{entry.text}</p>
+							{#if voice.available}
+								<button
+									type="button"
+									onclick={() => speak(entry.text)}
+									class="text-xs text-faint hover:text-ink">Read aloud</button
+								>
+							{/if}
 						{/if}
 						{@render changes(entry)}
 						{#if entry.steps?.length}
@@ -222,23 +268,67 @@
 				send();
 			}}
 		>
-			<textarea
-				bind:this={input}
-				bind:value={draft}
-				{onkeydown}
-				rows="2"
-				aria-label="Message"
-				placeholder="Ask {assistant.name}…"
-				class="min-h-0 flex-1 resize-none rounded-ctl border-line bg-canvas text-sm text-ink"
-			></textarea>
+			{#if voice.phase === 'idle'}
+				<textarea
+					bind:this={input}
+					bind:value={draft}
+					{onkeydown}
+					rows="2"
+					aria-label="Message"
+					placeholder="Ask {assistant.name}…"
+					class="min-h-0 flex-1 resize-none rounded-ctl border-line bg-canvas text-sm text-ink"
+				></textarea>
+			{:else}
+				<div
+					class="flex min-h-[3.25rem] flex-1 items-center gap-3 px-1 text-sm text-mute"
+					aria-live="polite"
+				>
+					{#if voice.phase === 'listening'}
+						<span class="relative flex h-3 w-3" aria-hidden="true">
+							<span
+								class="absolute inset-0 rounded-full bg-red-500 opacity-60"
+								style:transform="scale({1 + voice.level * 1.5})"
+							></span>
+							<span class="relative h-3 w-3 rounded-full bg-red-500"></span>
+						</span>
+						Listening — pause or tap the mic when you're done.
+					{:else}
+						Writing down what you said…
+					{/if}
+				</div>
+			{/if}
+			{#if voice.available}
+				<button
+					type="button"
+					onclick={talk}
+					disabled={assistant.busy || voice.phase === 'transcribing'}
+					aria-label={voice.phase === 'listening' ? 'Done talking' : `Talk to ${assistant.name}`}
+					aria-pressed={voice.phase === 'listening'}
+					title={voice.phase === 'listening' ? 'Done talking' : 'Talk (voice)'}
+					class="rounded-ctl border px-3 py-2 text-sm disabled:opacity-50 {voice.phase ===
+					'listening'
+						? 'border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400'
+						: 'border-line text-mute hover:bg-tint hover:text-ink'}"
+				>
+					{voice.phase === 'listening' ? 'Done' : '🎙'}
+				</button>
+			{/if}
 			<button
 				type="submit"
-				disabled={assistant.busy || !draft.trim()}
+				disabled={assistant.busy || !draft.trim() || voice.phase !== 'idle'}
 				class="rounded-ctl bg-accent-fill px-3 py-2 text-sm font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
 			>
 				Send
 			</button>
 		</form>
+		{#if voice.error}
+			<p
+				class="border-t border-line bg-card px-3 pb-2 text-xs text-red-600 dark:text-red-400"
+				role="alert"
+			>
+				{voice.error}
+			</p>
+		{/if}
 	</div>
 </dialog>
 

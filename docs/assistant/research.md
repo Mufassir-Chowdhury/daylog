@@ -135,7 +135,7 @@ Switchable with a narrow adapter (messages, tool definitions, tool calls/results
 
 ## 4. ElevenLabs (future voice mode)
 
-Secondhand (third-party docs in search results) — **verify at docs.elevenlabs.io before building**.
+Secondhand (third-party docs in search results). docs.elevenlabs.io wasn't reachable from the build environment when voice was built (2026-10-31); the code keeps the API in `src/lib/ai/voice.ts` and `src-tauri/src/voice.rs` and falls back where it can (see progress.md → Voice mode).
 
 - **Speech-to-text**: _Scribe v2 Realtime_ (`scribe_v2_realtime`), streaming over WebSocket,
   ~150 ms latency, 90+ languages, PCM 16 kHz input, voice-activity-based commits. Listed around

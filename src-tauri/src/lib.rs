@@ -20,6 +20,7 @@ mod reminders;
 mod server;
 mod tray;
 mod updater;
+mod voice;
 mod windows;
 
 use std::sync::atomic::AtomicBool;
@@ -75,6 +76,8 @@ pub fn run() {
             commands::ai_fetch,
             commands::ai_keys,
             commands::ai_key_set,
+            commands::voice_speak,
+            commands::voice_transcribe,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

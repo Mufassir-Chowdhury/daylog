@@ -18,7 +18,9 @@
 	import { loadDevicePrefs, saveDevicePrefs } from '$lib/ai/device';
 	import { loadAdapter } from '$lib/ai';
 	import { ALL_TOOLS } from '$lib/ai/tools';
-	import { keyStatus, saveKey } from '$lib/ai/transport';
+	import { hasVoiceKey, keyStatus, saveKey } from '$lib/ai/transport';
+	import { listVoices, pickAssistantVoice, TTS_MODELS, type VoiceInfo } from '$lib/ai/voice';
+	import { refreshVoice, speak, voice } from '$lib/ai/voice.svelte';
 	import { PROVIDERS, type ModelInfo, type ModelSlot, type ProviderId } from '$lib/ai/types';
 	import {
 		cleanMemoryText,
@@ -206,6 +208,56 @@
 	function setPermission(tool: string, auto: boolean) {
 		config.permissions[tool] = auto ? 'auto' : 'ask';
 		persist();
+	}
+
+	// ——— Voice (this device): on only while an ElevenLabs key is saved here.
+	let voiceKey = $state(false);
+	let voiceKeyInput = $state('');
+	let voiceBusy = $state(false);
+	let voices: VoiceInfo[] = $state([]);
+	let voiceProblem = $state('');
+	const recommended = $derived(pickAssistantVoice(voices));
+
+	async function loadVoices() {
+		voiceProblem = '';
+		try {
+			voices = await listVoices();
+			// Nothing chosen yet: take the most JARVIS-like one.
+			if (!prefs.voice.voiceId && recommended) {
+				prefs.voice.voiceId = recommended.id;
+				persistDevice();
+			}
+		} catch (e) {
+			voiceProblem = e instanceof Error ? e.message : String(e);
+		}
+	}
+
+	hasVoiceKey().then((has) => {
+		voiceKey = has;
+		if (has) loadVoices();
+	});
+
+	async function storeVoiceKey(key: string | null) {
+		voiceBusy = true;
+		try {
+			await saveKey('elevenlabs', key);
+			voiceKey = await hasVoiceKey();
+			voiceKeyInput = '';
+			await refreshVoice();
+			if (voiceKey) await loadVoices();
+			else voices = [];
+		} catch (e) {
+			toast(`Couldn't save the key: ${e instanceof Error ? e.message : e}`, { tone: 'error' });
+		} finally {
+			voiceBusy = false;
+		}
+	}
+
+	let preview: HTMLAudioElement | null = null;
+	function playPreview(url: string) {
+		preview?.pause();
+		preview = new Audio(url);
+		preview.play().catch(() => {});
 	}
 
 	// ——— Suggestions it makes on its own (synced): muted kinds and how each was received.
@@ -485,6 +537,136 @@
 						calls behind it.
 					</p>
 				</details>
+			{/if}
+		</div>
+
+		<!-- Voice (this device) -->
+		<div class="space-y-2">
+			<div>
+				<p class={subhead}>Voice</p>
+				<p class="text-xs text-faint">
+					Talk to {config.name || 'Jarvis'} with the mic in its panel and hear replies, through ElevenLabs.
+					{voiceKey
+						? 'On for this device.'
+						: 'Off until you add an ElevenLabs API key for this device.'} Your speech and the replies
+					it reads go to ElevenLabs; the key stays on this device.
+				</p>
+			</div>
+			{#if !voiceKey}
+				<form
+					class="flex flex-wrap items-end gap-2"
+					onsubmit={(e) => {
+						e.preventDefault();
+						storeVoiceKey(voiceKeyInput);
+					}}
+				>
+					<label class="block">
+						<span class="text-sm text-mute">ElevenLabs API key</span>
+						<input
+							type="password"
+							bind:value={voiceKeyInput}
+							autocomplete="off"
+							spellcheck="false"
+							placeholder="sk_…"
+							class="{input} w-72 font-mono"
+						/>
+					</label>
+					<button
+						type="submit"
+						disabled={voiceBusy || !voiceKeyInput.trim()}
+						class="rounded-ctl bg-accent-fill px-3 py-2 text-sm font-medium text-on-accent hover:opacity-90 disabled:opacity-50"
+					>
+						{voiceBusy ? 'Saving…' : 'Turn on voice'}
+					</button>
+				</form>
+				<p class="text-xs text-faint">
+					Create one at elevenlabs.io → Developers → API keys, with text to speech, speech to text
+					and voices allowed.
+				</p>
+			{:else}
+				<div class="flex flex-wrap items-end gap-3">
+					<label class="block">
+						<span class="text-sm text-mute">Voice</span>
+						<select
+							bind:value={prefs.voice.voiceId}
+							onchange={persistDevice}
+							aria-label="Voice"
+							class="{input} w-72"
+						>
+							{#if !voices.length}<option value={prefs.voice.voiceId}>Loading voices…</option>{/if}
+							{#each voices as v (v.id)}
+								<option value={v.id}
+									>{v.name}{v.accent ? ` · ${v.accent}` : ''}{v.id === recommended?.id
+										? ' (recommended)'
+										: ''}</option
+								>
+							{/each}
+						</select>
+					</label>
+					{#if voices.find((v) => v.id === prefs.voice.voiceId)?.previewUrl}
+						<button
+							type="button"
+							onclick={() =>
+								playPreview(voices.find((v) => v.id === prefs.voice.voiceId)!.previewUrl)}
+							class="rounded-ctl border border-line px-3 py-2 text-sm text-mute hover:bg-tint hover:text-ink"
+							>Preview</button
+						>
+					{/if}
+					<label class="block">
+						<span class="text-sm text-mute">Model</span>
+						<select bind:value={prefs.voice.model} onchange={persistDevice} class={input}>
+							{#each TTS_MODELS as m (m.id)}<option value={m.id}>{m.label}</option>{/each}
+						</select>
+					</label>
+					<label class="block">
+						<span class="text-sm text-mute">Language</span>
+						<input
+							bind:value={prefs.voice.language}
+							onchange={() => {
+								prefs.voice.language = /^[a-z]{2,3}$/.test(
+									prefs.voice.language.trim().toLowerCase()
+								)
+									? prefs.voice.language.trim().toLowerCase()
+									: '';
+								persistDevice();
+							}}
+							placeholder="auto"
+							maxlength="3"
+							aria-label="Speech language"
+							class="{input} w-20"
+						/>
+					</label>
+				</div>
+				<label class="flex items-center gap-2 text-sm text-ink">
+					<input
+						type="checkbox"
+						bind:checked={prefs.voice.speakReplies}
+						onchange={persistDevice}
+						class={check}
+					/>
+					Read replies aloud when I ask by voice
+				</label>
+				<div class="flex flex-wrap items-center gap-3 text-sm">
+					<button
+						type="button"
+						onclick={() =>
+							speak(
+								`Voice is ready${addressName(config, displayName) ? `, ${addressName(config, displayName)}` : ''}. I'll read my replies like this, and you can stop me any time.`
+							)}
+						disabled={voice.speaking}
+						class="rounded-ctl border border-line px-3 py-1.5 text-mute hover:bg-tint hover:text-ink disabled:opacity-50"
+						>{voice.speaking ? 'Speaking…' : 'Test the voice'}</button
+					>
+					<button
+						type="button"
+						onclick={() => storeVoiceKey(null)}
+						disabled={voiceBusy}
+						class="text-sm text-mute hover:text-red-600">Remove key and turn voice off</button
+					>
+				</div>
+				{#if voiceProblem || voice.error}
+					<p class="text-xs text-red-600 dark:text-red-400">{voiceProblem || voice.error}</p>
+				{/if}
 			{/if}
 		</div>
 

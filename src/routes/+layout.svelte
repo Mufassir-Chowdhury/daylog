@@ -10,6 +10,7 @@
 	import { startInbox } from '$lib/ai/inbox.svelte';
 	import { startLease } from '$lib/ai/lease.svelte';
 	import { startFocusCoach } from '$lib/ai/focus-coach';
+	import { refreshVoice } from '$lib/ai/voice.svelte';
 	import { notifyAbout, runBackgroundWork, runCapture } from '$lib/ai/engine';
 	import { captureCandidates } from '$lib/ai/capture';
 	import { appendToDay } from '$lib/capture';
@@ -108,6 +109,8 @@
 		const uid = session.user?.uid;
 		if (!uid || isQuick) return;
 		const displayName = session.user?.displayName ?? null;
+		// Voice mode is on only while an ElevenLabs key is saved on this device.
+		refreshVoice();
 		const stopInbox = startInbox(uid);
 		const stopLease = startLease(uid, {
 			kind: desktop ? 'desktop' : 'web',

@@ -7,18 +7,23 @@
  *   request (src-tauri/src/ai.rs), adding the key itself — the page never
  *   holds it.
  *
- * Either way the key is never synced to your account.
+ * Either way the key is never synced to your account. The same goes for the
+ * ElevenLabs key that turns on voice mode (`voice.ts`).
  */
 import { desktop } from '../desktop';
 import { deviceStorage, type KV } from './storage';
 import { AiError, type ProviderId } from './types';
 
-const KEY_HEADER: Record<ProviderId, string> = {
+/** The services whose keys live on this device: the AI providers, and ElevenLabs for voice. */
+export type KeyedService = ProviderId | 'elevenlabs';
+
+const KEY_HEADER: Record<KeyedService, string> = {
 	anthropic: 'x-api-key',
-	gemini: 'x-goog-api-key'
+	gemini: 'x-goog-api-key',
+	elevenlabs: 'xi-api-key'
 };
 
-const storageKey = (provider: ProviderId) => `daylog.ai.key.${provider}`;
+const storageKey = (provider: KeyedService) => `daylog.ai.key.${provider}`;
 
 const noKey = () =>
 	new AiError('no_key', 'No API key on this device yet — add one in Settings → Assistant.');
@@ -37,9 +42,20 @@ export async function keyStatus(
 	};
 }
 
+/** Whether an ElevenLabs key is saved on this device — voice mode is on only then. */
+export async function hasVoiceKey(storage: KV = deviceStorage()): Promise<boolean> {
+	if (desktop) return !!(await desktop.aiKeys()).elevenlabs;
+	return !!storage.getItem(storageKey('elevenlabs'));
+}
+
+/** The ElevenLabs key itself, for the web's direct calls (never on the desktop). */
+export function webVoiceKey(storage: KV = deviceStorage()): string | null {
+	return desktop ? null : storage.getItem(storageKey('elevenlabs'));
+}
+
 /** Saves a key on this device, or removes it with null. Throws when the OS store refuses. */
 export async function saveKey(
-	provider: ProviderId,
+	provider: KeyedService,
 	key: string | null,
 	storage: KV = deviceStorage()
 ): Promise<void> {
@@ -54,7 +70,7 @@ export async function saveKey(
 }
 
 /** A `fetch` for one provider's API that adds that provider's key on the way out. */
-export function providerFetch(provider: ProviderId, storage: KV = deviceStorage()): typeof fetch {
+export function providerFetch(provider: KeyedService, storage: KV = deviceStorage()): typeof fetch {
 	if (desktop) return desktopFetch(provider);
 	return async (input, init) => {
 		const key = storage.getItem(storageKey(provider));
@@ -65,7 +81,7 @@ export function providerFetch(provider: ProviderId, storage: KV = deviceStorage(
 	};
 }
 
-function desktopFetch(provider: ProviderId): typeof fetch {
+function desktopFetch(provider: KeyedService): typeof fetch {
 	const bridge = desktop!;
 	return async (input, init) => {
 		const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;

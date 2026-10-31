@@ -56,6 +56,8 @@ export interface ContextInfo {
 	address: string;
 	/** The page being looked at, e.g. "Finance page (/finance?month=2026-10)". */
 	view: string;
+	/** The owner spoke this message (voice mode); the reply will be read aloud. */
+	spoken?: boolean;
 }
 
 const FULL_DATE = new Intl.DateTimeFormat('en-GB', {
@@ -67,14 +69,19 @@ const FULL_DATE = new Intl.DateTimeFormat('en-GB', {
 const CLOCK = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 
 /** Today's facts, sent in front of each message. */
-export function contextBlock({ now, config, address, view }: ContextInfo): string {
+export function contextBlock({ now, config, address, view, spoken }: ContextInfo): string {
 	const hidden = DATA_AREAS.filter((a) => !config.areas[a.id as DataArea]).map((a) => a.label);
 	const lines = [
 		`Now: ${FULL_DATE.format(now)}, ${CLOCK.format(now)}`,
 		`Your name: ${config.name}`,
 		`Address the owner as: ${address || '(no name given — skip the form of address)'}`,
 		`The owner is looking at: ${view}`,
-		...(hidden.length ? [`Hidden from you: ${hidden.join(', ')}`] : [])
+		...(hidden.length ? [`Hidden from you: ${hidden.join(', ')}`] : []),
+		...(spoken
+			? [
+					'The owner spoke this message and will hear your reply read aloud: answer in one to three natural spoken sentences — no lists, symbols or ids — and offer more detail on screen if there is any.'
+				]
+			: [])
 	];
 	return `<context>\n${lines.join('\n')}\n</context>`;
 }

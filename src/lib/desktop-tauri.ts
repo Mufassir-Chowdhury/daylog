@@ -110,6 +110,15 @@ export function tauriBridge(): DesktopBridge {
 		onAssistantTick: (callback) => listen('assistant:tick', () => callback()),
 		aiFetch: (request) => invoke('ai_fetch', { request }),
 		aiKeys: () => invoke('ai_keys'),
-		setAiKey: (provider, key) => invoke('ai_key_set', { provider, key })
+		setAiKey: (provider, key) => invoke('ai_key_set', { provider, key }),
+		voiceSpeak: (request) => invoke<ArrayBuffer>('voice_speak', { request }),
+		voiceTranscribe: (audio, { mime, model, language }) =>
+			invoke<string>('voice_transcribe', audio, {
+				headers: {
+					'x-mime': mime,
+					'x-model': model,
+					...(language ? { 'x-language': language } : {})
+				}
+			})
 	};
 }
