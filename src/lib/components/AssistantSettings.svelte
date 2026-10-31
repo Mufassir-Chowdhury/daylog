@@ -12,6 +12,7 @@
 		type Checkin
 	} from '$lib/ai/config';
 	import { runCheckin } from '$lib/ai/checkin';
+	import { holderId, lease } from '$lib/ai/lease.svelte';
 	import { loadDevicePrefs, saveDevicePrefs } from '$lib/ai/device';
 	import { loadAdapter } from '$lib/ai';
 	import { ALL_TOOLS } from '$lib/ai/tools';
@@ -63,6 +64,18 @@
 		]);
 		persist();
 	}
+
+	/** Who looks after the check-ins, in words. */
+	const looksAfter = $derived.by(() => {
+		const current = lease.current;
+		if (lease.held || current?.holder === holderId) return 'This window looks after them.';
+		if (!current || current.until <= Date.now())
+			return 'No device is looking after them right now — one needs an API key and an open window.';
+		if (current.kind === 'desktop') return 'The desktop app looks after them.';
+		return current.holder.split(':')[0] === holderId.split(':')[0]
+			? 'Another tab in this browser looks after them.'
+			: 'A browser on another device looks after them.';
+	});
 
 	/** The check-in being run by hand, if any. */
 	let running: string | null = $state(null);
@@ -404,6 +417,7 @@
 						page.)</span
 					>
 				</p>
+				<p class="text-xs text-faint" aria-live="polite">{looksAfter}</p>
 			</div>
 			{#each config.checkins as checkin (checkin.id)}
 				<div class="flex flex-wrap items-center gap-2">

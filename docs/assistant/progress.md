@@ -13,7 +13,7 @@ that differs from the plan, and say what comes next.
 | 2    | Tool registry and chat          | ✅ done 2026-10-30           |
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30           |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30           |
-| 5    | Proactive engine (5.1–5.7)      | 5.1–5.2 ✅ · ⏭ **next: 5.3** |
+| 5    | Proactive engine (5.1–5.7)      | 5.1–5.3 ✅ · ⏭ **next: 5.4** |
 | 6    | Feature packs                   | not started                  |
 | 7    | Evaluation and tuning           | not started                  |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled        |
@@ -409,7 +409,7 @@ engine and two detectors that prove it.
 | ------ | --------------------------------- | --------------------------------------------------------------------------------------------------- |
 | 5.1 ✅ | Background runs                   | "Run now" next to a check-in in Settings fills the Inbox with a brief and any proposals             |
 | 5.2 ✅ | When to run (pure scheduler)      | unit tests: due, missed earlier today, already done, quiet hours, daily card limit                  |
-| 5.3    | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
+| 5.3 ✅ | One device at a time (lease)      | with two tabs/devices open only one runs a check-in; closing it lets another take over              |
 | 5.4    | Web triggers                      | a tab left open past 17:00 gets the brief                                                           |
 | 5.5    | Desktop wake-ups (`assistant.rs`) | the desktop app in the tray delivers the 08:00 warm-up on time                                      |
 | 5.6    | Detectors + `schedule_checkin`    | unit tests per detector; a carried-over line gives one card, not one per run                        |
@@ -480,9 +480,31 @@ device }`, stored at `assistantCheckins/{date}_{checkinId}`.
 
 ### 5.3 — Lease
 
-- `assistant/lease { deviceId, kind: desktop | web, until }`, taken in a Firestore transaction,
+- `assistant/lease { holder, kind: desktop | web, until }`, taken in a Firestore transaction,
   renewed every minute while open, lasting 3 minutes. Desktop beats web; web takes over an
   expired lease.
+
+**Done 2026-10-31.** Built:
+
+- `src/lib/ai/lease.ts` (pure): `Lease`, `LEASE_FOR` (3 min), `RENEW_EVERY` (1 min),
+  `mayTake(current, me, now)` — free or lapsed, already mine, or desktop over web.
+- `db.ts`: `takeLease` (transaction around `mayTake`), `releaseLease` (only if mine),
+  `watchLease`.
+- `src/lib/ai/lease.svelte.ts`: `lease { held, current }`; `holderId` = device id + a per-page
+  suffix, so **two tabs of one browser are different holders**; `startLease(uid, { kind,
+onHeld?, eligible? })` tries every minute, releases on `pagehide` and on stop, and drops
+  `held` when the watch shows someone else (the desktop app) took it. Only a page that
+  `canRunCheckins()` (key for its provider + background budget left) competes, so a device
+  without a key never blocks one with a key. `onHeld` is where 5.4 runs what's due.
+- Layout: the lease starts with the Inbox for a signed-in window (not the quick bar), kind
+  `desktop` in the app, `web` otherwise.
+- Settings → Check-ins says who looks after them: this window, the desktop app, another tab in
+  this browser, a browser on another device, or nobody (needs a key and an open window).
+- Tests: `lease.spec.ts` — the take-over rule, take + renew + release, noticing the desktop
+  taking over, not competing without a key. Totals: 32 files, 281 tests; lint, types, both
+  builds, e2e OK.
+- The "only one runs" half of the done-when is proven once 5.4 runs check-ins from `onHeld`;
+  the claim in 5.2 already stops a double run even if two pages held it at once.
 
 ### 5.4 — Web triggers
 

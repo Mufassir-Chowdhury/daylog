@@ -22,6 +22,7 @@ import type { InboxItem } from './ai/inbox';
 import type { MemoryItem } from './ai/memory';
 import { nextAttempt, recordId, type CheckinRecord } from './ai/scheduler';
 import type { Checkin } from './ai/config';
+import { LEASE_FOR, mayTake, type HolderKind, type Lease } from './ai/lease';
 import { cleanGoals } from './activity';
 import { db } from './firebase';
 import { extractMentions, stripMention } from './parse';
@@ -231,6 +232,7 @@ const memoryCol = (uid: string) => collection(db, 'users', uid, 'assistantMemory
 const inboxCol = (uid: string) => collection(db, 'users', uid, 'assistantInbox');
 const threadsCol = (uid: string) => collection(db, 'users', uid, 'assistantThreads');
 const checkinsCol = (uid: string) => collection(db, 'users', uid, 'assistantCheckins');
+const leaseDoc = (uid: string) => doc(db, 'users', uid, 'assistant', 'lease');
 
 export async function loadSettings(uid: string): Promise<Partial<AppSettings>> {
 	const snap = await getDoc(settingsDoc(uid));
@@ -411,6 +413,46 @@ export async function claimCheckin(
 
 export async function saveCheckinRecord(uid: string, record: CheckinRecord): Promise<void> {
 	await setDoc(doc(checkinsCol(uid), recordId(record.date, record.checkinId)), record);
+}
+
+function toLease(data: Record<string, unknown> | undefined): Lease | null {
+	if (!data) return null;
+	return {
+		holder: String(data.holder ?? ''),
+		kind: data.kind === 'desktop' ? 'desktop' : 'web',
+		until: Number(data.until ?? 0)
+	};
+}
+
+/**
+ * Takes or renews the check-in lease for `holder` when it may (see `mayTake`).
+ * Returns whether it holds the lease now. A transaction; needs the network.
+ */
+export async function takeLease(uid: string, holder: string, kind: HolderKind): Promise<boolean> {
+	const ref = leaseDoc(uid);
+	return runTransaction(db, async (tx) => {
+		const now = Date.now();
+		if (!mayTake(toLease((await tx.get(ref)).data()), { holder, kind }, now)) return false;
+		tx.set(ref, { holder, kind, until: now + LEASE_FOR } satisfies Lease);
+		return true;
+	});
+}
+
+/** Gives the lease up, if `holder` has it, so another device can take over at once. */
+export async function releaseLease(uid: string, holder: string): Promise<void> {
+	const ref = leaseDoc(uid);
+	await runTransaction(db, async (tx) => {
+		if (toLease((await tx.get(ref)).data())?.holder === holder) tx.delete(ref);
+	});
+}
+
+/** Live view of who holds the lease; returns an unsubscribe function. */
+export function watchLease(uid: string, callback: (lease: Lease | null) => void): () => void {
+	return onSnapshot(
+		leaseDoc(uid),
+		(snap) => callback(toLease(snap.data())),
+		() => callback(null)
+	);
 }
 
 /** Deletes all but the newest `keep` conversations. */
