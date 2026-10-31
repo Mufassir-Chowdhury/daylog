@@ -14,7 +14,7 @@ that differs from the plan, and say what comes next.
 | 3    | Write tools, bubbles, approvals | ✅ done 2026-10-30                                |
 | 4    | Memory and Inbox                | ✅ done 2026-10-30                                |
 | 5    | Proactive engine (5.1–5.7)      | ✅ done 2026-10-31                                |
-| 6    | Feature packs                   | 6.1–6.6 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.7** |
+| 6    | Feature packs                   | 6.1–6.7 ✅ (6.1–6.2 first pass) · ⏭ **next: 6.8** |
 | 7    | Evaluation and tuning           | not started                                       |
 | —    | Voice mode (ElevenLabs)         | future, not scheduled                             |
 
@@ -640,7 +640,7 @@ The engine is in place; Step 6 makes each feature good. In the plan's order (num
 - [x] **6.4 Deadline planner** — done 2026-10-31 (below)
 - [x] **6.5 Weekly review** — done 2026-10-31 (below)
 - [x] **6.6 Pre-event prep and person briefs** — done 2026-10-31 (below)
-- [ ] **6.7 Money watch** — pace well ahead of last month, unusual transactions, debts > 30 days
+- [x] **6.7 Money watch** — done 2026-10-31 (below)
 - [ ] **6.8 Focus coach** (desktop, opt-in) — at most one nudge an hour
 
 ### 6.1–6.2 — Warm-up and briefs, first pass (2026-10-31)
@@ -757,3 +757,24 @@ min, today, nowMinutes)` — free blocks between 08:00 and 22:00, with classes a
   in `engine.spec.ts` (once, cached schedule, muted, quiet hours, nothing coming). Totals: 40
   files, 337 tests; lint, types, both builds, e2e OK.
 - Evals 31–32.
+
+### 6.7 — Money watch (2026-10-31)
+
+- `src/lib/ai/detectors/money.ts` (pure), part of the 30-minute scan when Finance is visible
+  (`DetectorData.transactions`, loaded by the engine only then):
+  - `spendingPace` — day-to-day spending (fixed bills left out) this month against last month up
+    to the same day; raised at **20%, 50%, 100%, 200% ahead** (key `money:pace:<month>:<band>`,
+    so once per band), only once this month is past three typical days of last month; priority
+    2 from 50% (notifies).
+  - `unusualExpense` — an expense in the last two days at **3× its category's 90-day median** or
+    more, given 5+ earlier ones; facts: that day's money and page; may propose
+    `update_transaction` only when the right amount is clear (an extra zero).
+  - `openDebts` — a balance with someone open **over 30 days** (`openSince` restarts the clock
+    when it settles or flips); key includes the 30-day period and amount, so once a month and
+    again if it changes; facts: `get_person`; no cards.
+- Settings: "Money watch: spending pace, unusual expenses, debts left open" (mute there or on a
+  card).
+- Tests: `money.spec.ts` (bands, fixed bills, early month, no history; 3× with enough history,
+  last two days; open-since with settling, monthly reminders, both directions). Totals: 41 files,
+  344 tests; lint, types, both builds, e2e OK.
+- Evals 33–34.

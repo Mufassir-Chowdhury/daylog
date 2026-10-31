@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
 	listDeadlines: vi.fn(async () => []),
 	listTasks: vi.fn(async () => []),
 	listSlots: vi.fn(async () => []),
+	listTransactions: vi.fn(async () => []),
 	listEvents: vi.fn(async () => [] as unknown[]),
 	listSignalKeys: vi.fn(async () => new Set<string>()),
 	claimSignal: vi.fn(async () => true),

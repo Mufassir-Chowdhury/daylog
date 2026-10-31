@@ -17,7 +17,8 @@ export const SUGGESTION_TYPES = [
 	{ id: 'carryover', label: 'Carry over lines left open yesterday' },
 	{ id: 'deadline', label: 'Plan tasks for a deadline coming up' },
 	{ id: 'capture', label: 'Turn money, dates and cancellations you type into cards' },
-	{ id: 'prep', label: 'Prep notes before meetings, exams and classes with open tasks' }
+	{ id: 'prep', label: 'Prep notes before meetings, exams and classes with open tasks' },
+	{ id: 'money', label: 'Money watch: spending pace, unusual expenses, debts left open' }
 ] as const;
 
 export interface TypeFeedback {
