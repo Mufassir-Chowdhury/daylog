@@ -14,14 +14,17 @@
 	} from '$lib/db';
 	import {
 		CATEGORIES,
+		feeTransaction,
 		formatMoney,
 		hasCategory as kindHasCategory,
-		SUGGESTED_ACCOUNTS
+		SUGGESTED_ACCOUNTS,
+		takesFee
 	} from '$lib/finance';
 	import { isValidHandle } from '$lib/parse';
 	import { loadTxnPrefs, rememberCategory, rememberGroup, saveTxnPrefs } from '$lib/prefs';
 	import { settings } from '$lib/settings.svelte';
 	import { saveFailed, toast } from '$lib/toast.svelte';
+	import CategorySelect from './CategorySelect.svelte';
 	import TransactionRow from './TransactionRow.svelte';
 
 	let {
@@ -74,6 +77,7 @@
 	// svelte-ignore state_referenced_locally
 	let txnDate = $state(date);
 	let amount = $state('');
+	let fee = $state('');
 	let category = $state('');
 	let from = $state(validAccount(prefs.from) || accounts[0]?.id || '');
 	let to = $state(validAccount(prefs.to) || accounts[0]?.id || '');
@@ -99,6 +103,7 @@
 	const needsTo = $derived.by(() => kind !== 'expense' && kind !== 'lend');
 	const needsPerson = $derived.by(() => kind === 'lend' || kind === 'borrow');
 	const hasCategory = $derived(kindHasCategory(kind));
+	const hasFee = $derived(takesFee(kind));
 
 	function suggestions(k: TransactionKind): string[] {
 		if (suggest) return suggest(k);
@@ -179,6 +184,8 @@
 		if (needsTo && !to) return (invalid = 'Pick the account the money went into.');
 		if (needsPerson && !person) return (invalid = 'Pick a person.');
 		if (kind === 'transfer' && from === to) return (invalid = 'Pick two different accounts.');
+		const feeValue = hasFee && fee !== '' ? Number(fee) : 0;
+		if (!(feeValue >= 0)) return (invalid = 'The fee can’t be negative.');
 		const cat = hasCategory ? category.trim() || 'other' : kind;
 		const txn: Transaction = {
 			id: newTransactionId(uid),
@@ -194,8 +201,11 @@
 			group: group.trim() || null,
 			createdAt: Date.now()
 		};
-		txns = [...txns, txn];
+		// A fee is its own expense, so spending totals and the fee category see it.
+		const feeTxn = feeValue > 0 ? feeTransaction(txn, feeValue, newTransactionId(uid)) : null;
+		txns = feeTxn ? [...txns, txn, feeTxn] : [...txns, txn];
 		amount = '';
+		fee = '';
 		category = '';
 		note = '';
 		fixed = false;
@@ -206,7 +216,9 @@
 		if (txn.group) rememberGroup(prefs, txn.group);
 		saveTxnPrefs(prefs);
 		saveTransaction(uid, txn).catch(saveFailed);
-		if (embedded) toast(`Added ${kind} of ${formatMoney(value)} on ${txn.date}.`);
+		if (feeTxn) saveTransaction(uid, feeTxn).catch(saveFailed);
+		const feeText = feeTxn ? ` + ${formatMoney(feeTxn.amount)} fee` : '';
+		if (embedded) toast(`Added ${kind} of ${formatMoney(value)}${feeText} on ${txn.date}.`);
 	}
 
 	function removeTxn(txn: Transaction) {
@@ -418,21 +430,32 @@
 					class="w-28 {field}"
 				/>
 			</label>
+			{#if hasFee}
+				<label
+					class="flex flex-col gap-0.5 text-xs text-mute"
+					title="Charged on top — saved as a separate “Transaction Fee” expense from the same account"
+				>
+					Fee (optional)
+					<input
+						type="number"
+						min="0"
+						step="any"
+						inputmode="decimal"
+						bind:value={fee}
+						placeholder="0"
+						class="w-24 {field}"
+					/>
+				</label>
+			{/if}
 			{#if hasCategory}
 				<label class="flex flex-col gap-0.5 text-xs text-mute">
 					Category
-					<input
-						type="text"
+					<CategorySelect
 						bind:value={category}
-						list="finance-categories-{kind}"
-						placeholder={suggestions(kind)[0]}
-						class="w-32 {field}"
+						{kind}
+						base={suggestions(kind)}
+						class="w-36 {field}"
 					/>
-					<datalist id="finance-categories-{kind}">
-						{#each suggestions(kind) as c (c)}
-							<option value={c}></option>
-						{/each}
-					</datalist>
 				</label>
 			{/if}
 			{#if kind === 'borrow'}

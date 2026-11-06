@@ -1323,3 +1323,13 @@ export async function saveActivityGoals(
 	if (goals === null) await deleteDoc(ref);
 	else await setDoc(ref, { goals, updatedAt: serverTimestamp() });
 }
+
+/** Rewrites many transactions at once (a category rename or merge), in batches. */
+export async function saveTransactions(uid: string, txns: Transaction[]): Promise<void> {
+	for (let i = 0; i < txns.length; i += 450) {
+		const batch = writeBatch(db);
+		for (const { id, ...rest } of txns.slice(i, i + 450))
+			batch.set(doc(txnsCol(uid), id), { ...rest, updatedAt: serverTimestamp() });
+		await batch.commit();
+	}
+}

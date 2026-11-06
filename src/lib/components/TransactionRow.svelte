@@ -3,6 +3,7 @@
 	import { fromKey, isValidKey } from '$lib/date';
 	import type { Account, Person, Transaction, TransactionKind } from '$lib/db';
 	import { CATEGORIES, hasCategory as kindHasCategory, signedAmount } from '$lib/finance';
+	import CategorySelect from './CategorySelect.svelte';
 
 	let {
 		txn,
@@ -151,18 +152,13 @@
 		{#if hasCategory}
 			<label class="flex flex-col gap-0.5 text-xs text-mute">
 				Category
-				<input
-					onkeydown={esc}
-					type="text"
+				<CategorySelect
 					bind:value={category}
-					list="txn-categories-{txn.id}"
-					class="w-32 {input}"
+					kind={txn.kind}
+					base={suggest(txn.kind)}
+					onkeydown={esc}
+					class="w-36 {input}"
 				/>
-				<datalist id="txn-categories-{txn.id}">
-					{#each suggest(txn.kind) as c (c)}
-						<option value={c}></option>
-					{/each}
-				</datalist>
 			</label>
 		{/if}
 		{#if needsPerson}

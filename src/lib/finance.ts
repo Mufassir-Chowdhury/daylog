@@ -4,9 +4,19 @@ import { settings } from './settings.svelte';
 
 export { monthOf };
 
-/** Suggested category presets per kind — the UI also accepts free text. */
+/** Suggested category presets per kind — users can add their own from the dropdown. */
 export const CATEGORIES: Record<TransactionKind, string[]> = {
-	expense: ['payment', 'lunch', 'transport', 'donation', 'gift', 'shopping', 'bills', 'other'],
+	expense: [
+		'payment',
+		'lunch',
+		'transport',
+		'donation',
+		'gift',
+		'shopping',
+		'bills',
+		'Transaction Fee',
+		'other'
+	],
 	income: ['salary', 'income', 'bonus', 'gift', 'other'],
 	transfer: ['transfer'],
 	lend: ['lend'],
@@ -39,6 +49,99 @@ export function categorySuggestions(txns: Transaction[], kind: TransactionKind):
 		.sort((a, b) => b[1] - a[1])
 		.map(([c]) => c);
 	return [...CATEGORIES[kind], ...custom];
+}
+
+/**
+ * The category dropdown's options for a kind: the base list (presets and past
+ * picks), then the user's own additions from settings — no duplicates.
+ */
+export function categoryOptions(kind: TransactionKind, base: string[]): string[] {
+	if (kind !== 'income' && kind !== 'expense') return [...new Set(base.filter(Boolean))];
+	const hidden = new Set(settings.hiddenCategories[kind]);
+	return [...new Set([...base, ...settings.customCategories[kind]])].filter(
+		(c) => c && !hidden.has(c)
+	);
+}
+
+/** Category given to the separate expense a fee creates. */
+export const FEE_CATEGORY = 'Transaction Fee';
+
+/** Kinds where money leaves one of your accounts, so a fee can ride along. */
+export const takesFee = (kind: TransactionKind) =>
+	kind === 'expense' || kind === 'lend' || kind === 'transfer';
+
+/**
+ * The expense recording a fee paid on `txn` — same day, account and group, so it
+ * shows up next to it and counts as spending under "Transaction Fee".
+ */
+export function feeTransaction(txn: Transaction, fee: number, id: string): Transaction {
+	const what = hasCategory(txn.kind) ? txn.category : txn.kind;
+	return {
+		id,
+		date: txn.date,
+		kind: 'expense',
+		category: FEE_CATEGORY,
+		amount: fee,
+		from: txn.from,
+		to: null,
+		person: null,
+		note: txn.note ? `fee on ${what} · ${txn.note}` : `fee on ${what}`,
+		fixed: false,
+		group: txn.group,
+		createdAt: txn.createdAt + 1
+	};
+}
+
+export type CategoryKind = 'income' | 'expense';
+
+export interface ManagedCategory {
+	name: string;
+	/** Transactions currently filed under it. */
+	count: number;
+	preset: boolean;
+}
+
+/**
+ * Every category the user can manage for a kind: visible presets, their own
+ * additions, and anything transactions still use — presets first, then by use.
+ */
+export function manageableCategories(txns: Transaction[], kind: CategoryKind): ManagedCategory[] {
+	const counts = new Map<string, number>();
+	for (const t of txns)
+		if (t.kind === kind && t.category) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+	const hidden = new Set(settings.hiddenCategories[kind]);
+	const names = [
+		...CATEGORIES[kind].filter((c) => !hidden.has(c)),
+		...settings.customCategories[kind],
+		...[...counts.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c)
+	];
+	return [...new Set(names)].map((name) => ({
+		name,
+		count: counts.get(name) ?? 0,
+		preset: CATEGORIES[kind].includes(name)
+	}));
+}
+
+/**
+ * Moves everything filed under `from` to `to` — a rename when `to` is new, a merge
+ * when it already exists, a removal when it's "other". Returns the transactions to
+ * rewrite and the new custom/hidden lists for this kind; nothing is mutated.
+ */
+export function moveCategory(
+	txns: Transaction[],
+	kind: CategoryKind,
+	from: string,
+	to: string,
+	lists: { custom: string[]; hidden: string[] }
+): { changed: Transaction[]; custom: string[]; hidden: string[] } {
+	if (from === to) return { changed: [], ...lists };
+	const changed = txns
+		.filter((t) => t.kind === kind && t.category === from)
+		.map((t) => ({ ...t, category: to }));
+	const custom = lists.custom.filter((c) => c !== from);
+	if (!CATEGORIES[kind].includes(to) && !custom.includes(to)) custom.push(to);
+	const hidden = [...lists.hidden.filter((c) => c !== to && c !== from), from];
+	return { changed, custom, hidden };
 }
 
 /** Group labels used so far, most recently active first — offered when tagging a transaction. */
