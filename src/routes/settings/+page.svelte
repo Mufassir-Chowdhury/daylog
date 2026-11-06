@@ -13,6 +13,7 @@
 		type Routine
 	} from '$lib/db';
 	import AssistantSettings from '$lib/components/AssistantSettings.svelte';
+	import CategorySettings from '$lib/components/CategorySettings.svelte';
 	import ClaudeSettings from '$lib/components/ClaudeSettings.svelte';
 	import DesktopSettings from '$lib/components/DesktopSettings.svelte';
 	import { desktop } from '$lib/desktop';
@@ -329,6 +330,8 @@
 				</p>
 			</div>
 		</section>
+
+		<CategorySettings />
 
 		<section class="rounded-card border border-line bg-card p-4 shadow-card">
 			<h2 class="mb-3 text-xs font-semibold tracking-wide text-mute uppercase">Day page panels</h2>

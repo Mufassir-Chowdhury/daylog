@@ -27,6 +27,8 @@ export interface AppSettings {
 	showPlanPanel: boolean;
 	/** Income/expense categories the user added to the dropdowns, on top of the presets. */
 	customCategories: CustomCategories;
+	/** Categories removed, renamed or merged away — kept out of the dropdowns, presets included. */
+	hiddenCategories: CustomCategories;
 }
 
 export interface CustomCategories {
@@ -43,7 +45,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	showFinancePanel: true,
 	showRoutinePanel: true,
 	showPlanPanel: true,
-	customCategories: { income: [], expense: [] }
+	customCategories: { income: [], expense: [] },
+	hiddenCategories: { income: [], expense: [] }
 };
 
 /** Live settings — readable anywhere; the root layout applies the stored doc on sign-in. */
@@ -56,7 +59,8 @@ export const settings: AppSettings = $state({ ...DEFAULT_SETTINGS });
 export function applySettings(stored: Partial<AppSettings>): void {
 	const next: AppSettings = {
 		...DEFAULT_SETTINGS,
-		customCategories: { income: [], expense: [] }
+		customCategories: { income: [], expense: [] },
+		hiddenCategories: { income: [], expense: [] }
 	};
 	for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AppSettings)[])
 		take(next, key, stored[key]);
@@ -67,14 +71,14 @@ function take<K extends keyof AppSettings>(next: AppSettings, key: K, value: unk
 	if (value === undefined || typeof value !== typeof DEFAULT_SETTINGS[key]) return;
 	if (key === 'grouping' && value !== 'lakh' && value !== 'thousand') return;
 	if (key === 'theme' && !THEMES.includes(value as Theme)) return;
-	if (key === 'customCategories') {
+	if (key === 'customCategories' || key === 'hiddenCategories') {
 		if (value === null) return;
 		const raw = value as Record<string, unknown>;
 		const list = (v: unknown) =>
 			Array.isArray(v)
 				? [...new Set(v.filter((c): c is string => typeof c === 'string' && c.trim() !== ''))]
 				: [];
-		next.customCategories = { income: list(raw.income), expense: list(raw.expense) };
+		next[key] = { income: list(raw.income), expense: list(raw.expense) } as AppSettings[K];
 		return;
 	}
 	next[key] = value as AppSettings[K];

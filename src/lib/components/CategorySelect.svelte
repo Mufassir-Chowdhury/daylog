@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { session } from '$lib/auth.svelte';
 	import { saveSettings, type TransactionKind } from '$lib/db';
-	import { categoryOptions } from '$lib/finance';
+	import { CATEGORIES, categoryOptions } from '$lib/finance';
 	import { settings } from '$lib/settings.svelte';
 	import { saveFailed } from '$lib/toast.svelte';
 
@@ -47,7 +47,10 @@
 		if (existing) value = existing;
 		else {
 			if (kind === 'income' || kind === 'expense') {
-				settings.customCategories[kind] = [...settings.customCategories[kind], name];
+				// A name removed earlier comes back; a preset only needs un-hiding.
+				settings.hiddenCategories[kind] = settings.hiddenCategories[kind].filter((c) => c !== name);
+				if (!CATEGORIES[kind].includes(name) && !settings.customCategories[kind].includes(name))
+					settings.customCategories[kind] = [...settings.customCategories[kind], name];
 				const uid = session.user?.uid;
 				if (uid) saveSettings(uid, $state.snapshot(settings)).catch(saveFailed);
 			}
