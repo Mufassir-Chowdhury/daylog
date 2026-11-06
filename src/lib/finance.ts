@@ -4,7 +4,7 @@ import { settings } from './settings.svelte';
 
 export { monthOf };
 
-/** Suggested category presets per kind — the UI also accepts free text. */
+/** Suggested category presets per kind — users can add their own from the dropdown. */
 export const CATEGORIES: Record<TransactionKind, string[]> = {
 	expense: ['payment', 'lunch', 'transport', 'donation', 'gift', 'shopping', 'bills', 'other'],
 	income: ['salary', 'income', 'bonus', 'gift', 'other'],
@@ -39,6 +39,15 @@ export function categorySuggestions(txns: Transaction[], kind: TransactionKind):
 		.sort((a, b) => b[1] - a[1])
 		.map(([c]) => c);
 	return [...CATEGORIES[kind], ...custom];
+}
+
+/**
+ * The category dropdown's options for a kind: the base list (presets and past
+ * picks), then the user's own additions from settings — no duplicates.
+ */
+export function categoryOptions(kind: TransactionKind, base: string[]): string[] {
+	const custom = kind === 'income' || kind === 'expense' ? settings.customCategories[kind] : [];
+	return [...new Set([...base, ...custom].filter(Boolean))];
 }
 
 /** Group labels used so far, most recently active first — offered when tagging a transaction. */

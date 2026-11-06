@@ -25,6 +25,13 @@ export interface AppSettings {
 	showFinancePanel: boolean;
 	showRoutinePanel: boolean;
 	showPlanPanel: boolean;
+	/** Income/expense categories the user added to the dropdowns, on top of the presets. */
+	customCategories: CustomCategories;
+}
+
+export interface CustomCategories {
+	income: string[];
+	expense: string[];
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -35,7 +42,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	showLongTermPanel: true,
 	showFinancePanel: true,
 	showRoutinePanel: true,
-	showPlanPanel: true
+	showPlanPanel: true,
+	customCategories: { income: [], expense: [] }
 };
 
 /** Live settings — readable anywhere; the root layout applies the stored doc on sign-in. */
@@ -46,7 +54,10 @@ export const settings: AppSettings = $state({ ...DEFAULT_SETTINGS });
  * malformed keys keep their default, so old docs and foreign fields are safe.
  */
 export function applySettings(stored: Partial<AppSettings>): void {
-	const next: AppSettings = { ...DEFAULT_SETTINGS };
+	const next: AppSettings = {
+		...DEFAULT_SETTINGS,
+		customCategories: { income: [], expense: [] }
+	};
 	for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AppSettings)[])
 		take(next, key, stored[key]);
 	Object.assign(settings, next);
@@ -56,6 +67,16 @@ function take<K extends keyof AppSettings>(next: AppSettings, key: K, value: unk
 	if (value === undefined || typeof value !== typeof DEFAULT_SETTINGS[key]) return;
 	if (key === 'grouping' && value !== 'lakh' && value !== 'thousand') return;
 	if (key === 'theme' && !THEMES.includes(value as Theme)) return;
+	if (key === 'customCategories') {
+		if (value === null) return;
+		const raw = value as Record<string, unknown>;
+		const list = (v: unknown) =>
+			Array.isArray(v)
+				? [...new Set(v.filter((c): c is string => typeof c === 'string' && c.trim() !== ''))]
+				: [];
+		next.customCategories = { income: list(raw.income), expense: list(raw.expense) };
+		return;
+	}
 	next[key] = value as AppSettings[K];
 }
 

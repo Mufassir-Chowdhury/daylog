@@ -22,6 +22,7 @@
 	import { loadTxnPrefs, rememberCategory, rememberGroup, saveTxnPrefs } from '$lib/prefs';
 	import { settings } from '$lib/settings.svelte';
 	import { saveFailed, toast } from '$lib/toast.svelte';
+	import CategorySelect from './CategorySelect.svelte';
 	import TransactionRow from './TransactionRow.svelte';
 
 	let {
@@ -421,18 +422,12 @@
 			{#if hasCategory}
 				<label class="flex flex-col gap-0.5 text-xs text-mute">
 					Category
-					<input
-						type="text"
+					<CategorySelect
 						bind:value={category}
-						list="finance-categories-{kind}"
-						placeholder={suggestions(kind)[0]}
-						class="w-32 {field}"
+						{kind}
+						base={suggestions(kind)}
+						class="w-36 {field}"
 					/>
-					<datalist id="finance-categories-{kind}">
-						{#each suggestions(kind) as c (c)}
-							<option value={c}></option>
-						{/each}
-					</datalist>
 				</label>
 			{/if}
 			{#if kind === 'borrow'}
